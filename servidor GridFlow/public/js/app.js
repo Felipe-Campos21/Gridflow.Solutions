@@ -517,81 +517,211 @@ class GridFlowApp {
     } catch { return `<div class="loading">Erro ao carregar empresas</div>`; }
   }
 
-  // ── Colaboradores (CRUD) ───────────────────────────────────────────────────
+  // ── Colaboradores (CRUD completo) ─────────────────────────────────────────
+  avatarColor(nome) {
+    const cores = ['#4299e1','#48bb78','#ed8936','#9f7aea','#f56565','#38b2ac','#ed64a6','#667eea'];
+    let h = 0;
+    for (let i = 0; i < nome.length; i++) h = nome.charCodeAt(i) + h * 31;
+    return cores[Math.abs(h) % cores.length];
+  }
+
   async renderColaboradores() {
     try {
       const cols = await this.api('/api/colaboradores');
+      this._colsFotoBase64 = '';
       return `
-        <div class="card">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-            <h3 style="margin:0">Colaboradores</h3>
-            <button class="btn btn-primary" id="btn-novo-col">+ Novo Colaborador</button>
-          </div>
-          <div id="form-col" style="display:none;background:#f7fafc;border-radius:8px;padding:16px;margin-bottom:16px">
-            <h4 id="form-col-titulo" style="margin:0 0 12px">Novo Colaborador</h4>
-            <input type="hidden" id="col-id">
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-              <input id="col-nome" type="text" placeholder="Nome completo *" style="padding:8px;border:1px solid #e2e8f0;border-radius:6px">
-              <input id="col-funcao" type="text" placeholder="Função (ex: Contador)" style="padding:8px;border:1px solid #e2e8f0;border-radius:6px">
+        <div style="display:grid;grid-template-columns:1fr 360px;gap:16px;align-items:start">
+
+          <!-- Lista -->
+          <div class="card" style="padding:0;overflow:hidden">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #f0f0f0">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:1.1rem">👥</span>
+                <span style="font-weight:700;text-transform:uppercase;font-size:0.78rem;color:#718096;letter-spacing:.05em">Colaboradores</span>
+              </div>
+              <button class="btn btn-primary" id="btn-novo-col" style="font-size:0.82rem;padding:6px 14px">✦ Novo</button>
             </div>
-            <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;cursor:pointer">
-              <input id="col-admin" type="checkbox"> Administrador
-            </label>
-            <div style="display:flex;gap:8px">
-              <button class="btn btn-primary" id="btn-salvar-col">Salvar</button>
-              <button class="btn" id="btn-cancelar-col">Cancelar</button>
+            <div style="display:grid;grid-template-columns:1fr 110px 100px;padding:8px 20px;border-bottom:1px solid #f0f0f0;background:#f8fafc">
+              <span style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:#a0aec0">Colaborador</span>
+              <span style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:#a0aec0">Perfil</span>
+              <span style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:#a0aec0">Ações</span>
+            </div>
+            ${cols.map(c => `
+              <div style="display:grid;grid-template-columns:1fr 110px 100px;align-items:center;padding:12px 20px;border-bottom:1px solid #f7f7f7;${!c.ativo ? 'opacity:.5' : ''}">
+                <div style="display:flex;align-items:center;gap:12px">
+                  <div style="width:42px;height:42px;border-radius:50%;background:${this.avatarColor(c.nome)};display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:1rem;overflow:hidden;flex-shrink:0">
+                    ${c.foto ? `<img src="${c.foto}" style="width:100%;height:100%;object-fit:cover">` : c.nome.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <div style="font-weight:600;font-size:0.9rem">${c.nome}</div>
+                    <div style="font-size:0.75rem;color:#718096">${c.funcao || 'Sem função'}</div>
+                  </div>
+                </div>
+                <div>
+                  ${c.admin
+                    ? '<span style="background:#fef3c7;color:#d97706;padding:3px 10px;border-radius:20px;font-size:0.73rem;font-weight:600">⭐ Admin</span>'
+                    : '<span style="background:#f0f0f0;color:#718096;padding:3px 10px;border-radius:20px;font-size:0.73rem">👤 Colaborador</span>'}
+                </div>
+                <div style="display:flex;gap:5px">
+                  <button class="btn btn-sm btn-empresas-col" title="Gerenciar empresas"
+                    data-id="${c.id}" data-nome="${c.nome}"
+                    style="padding:5px 8px;background:#ebf8ff;border-color:#bee3f8;color:#2b6cb0">🏢</button>
+                  <button class="btn btn-sm btn-editar-col" title="Editar"
+                    data-id="${c.id}" data-nome="${c.nome}" data-funcao="${c.funcao||''}" data-admin="${c.admin}" data-foto="${c.foto||''}"
+                    style="padding:5px 8px;background:#fefcbf;border-color:#f6e05e;color:#744210">✏️</button>
+                  <button class="btn btn-sm btn-excluir-col" title="${c.ativo ? 'Desativar' : 'Ativar'}"
+                    data-id="${c.id}" data-ativo="${c.ativo}"
+                    style="padding:5px 8px;background:#fff5f5;border-color:#fed7d7;color:#c53030">❌</button>
+                </div>
+              </div>`).join('')}
+          </div>
+
+          <!-- Formulário + Vincular -->
+          <div style="display:flex;flex-direction:column;gap:16px">
+
+            <!-- Form criar/editar -->
+            <div class="card">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+                <span>➕</span>
+                <span id="form-col-titulo" style="font-weight:700;text-transform:uppercase;font-size:0.78rem;color:#718096;letter-spacing:.05em">Novo Colaborador</span>
+              </div>
+              <input type="hidden" id="col-id">
+
+              <div style="margin-bottom:12px">
+                <label style="font-size:0.8rem;font-weight:600;color:#4a5568;display:block;margin-bottom:4px">Nome completo *</label>
+                <input id="col-nome" type="text" placeholder="Ex: João da Silva"
+                  style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem">
+              </div>
+
+              <div style="margin-bottom:12px">
+                <label style="font-size:0.8rem;font-weight:600;color:#4a5568;display:block;margin-bottom:4px">Função / Cargo</label>
+                <input id="col-funcao" type="text" placeholder="Ex: Assistente Financeiro"
+                  style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem">
+              </div>
+
+              <div style="margin-bottom:14px;display:flex;align-items:center;gap:10px">
+                <label class="toggle-ativo" style="margin:0">
+                  <input id="col-admin" type="checkbox">
+                  <span class="toggle-slider"></span>
+                </label>
+                <span style="font-size:0.85rem;color:#4a5568">Administrador
+                  <span style="color:#718096;font-size:0.76rem">(acesso total)</span></span>
+              </div>
+
+              <div style="margin-bottom:16px">
+                <label style="font-size:0.8rem;font-weight:600;color:#4a5568;display:block;margin-bottom:6px">
+                  Foto <span style="color:#718096;font-weight:400">(opcional — PNG ou JPG)</span>
+                </label>
+                <div style="display:flex;align-items:center;gap:12px">
+                  <div id="col-foto-preview"
+                    style="width:50px;height:50px;border-radius:50%;background:#e2e8f0;display:flex;align-items:center;justify-content:center;font-size:1.3rem;overflow:hidden;flex-shrink:0;color:#718096">?</div>
+                  <div>
+                    <button class="btn btn-sm" id="btn-foto-sel"
+                      style="background:#f7fafc;margin-bottom:4px">🖼 Selecionar</button>
+                    <div id="col-foto-nome" style="font-size:0.72rem;color:#718096">Quadrada recomendada</div>
+                  </div>
+                  <input type="file" id="col-foto-input" accept="image/png,image/jpeg" style="display:none">
+                </div>
+              </div>
+
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-primary" id="btn-salvar-col" style="flex:1">💾 Salvar</button>
+                <button class="btn" id="btn-limpar-col">Limpar</button>
+              </div>
+            </div>
+
+            <!-- Vincular empresa a todos -->
+            <div class="card">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                <span>🔗</span>
+                <span style="font-weight:700;text-transform:uppercase;font-size:0.78rem;color:#718096;letter-spacing:.05em">Vincular Empresa a Todos</span>
+              </div>
+              <p style="font-size:0.8rem;color:#718096;margin-bottom:12px">Adiciona uma empresa para todos os colaboradores de uma vez.</p>
+              <div style="position:relative">
+                <input type="text" id="vincular-search" placeholder="🔍 Buscar empresa..."
+                  style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem">
+                <div id="vincular-results" class="search-results" style="position:absolute;top:100%;left:0;right:0;z-index:100"></div>
+              </div>
             </div>
           </div>
-          <table class="data-table">
-            <thead><tr><th>Nome</th><th>Função</th><th>Perfil</th><th>Status</th><th></th></tr></thead>
-            <tbody>
-              ${cols.map(c => `
-                <tr>
-                  <td><div style="display:flex;align-items:center;gap:8px">
-                    <div class="user-avatar" style="width:28px;height:28px;font-size:0.75rem">${c.nome.charAt(0)}</div>${c.nome}
-                  </div></td>
-                  <td>${c.funcao || '-'}</td>
-                  <td>${c.admin ? '👑 Admin' : 'Usuário'}</td>
-                  <td>${c.ativo ? '✅ Ativo' : '❌ Inativo'}</td>
-                  <td style="display:flex;gap:6px">
-                    <button class="btn btn-sm btn-editar-col" data-id="${c.id}" data-nome="${c.nome}" data-funcao="${c.funcao || ''}" data-admin="${c.admin}">Editar</button>
-                    <button class="btn btn-sm btn-toggle-col" data-id="${c.id}" data-ativo="${c.ativo}">${c.ativo ? 'Desativar' : 'Ativar'}</button>
-                  </td>
-                </tr>`).join('')}
-            </tbody>
-          </table>
+        </div>
+
+        <!-- Modal empresas do colaborador -->
+        <div id="modal-empresas-col" class="modal">
+          <div class="modal-content" style="max-width:480px">
+            <div class="modal-header">
+              <h2>🏢 Empresas — <span id="modal-col-nome" style="color:#3498db"></span></h2>
+              <button class="modal-close" id="btn-fechar-modal-emp">×</button>
+            </div>
+            <div class="modal-body">
+              <div style="position:relative;margin-bottom:16px">
+                <input type="text" id="empresa-col-search" placeholder="🔍 Buscar empresa para adicionar..."
+                  style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem">
+                <div id="empresa-col-results" class="search-results" style="position:absolute;top:100%;left:0;right:0;z-index:200"></div>
+              </div>
+              <div id="empresa-col-lista" style="max-height:300px;overflow-y:auto"></div>
+            </div>
+          </div>
         </div>`;
     } catch { return `<div class="loading">Erro ao carregar colaboradores</div>`; }
   }
 
   configurarEventosColaboradores() {
-    document.getElementById('btn-novo-col')?.addEventListener('click', () => {
+    this._colAtualId = null;
+
+    const limparForm = () => {
       document.getElementById('col-id').value = '';
       document.getElementById('col-nome').value = '';
       document.getElementById('col-funcao').value = '';
       document.getElementById('col-admin').checked = false;
+      document.getElementById('col-foto-preview').innerHTML = '?';
+      document.getElementById('col-foto-preview').style.background = '#e2e8f0';
+      document.getElementById('col-foto-nome').textContent = 'Quadrada recomendada';
       document.getElementById('form-col-titulo').textContent = 'Novo Colaborador';
-      document.getElementById('form-col').style.display = 'block';
+      this._colsFotoBase64 = '';
+    };
+
+    document.getElementById('btn-novo-col')?.addEventListener('click', limparForm);
+    document.getElementById('btn-limpar-col')?.addEventListener('click', limparForm);
+
+    // Upload de foto
+    document.getElementById('btn-foto-sel')?.addEventListener('click', () =>
+      document.getElementById('col-foto-input').click());
+    document.getElementById('col-foto-input')?.addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      if (file.size > 10 * 1024 * 1024) { alert('Foto muito grande (máx 10MB)'); return; }
+      const reader = new FileReader();
+      reader.onload = ev => {
+        this._colsFotoBase64 = ev.target.result;
+        const prev = document.getElementById('col-foto-preview');
+        prev.innerHTML = `<img src="${ev.target.result}" style="width:100%;height:100%;object-fit:cover">`;
+        document.getElementById('col-foto-nome').textContent = file.name;
+      };
+      reader.readAsDataURL(file);
     });
-    document.getElementById('btn-cancelar-col')?.addEventListener('click', () => {
-      document.getElementById('form-col').style.display = 'none';
-    });
+
+    // Salvar
     document.getElementById('btn-salvar-col')?.addEventListener('click', async () => {
       const id = document.getElementById('col-id').value;
       const nome = document.getElementById('col-nome').value.trim();
       const funcao = document.getElementById('col-funcao').value.trim();
       const admin = document.getElementById('col-admin').checked;
+      const foto = this._colsFotoBase64 || undefined;
       if (!nome) { alert('Nome é obrigatório'); return; }
       try {
+        const payload = { nome, funcao, admin, ...(foto ? { foto } : {}) };
         if (id) {
-          await this.api(`/api/colaboradores/${id}`, { method: 'PUT', body: JSON.stringify({ nome, funcao, admin }) });
+          await this.api(`/api/colaboradores/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
         } else {
-          await this.api('/api/colaboradores', { method: 'POST', body: JSON.stringify({ nome, funcao, admin }) });
+          await this.api('/api/colaboradores', { method: 'POST', body: JSON.stringify(payload) });
         }
         await this.carregarColaboradores();
         await this.mudarTab('colaboradores');
       } catch (e) { alert('Erro ao salvar: ' + e.message); }
     });
+
+    // Editar
     document.querySelectorAll('.btn-editar-col').forEach(btn => {
       btn.addEventListener('click', () => {
         document.getElementById('col-id').value = btn.dataset.id;
@@ -599,13 +729,22 @@ class GridFlowApp {
         document.getElementById('col-funcao').value = btn.dataset.funcao;
         document.getElementById('col-admin').checked = btn.dataset.admin === '1' || btn.dataset.admin === 'true';
         document.getElementById('form-col-titulo').textContent = 'Editar Colaborador';
-        document.getElementById('form-col').style.display = 'block';
-        document.getElementById('form-col').scrollIntoView({ behavior: 'smooth' });
+        this._colsFotoBase64 = '';
+        if (btn.dataset.foto) {
+          const prev = document.getElementById('col-foto-preview');
+          prev.innerHTML = `<img src="${btn.dataset.foto}" style="width:100%;height:100%;object-fit:cover">`;
+        }
+        document.getElementById('col-foto-preview').style.background = this.avatarColor(btn.dataset.nome);
+        document.querySelector('.card').scrollIntoView({ behavior: 'smooth' });
       });
     });
-    document.querySelectorAll('.btn-toggle-col').forEach(btn => {
+
+    // Excluir/Ativar
+    document.querySelectorAll('.btn-excluir-col').forEach(btn => {
       btn.addEventListener('click', async () => {
         const ativo = btn.dataset.ativo === '1' || btn.dataset.ativo === 'true';
+        const acao = ativo ? 'Desativar' : 'Ativar';
+        if (!confirm(`${acao} este colaborador?`)) return;
         try {
           await this.api(`/api/colaboradores/${btn.dataset.id}`, { method: 'PUT', body: JSON.stringify({ ativo: !ativo }) });
           await this.carregarColaboradores();
@@ -613,6 +752,123 @@ class GridFlowApp {
         } catch (e) { alert('Erro: ' + e.message); }
       });
     });
+
+    // Vincular empresa a todos
+    let tVincular;
+    document.getElementById('vincular-search')?.addEventListener('input', e => {
+      clearTimeout(tVincular);
+      const q = e.target.value.trim();
+      if (q.length < 2) { document.getElementById('vincular-results').classList.remove('show'); return; }
+      tVincular = setTimeout(() => this.buscarVincularTodos(q), 300);
+    });
+
+    // Gerenciar empresas do colaborador (modal)
+    document.querySelectorAll('.btn-empresas-col').forEach(btn => {
+      btn.addEventListener('click', () => this.abrirModalEmpresas(btn.dataset.id, btn.dataset.nome));
+    });
+
+    document.getElementById('btn-fechar-modal-emp')?.addEventListener('click', () =>
+      document.getElementById('modal-empresas-col').classList.remove('show'));
+  }
+
+  async buscarVincularTodos(q) {
+    try {
+      const lista = await this.api(`/api/empresas?search=${encodeURIComponent(q)}`);
+      const results = document.getElementById('vincular-results');
+      results.innerHTML = lista.map(e => `
+        <div class="search-result-item" data-id="${e.id}">
+          <div class="result-nome">${e.nome}</div>
+          <div class="result-info">${e.codigo_interno || ''}</div>
+        </div>`).join('') || '<div class="search-result-item">Nenhuma encontrada</div>';
+      results.querySelectorAll('.search-result-item[data-id]').forEach(item => {
+        item.addEventListener('click', async () => {
+          results.classList.remove('show');
+          document.getElementById('vincular-search').value = '';
+          if (!confirm(`Vincular "${item.querySelector('.result-nome').textContent}" para TODOS os colaboradores?`)) return;
+          try {
+            const cols = await this.api('/api/colaboradores');
+            const ativos = cols.filter(c => c.ativo);
+            await Promise.all(ativos.map(c =>
+              this.api(`/api/colaboradores/${c.id}/empresas`, {
+                method: 'POST', body: JSON.stringify({ empresa_id: parseInt(item.dataset.id) })
+              }).catch(() => {})
+            ));
+            alert(`Empresa vinculada a ${ativos.length} colaborador(es)!`);
+          } catch (e) { alert('Erro: ' + e.message); }
+        });
+      });
+      results.classList.add('show');
+    } catch (e) { console.error(e); }
+  }
+
+  async abrirModalEmpresas(colId, colNome) {
+    this._colAtualId = colId;
+    document.getElementById('modal-col-nome').textContent = colNome;
+    document.getElementById('modal-empresas-col').classList.add('show');
+    await this.carregarEmpresasColaborador(colId);
+
+    let tEmp;
+    const searchInput = document.getElementById('empresa-col-search');
+    searchInput.value = '';
+    searchInput.oninput = e => {
+      clearTimeout(tEmp);
+      const q = e.target.value.trim();
+      if (q.length < 2) { document.getElementById('empresa-col-results').classList.remove('show'); return; }
+      tEmp = setTimeout(() => this.buscarEmpresaParaCol(q, colId), 300);
+    };
+  }
+
+  async carregarEmpresasColaborador(colId) {
+    try {
+      const empresas = await this.api(`/api/colaboradores/${colId}/empresas`);
+      const lista = document.getElementById('empresa-col-lista');
+      if (!empresas.length) {
+        lista.innerHTML = '<div style="color:#718096;text-align:center;padding:20px;font-size:0.85rem">Nenhuma empresa vinculada</div>';
+        return;
+      }
+      lista.innerHTML = empresas.map(e => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f0f0f0">
+          <div>
+            <div style="font-size:0.88rem;font-weight:600">${e.nome}</div>
+            <div style="font-size:0.75rem;color:#718096">${e.codigo_interno || e.cnpj || ''}</div>
+          </div>
+          <button class="btn btn-sm btn-remover-emp" data-colid="${colId}" data-empid="${e.id}"
+            style="background:#fff5f5;border-color:#fed7d7;color:#c53030;font-size:0.75rem">Remover</button>
+        </div>`).join('');
+      lista.querySelectorAll('.btn-remover-emp').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          try {
+            await this.api(`/api/colaboradores/${btn.dataset.colid}/empresas/${btn.dataset.empid}`, { method: 'DELETE' });
+            await this.carregarEmpresasColaborador(colId);
+          } catch (e) { alert('Erro: ' + e.message); }
+        });
+      });
+    } catch (e) { console.error(e); }
+  }
+
+  async buscarEmpresaParaCol(q, colId) {
+    try {
+      const lista = await this.api(`/api/empresas?search=${encodeURIComponent(q)}`);
+      const results = document.getElementById('empresa-col-results');
+      results.innerHTML = lista.map(e => `
+        <div class="search-result-item" data-id="${e.id}">
+          <div class="result-nome">${e.nome}</div>
+          <div class="result-info">${e.codigo_interno || ''}</div>
+        </div>`).join('') || '<div class="search-result-item">Nenhuma encontrada</div>';
+      results.querySelectorAll('.search-result-item[data-id]').forEach(item => {
+        item.addEventListener('click', async () => {
+          results.classList.remove('show');
+          document.getElementById('empresa-col-search').value = '';
+          try {
+            await this.api(`/api/colaboradores/${colId}/empresas`, {
+              method: 'POST', body: JSON.stringify({ empresa_id: parseInt(item.dataset.id) })
+            });
+            await this.carregarEmpresasColaborador(colId);
+          } catch (e) { alert('Erro: ' + e.message); }
+        });
+      });
+      results.classList.add('show');
+    } catch (e) { console.error(e); }
   }
 
   // ── Configurar ────────────────────────────────────────────────────────────
