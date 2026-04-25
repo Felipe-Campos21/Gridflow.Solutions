@@ -445,70 +445,145 @@ class GridFlowApp {
   async renderAtividades() {
     try {
       const atividades = await this.api('/api/atividades');
-      const grupos = [...new Set(atividades.map(a => a.grupo || 'Geral'))].sort();
+      this._todasAtividades = atividades.filter(a => a.ativo);
+      const grupos = [...new Set(this._todasAtividades.map(a => a.grupo || 'Geral'))].sort();
+
       return `
-        <div class="card">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-            <h3 style="margin:0">Gerenciador de Atividades</h3>
-            <button class="btn btn-primary" id="btn-nova-atividade">+ Nova Atividade</button>
-          </div>
-          <div id="form-atividade" style="display:none;background:#f7fafc;border-radius:8px;padding:16px;margin-bottom:16px">
-            <h4 style="margin:0 0 12px">Nova Atividade</h4>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-              <input id="atv-nome" type="text" placeholder="Nome da atividade *" style="padding:8px;border:1px solid #e2e8f0;border-radius:6px">
-              <input id="atv-grupo" type="text" placeholder="Grupo (ex: Fiscal, RH...)" list="grupos-list" style="padding:8px;border:1px solid #e2e8f0;border-radius:6px">
-              <datalist id="grupos-list">${grupos.map(g => `<option value="${g}">`).join('')}</datalist>
+        <div style="display:grid;grid-template-columns:1fr 320px;gap:16px;align-items:start">
+
+          <!-- Lista agrupada -->
+          <div class="card" style="padding:0;overflow:hidden">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #f0f0f0">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span>📋</span>
+                <span style="font-weight:700;text-transform:uppercase;font-size:0.75rem;color:#718096;letter-spacing:.05em">Atividades</span>
+              </div>
+              <button class="btn btn-primary" id="btn-nova-atv" style="font-size:0.82rem;padding:6px 14px">+ Nova</button>
             </div>
-            <input id="atv-descricao" type="text" placeholder="Descrição (opcional)" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;box-sizing:border-box;margin-bottom:10px">
+            <div id="atv-lista" style="max-height:calc(100vh - 200px);overflow-y:auto">
+              ${grupos.map(grupo => {
+                const atvsGrupo = this._todasAtividades.filter(a => (a.grupo || 'Geral') === grupo);
+                return `
+                  <div class="atv-grupo-bloco">
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:#f8fafc;border-bottom:1px solid #e2e8f0;border-top:1px solid #e2e8f0">
+                      <span style="font-weight:700;font-size:0.82rem;text-transform:uppercase;letter-spacing:.04em;color:#4a5568">
+                        ${grupo} <span style="color:#a0aec0;font-weight:400">(${atvsGrupo.length})</span>
+                      </span>
+                      <button class="btn btn-sm btn-excluir-grupo" data-grupo="${grupo}"
+                        style="background:#fff5f5;border-color:#fed7d7;color:#c53030;font-size:0.72rem;padding:3px 10px">
+                        🗑 Excluir grupo
+                      </button>
+                    </div>
+                    ${atvsGrupo.map(a => `
+                      <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 20px;border-bottom:1px solid #f7f7f7">
+                        <span style="font-size:0.88rem;color:#2d3748">${a.nome}</span>
+                        <div style="display:flex;gap:5px">
+                          <button class="btn btn-sm btn-editar-atv"
+                            data-id="${a.id}" data-nome="${a.nome.replace(/"/g,'&quot;')}" data-grupo="${grupo}"
+                            style="padding:4px 8px;background:#fefcbf;border-color:#f6e05e;color:#744210">✏️</button>
+                          <button class="btn btn-sm btn-excluir-atv"
+                            data-id="${a.id}" data-nome="${a.nome.replace(/"/g,'&quot;')}"
+                            style="padding:4px 8px;background:#fff5f5;border-color:#fed7d7;color:#c53030">❌</button>
+                        </div>
+                      </div>`).join('')}
+                  </div>`;
+              }).join('')}
+              ${grupos.length === 0 ? '<div style="padding:40px;text-align:center;color:#718096">Nenhuma atividade cadastrada</div>' : ''}
+            </div>
+          </div>
+
+          <!-- Formulário -->
+          <div class="card" style="position:sticky;top:0">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+              <span>➕</span>
+              <span id="atv-form-titulo" style="font-weight:700;text-transform:uppercase;font-size:0.75rem;color:#718096;letter-spacing:.05em">Nova Atividade</span>
+            </div>
+            <input type="hidden" id="atv-id">
+
+            <div style="margin-bottom:14px">
+              <label style="font-size:0.8rem;font-weight:600;color:#4a5568;display:block;margin-bottom:4px">Nome da atividade *</label>
+              <input id="atv-nome" type="text" placeholder="Ex: Banco"
+                style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.9rem">
+            </div>
+
+            <div style="margin-bottom:20px">
+              <label style="font-size:0.8rem;font-weight:600;color:#4a5568;display:block;margin-bottom:4px">Grupo</label>
+              <input id="atv-grupo" type="text" placeholder="Ex: Conciliação" list="atv-grupos-list"
+                style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.9rem">
+              <datalist id="atv-grupos-list">
+                ${grupos.map(g => `<option value="${g}">`).join('')}
+              </datalist>
+            </div>
+
             <div style="display:flex;gap:8px">
-              <button class="btn btn-primary" id="btn-salvar-atv">Salvar</button>
-              <button class="btn" id="btn-cancelar-atv">Cancelar</button>
+              <button class="btn btn-primary" id="btn-salvar-atv" style="flex:1;padding:10px">💾 Salvar</button>
+              <button class="btn" id="btn-limpar-atv" style="padding:10px 16px">Limpar</button>
             </div>
           </div>
-          <table class="data-table">
-            <thead><tr><th>Nome</th><th>Grupo</th><th>Descrição</th><th>Status</th><th></th></tr></thead>
-            <tbody>
-              ${atividades.map(a => `
-                <tr>
-                  <td>${a.nome}</td>
-                  <td><span class="grupo-tag">${a.grupo || 'Geral'}</span></td>
-                  <td>${a.descricao || '-'}</td>
-                  <td>${a.ativo ? '✅ Ativo' : '❌ Inativo'}</td>
-                  <td>
-                    <button class="btn btn-sm btn-ativar-atv" data-id="${a.id}" data-ativo="${a.ativo}">
-                      ${a.ativo ? 'Desativar' : 'Ativar'}
-                    </button>
-                  </td>
-                </tr>`).join('')}
-            </tbody>
-          </table>
         </div>`;
-    } catch (e) { return `<div class="loading">Erro ao carregar atividades</div>`; }
+    } catch { return `<div class="loading">Erro ao carregar atividades</div>`; }
   }
 
   configurarEventosAtividades() {
-    document.getElementById('btn-nova-atividade')?.addEventListener('click', () => {
-      document.getElementById('form-atividade').style.display = 'block';
-    });
-    document.getElementById('btn-cancelar-atv')?.addEventListener('click', () => {
-      document.getElementById('form-atividade').style.display = 'none';
-    });
+    const limparForm = () => {
+      document.getElementById('atv-id').value = '';
+      document.getElementById('atv-nome').value = '';
+      document.getElementById('atv-grupo').value = '';
+      document.getElementById('atv-form-titulo').textContent = 'Nova Atividade';
+      document.getElementById('atv-nome').focus();
+    };
+
+    document.getElementById('btn-nova-atv')?.addEventListener('click', limparForm);
+    document.getElementById('btn-limpar-atv')?.addEventListener('click', limparForm);
+
+    // Salvar (criar ou editar)
     document.getElementById('btn-salvar-atv')?.addEventListener('click', async () => {
+      const id = document.getElementById('atv-id').value;
       const nome = document.getElementById('atv-nome').value.trim();
       const grupo = document.getElementById('atv-grupo').value.trim() || 'Geral';
-      const descricao = document.getElementById('atv-descricao').value.trim();
-      if (!nome) { alert('Nome é obrigatório'); return; }
+      if (!nome) { alert('Nome da atividade é obrigatório'); return; }
       try {
-        await this.api('/api/atividades', { method: 'POST', body: JSON.stringify({ nome, grupo, descricao }) });
+        if (id) {
+          await this.api(`/api/atividades/${id}`, { method: 'PUT', body: JSON.stringify({ nome, grupo }) });
+        } else {
+          await this.api('/api/atividades', { method: 'POST', body: JSON.stringify({ nome, grupo }) });
+        }
         await this.mudarTab('atividades');
       } catch (e) { alert('Erro ao salvar: ' + e.message); }
     });
-    document.querySelectorAll('.btn-ativar-atv').forEach(btn => {
+
+    // Editar — preenche o formulário
+    document.querySelectorAll('.btn-editar-atv').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.getElementById('atv-id').value = btn.dataset.id;
+        document.getElementById('atv-nome').value = btn.dataset.nome;
+        document.getElementById('atv-grupo').value = btn.dataset.grupo;
+        document.getElementById('atv-form-titulo').textContent = 'Editar Atividade';
+        document.getElementById('atv-nome').focus();
+      });
+    });
+
+    // Excluir atividade individual
+    document.querySelectorAll('.btn-excluir-atv').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const id = btn.dataset.id;
-        const ativo = btn.dataset.ativo === '1' || btn.dataset.ativo === 'true';
+        if (!confirm(`Excluir "${btn.dataset.nome}"?`)) return;
         try {
-          await this.api(`/api/atividades/${id}`, { method: 'PUT', body: JSON.stringify({ ativo: !ativo }) });
+          await this.api(`/api/atividades/${btn.dataset.id}`, { method: 'PUT', body: JSON.stringify({ ativo: false }) });
+          await this.mudarTab('atividades');
+        } catch (e) { alert('Erro: ' + e.message); }
+      });
+    });
+
+    // Excluir grupo inteiro
+    document.querySelectorAll('.btn-excluir-grupo').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const grupo = btn.dataset.grupo;
+        const atvsGrupo = this._todasAtividades.filter(a => (a.grupo || 'Geral') === grupo);
+        if (!confirm(`Excluir o grupo "${grupo}" e suas ${atvsGrupo.length} atividade(s)?`)) return;
+        try {
+          await Promise.all(atvsGrupo.map(a =>
+            this.api(`/api/atividades/${a.id}`, { method: 'PUT', body: JSON.stringify({ ativo: false }) })
+          ));
           await this.mudarTab('atividades');
         } catch (e) { alert('Erro: ' + e.message); }
       });
