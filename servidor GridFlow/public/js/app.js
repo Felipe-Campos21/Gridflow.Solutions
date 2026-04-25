@@ -527,8 +527,10 @@ class GridFlowApp {
 
   async renderColaboradores() {
     try {
-      const cols = await this.api('/api/colaboradores');
+      const todos = await this.api('/api/colaboradores');
+      const cols = todos.filter(c => c.ativo);
       this._colsFotoBase64 = '';
+      this._removerFoto = false;
       return `
         <div style="display:grid;grid-template-columns:1fr 360px;gap:16px;align-items:start">
 
@@ -616,8 +618,10 @@ class GridFlowApp {
                   <div id="col-foto-preview"
                     style="width:50px;height:50px;border-radius:50%;background:#e2e8f0;display:flex;align-items:center;justify-content:center;font-size:1.3rem;overflow:hidden;flex-shrink:0;color:#718096">?</div>
                   <div>
-                    <button class="btn btn-sm" id="btn-foto-sel"
-                      style="background:#f7fafc;margin-bottom:4px">🖼 Selecionar</button>
+                    <div style="display:flex;gap:6px;margin-bottom:4px">
+                      <button class="btn btn-sm" id="btn-foto-sel" style="background:#f7fafc">🖼 Selecionar</button>
+                      <button class="btn btn-sm" id="btn-foto-remover" style="background:#fff5f5;border-color:#fed7d7;color:#c53030;display:none">✕ Remover</button>
+                    </div>
                     <div id="col-foto-nome" style="font-size:0.72rem;color:#718096">Quadrada recomendada</div>
                   </div>
                   <input type="file" id="col-foto-input" accept="image/png,image/jpeg" style="display:none">
@@ -677,8 +681,10 @@ class GridFlowApp {
       document.getElementById('col-foto-preview').innerHTML = '?';
       document.getElementById('col-foto-preview').style.background = '#e2e8f0';
       document.getElementById('col-foto-nome').textContent = 'Quadrada recomendada';
+      document.getElementById('btn-foto-remover').style.display = 'none';
       document.getElementById('form-col-titulo').textContent = 'Novo Colaborador';
       this._colsFotoBase64 = '';
+      this._removerFoto = false;
     };
 
     document.getElementById('btn-novo-col')?.addEventListener('click', limparForm);
@@ -694,11 +700,22 @@ class GridFlowApp {
       const reader = new FileReader();
       reader.onload = ev => {
         this._colsFotoBase64 = ev.target.result;
-        const prev = document.getElementById('col-foto-preview');
-        prev.innerHTML = `<img src="${ev.target.result}" style="width:100%;height:100%;object-fit:cover">`;
+        this._removerFoto = false;
+        document.getElementById('col-foto-preview').innerHTML = `<img src="${ev.target.result}" style="width:100%;height:100%;object-fit:cover">`;
         document.getElementById('col-foto-nome').textContent = file.name;
+        document.getElementById('btn-foto-remover').style.display = 'inline-flex';
       };
       reader.readAsDataURL(file);
+    });
+
+    document.getElementById('btn-foto-remover')?.addEventListener('click', () => {
+      this._colsFotoBase64 = '';
+      this._removerFoto = true;
+      document.getElementById('col-foto-preview').innerHTML = '?';
+      document.getElementById('col-foto-preview').style.background = '#e2e8f0';
+      document.getElementById('col-foto-nome').textContent = 'Sem foto';
+      document.getElementById('btn-foto-remover').style.display = 'none';
+      document.getElementById('col-foto-input').value = '';
     });
 
     // Salvar
@@ -707,10 +724,10 @@ class GridFlowApp {
       const nome = document.getElementById('col-nome').value.trim();
       const funcao = document.getElementById('col-funcao').value.trim();
       const admin = document.getElementById('col-admin').checked;
-      const foto = this._colsFotoBase64 || undefined;
       if (!nome) { alert('Nome é obrigatório'); return; }
       try {
-        const payload = { nome, funcao, admin, ...(foto ? { foto } : {}) };
+        const foto = this._removerFoto ? null : (this._colsFotoBase64 || undefined);
+        const payload = { nome, funcao, admin, ...(foto !== undefined ? { foto } : {}) };
         if (id) {
           await this.api(`/api/colaboradores/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
         } else {
@@ -730,9 +747,11 @@ class GridFlowApp {
         document.getElementById('col-admin').checked = btn.dataset.admin === '1' || btn.dataset.admin === 'true';
         document.getElementById('form-col-titulo').textContent = 'Editar Colaborador';
         this._colsFotoBase64 = '';
+        this._removerFoto = false;
         if (btn.dataset.foto) {
-          const prev = document.getElementById('col-foto-preview');
-          prev.innerHTML = `<img src="${btn.dataset.foto}" style="width:100%;height:100%;object-fit:cover">`;
+          document.getElementById('col-foto-preview').innerHTML = `<img src="${btn.dataset.foto}" style="width:100%;height:100%;object-fit:cover">`;
+          document.getElementById('btn-foto-remover').style.display = 'inline-flex';
+          document.getElementById('col-foto-nome').textContent = 'Foto atual';
         }
         document.getElementById('col-foto-preview').style.background = this.avatarColor(btn.dataset.nome);
         document.querySelector('.card').scrollIntoView({ behavior: 'smooth' });
