@@ -71,8 +71,10 @@ class GridFlowApp {
     document.getElementById('user-avatar').textContent = this.usuario.charAt(0);
     this.closeUserModal();
     await this.carregarMinhasEmpresas();
-    if (this.minhasEmpresas.length > 0) await this.selecionarEmpresa(this.minhasEmpresas[0]);
     await this.renderizarConteudo();
+    if (this.currentTab === 'dashboard' && this.minhasEmpresas.length > 0) {
+      await this.selecionarEmpresa(this.minhasEmpresas[0]);
+    }
   }
 
   async carregarMinhasEmpresas() {
@@ -88,19 +90,31 @@ class GridFlowApp {
 
   // ── Períodos ──────────────────────────────────────────────────────────────
   async carregarPeriodos() {
-    this.periodo = this.obterPeriodoAtual();
-    this.renderPeriodoDropdown(this.gerarPeriodos());
+    try {
+      const periodos = await this.api('/api/periodos');
+      this._periodos = periodos.length ? periodos : this._gerarPeriodosLocais();
+    } catch {
+      this._periodos = this._gerarPeriodosLocais();
+    }
+    this.periodo = this._periodos[0] || this.obterPeriodoAtual();
+    this.renderPeriodoDropdown(this._periodos);
   }
 
-  gerarPeriodos() {
-    const periodos = [];
+  async recarregarPeriodos() {
+    try {
+      this._periodos = await this.api('/api/periodos');
+    } catch {}
+    this.renderPeriodoDropdown(this._periodos);
+  }
+
+  _gerarPeriodosLocais() {
+    const ps = [];
     const agora = new Date();
     for (let i = 0; i < 24; i++) {
       const d = new Date(agora.getFullYear(), agora.getMonth() - i, 1);
-      const mes = String(d.getMonth() + 1).padStart(2, '0');
-      periodos.push(`${mes}/${d.getFullYear()}`);
+      ps.push(`${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`);
     }
-    return periodos;
+    return ps;
   }
 
   obterPeriodoAtual() {
@@ -110,18 +124,80 @@ class GridFlowApp {
 
   renderPeriodoDropdown(periodos) {
     const dropdown = document.getElementById('periodo-dropdown');
-    dropdown.innerHTML = periodos.map(p => `
-      <div class="dropdown-item ${p === this.periodo ? 'active' : ''}" data-value="${p}">${p}</div>`).join('');
+    dropdown.innerHTML = `
+      <div style="max-height:240px;overflow-y:auto">
+        ${periodos.map(p => `
+          <div class="dropdown-item ${p === this.periodo ? 'active' : ''}"
+               style="display:flex;align-items:center;justify-content:space-between;gap:4px;padding-right:6px">
+            <span class="periodo-sel" data-value="${p}" style="flex:1;cursor:pointer">${p}</span>
+            ${p === this.periodo ? '<span style="width:7px;height:7px;border-radius:50%;background:#3498db;flex-shrink:0;margin-right:2px"></span>' : ''}
+            <button class="btn-del-periodo" data-valor="${p}"
+              style="background:none;border:none;color:#a0aec0;cursor:pointer;padding:2px 5px;font-size:1.1rem;line-height:1;flex-shrink:0"
+              title="Excluir período">×</button>
+          </div>`).join('')}
+      </div>
+      <div style="border-top:1px solid #f0f0f0;padding:10px 12px">
+        <div style="font-size:0.72rem;font-weight:600;color:#718096;margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Adicionar período personalizado:</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input id="periodo-novo-input" type="text" placeholder="MM/AAAA" maxlength="7"
+            style="flex:1;padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem">
+          <button id="btn-add-periodo"
+            style="padding:6px 14px;background:#3498db;color:white;border:none;border-radius:6px;cursor:pointer;font-size:1.1rem;font-weight:700;line-height:1">+</button>
+        </div>
+      </div>`;
+
     document.getElementById('periodo-display').textContent = this.periodo;
-    dropdown.querySelectorAll('.dropdown-item').forEach(item => {
-      item.addEventListener('click', () => {
-        this.periodo = item.dataset.value;
+
+    // Selecionar período
+    dropdown.querySelectorAll('.periodo-sel').forEach(span => {
+      span.addEventListener('click', () => {
+        this.periodo = span.dataset.value;
         document.getElementById('periodo-display').textContent = this.periodo;
-        dropdown.querySelectorAll('.dropdown-item').forEach(i => i.classList.remove('active'));
-        item.classList.add('active');
         dropdown.classList.remove('show');
+        this.renderPeriodoDropdown(this._periodos);
         this.atualizarConteudo();
       });
+    });
+
+    // Excluir período
+    dropdown.querySelectorAll('.btn-del-periodo').forEach(btn => {
+      btn.addEventListener('click', async e => {
+        e.stopPropagation();
+        const valor = btn.dataset.valor;
+        if (!confirm(`Excluir o período ${valor}? O histórico não será apagado.`)) return;
+        try {
+          await this.api(`/api/periodos/${encodeURIComponent(valor)}`, { method: 'DELETE' });
+          if (this.periodo === valor) {
+            const idx = this._periodos.indexOf(valor);
+            this.periodo = this._periodos[idx + 1] || this._periodos[idx - 1] || this.obterPeriodoAtual();
+            document.getElementById('periodo-display').textContent = this.periodo;
+            this.atualizarConteudo();
+          }
+          await this.recarregarPeriodos();
+        } catch (err) { alert('Erro: ' + err.message); }
+      });
+    });
+
+    // Máscara automática MM/AAAA
+    document.getElementById('periodo-novo-input')?.addEventListener('input', e => {
+      let v = e.target.value.replace(/\D/g, '').slice(0, 6);
+      if (v.length > 2) v = v.slice(0, 2) + '/' + v.slice(2);
+      e.target.value = v;
+    });
+
+    // Adicionar período
+    document.getElementById('btn-add-periodo')?.addEventListener('click', async () => {
+      const input = document.getElementById('periodo-novo-input');
+      const valor = input.value.trim();
+      if (!/^\d{2}\/\d{4}$/.test(valor)) { alert('Formato: MM/AAAA (ex: 03/2026)'); return; }
+      try {
+        await this.api('/api/periodos', { method: 'POST', body: JSON.stringify({ valor }) });
+        this.periodo = valor;
+        document.getElementById('periodo-display').textContent = valor;
+        await this.recarregarPeriodos();
+        dropdown.classList.remove('show');
+        this.atualizarConteudo();
+      } catch (err) { alert('Erro: ' + err.message); }
     });
   }
 
@@ -134,8 +210,10 @@ class GridFlowApp {
       e.stopPropagation();
       document.getElementById('periodo-dropdown').classList.toggle('show');
     });
-    document.addEventListener('click', () =>
-      document.getElementById('periodo-dropdown').classList.remove('show'));
+    document.addEventListener('click', e => {
+      if (!e.target.closest('#periodo-dropdown') && !e.target.closest('#btn-periodo'))
+        document.getElementById('periodo-dropdown').classList.remove('show');
+    });
     document.querySelectorAll('.nav-item').forEach(item =>
       item.addEventListener('click', () => { if (item.dataset.tab) this.mudarTab(item.dataset.tab); }));
   }

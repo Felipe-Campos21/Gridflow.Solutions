@@ -43,6 +43,15 @@ function carregar() {
   if (!DB.seq) DB.seq = {};
   if (!DB.config) DB.config = { grupos_integrados: [] };
   if (!DB.config.grupos_integrados) DB.config.grupos_integrados = [];
+  if (!DB.config.periodos) {
+    const ps = [];
+    const now = new Date();
+    for (let i = 0; i < 12; i++) {
+      const dt = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      ps.push(String(dt.getMonth()+1).padStart(2,'0') + '/' + dt.getFullYear());
+    }
+    DB.config.periodos = ps;
+  }
 }
 
 function salvar() { fs.writeFileSync(DB_FILE, JSON.stringify(DB, null, 2)); }
@@ -339,6 +348,13 @@ const server = http.createServer(async (req, res) => {
 
   if ((params = match('/api/colaboradores/:id', pathname)) && !pathname.includes('/empresas')) {
     const id = parseInt(params.id);
+    if (method==='GET') {
+      const col = DB.colaboradores.find(c => c.id === id);
+      if (!col) return json(res, { error:'Não encontrado' }, 404);
+      const empIds = DB.colaborador_empresas.filter(ce => ce.colaborador_id === id).map(ce => ce.empresa_id);
+      const empresas = DB.empresas.filter(e => empIds.includes(e.id) && e.ativo).sort((a,b)=>a.nome.localeCompare(b.nome));
+      return json(res, { ...col, empresas });
+    }
     if (method==='PUT') {
       body = await readBody(req);
       const col = DB.colaboradores.find(c=>c.id===id);
@@ -493,6 +509,32 @@ const server = http.createServer(async (req, res) => {
       if (Array.isArray(body.grupos_integrados)) DB.config.grupos_integrados = body.grupos_integrados;
       salvar(); return json(res, DB.config);
     }
+  }
+
+  // ── Períodos ──────────────────────────────────────────────────────────────
+  if (pathname === '/api/periodos') {
+    if (method === 'GET') {
+      const ps = [...(DB.config.periodos || [])].sort((a, b) => {
+        const [ma,ya] = a.split('/').map(Number);
+        const [mb,yb] = b.split('/').map(Number);
+        return (yb*100+mb) - (ya*100+ma);
+      });
+      return json(res, ps);
+    }
+    if (method === 'POST') {
+      body = await readBody(req);
+      const valor = (body.valor || '').trim();
+      if (!/^\d{2}\/\d{4}$/.test(valor)) return json(res, { error:'Formato inválido. Use MM/AAAA' }, 400);
+      if (!DB.config.periodos) DB.config.periodos = [];
+      if (!DB.config.periodos.includes(valor)) { DB.config.periodos.push(valor); salvar(); }
+      return json(res, { success:true });
+    }
+  }
+
+  if ((params = match('/api/periodos/:valor', pathname)) && method === 'DELETE') {
+    const valor = decodeURIComponent(params.valor);
+    if (DB.config.periodos) { DB.config.periodos = DB.config.periodos.filter(p => p !== valor); salvar(); }
+    return json(res, { success:true });
   }
 
   // Servir arquivos estáticos do frontend

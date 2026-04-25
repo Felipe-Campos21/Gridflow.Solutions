@@ -230,9 +230,7 @@ body {
   box-shadow: 0 6px 20px rgba(0,0,0,.15);
   border: 1px solid #e2e8f0;
   z-index: 2000;
-  min-width: 140px;
-  max-height: 300px;
-  overflow-y: auto;
+  min-width: 180px;
 }
 .dropdown-menu.show { display: block; }
 .dropdown-item {
