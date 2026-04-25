@@ -556,6 +556,8 @@ class GridFlowApp {
               <option value="">Todos os Segmentos</option>
               ${segmentos.map(s => `<option value="${s}">${s}</option>`).join('')}
             </select>
+            <button id="btn-limpar-filtros" class="btn btn-sm"
+              style="padding:4px 12px;font-size:0.78rem;color:#718096">✕ Limpar filtros</button>
           </div>
         </div>
 
@@ -610,8 +612,11 @@ class GridFlowApp {
 
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
               <div>
-                <label style="font-size:0.8rem;font-weight:600;color:#4a5568;display:block;margin-bottom:4px">Inscrição Estadual <span style="color:#718096;font-weight:400">(0 = Isento)</span></label>
-                <input id="emp-ie" type="text" placeholder="Digite os números..."
+                <label style="font-size:0.8rem;font-weight:600;color:#4a5568;display:block;margin-bottom:4px">
+                  Inscrição Estadual
+                  <span id="ie-isento-badge" style="display:none;background:#fef3c7;color:#d97706;padding:1px 7px;border-radius:10px;font-size:0.72rem;font-weight:600;margin-left:6px">Isento</span>
+                </label>
+                <input id="emp-ie" type="text" placeholder="0 (Isento) ou número da IE..."
                   style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.9rem">
               </div>
               <div>
@@ -780,6 +785,12 @@ class GridFlowApp {
     document.getElementById('emp-com-movimento').checked = !!emp.com_movimento;
     document.getElementById('emp-matriz-id').value = emp.matriz_id || '';
     document.getElementById('emp-form-titulo').textContent = 'Editar Empresa';
+    // Aplicar máscara CNPJ ao pré-preencher
+    const cnpjEl = document.getElementById('emp-cnpj');
+    if (cnpjEl) cnpjEl.dispatchEvent(new Event('input'));
+    // Badge isento
+    const badge = document.getElementById('ie-isento-badge');
+    if (badge) badge.style.display = emp.inscricao_estadual === '0' ? 'inline' : 'none';
     document.getElementById('btn-emp-txt').textContent = 'Salvar Alterações';
 
     const matrizSel = document.getElementById('emp-matriz-sel');
@@ -843,6 +854,23 @@ class GridFlowApp {
       this._filtroSegmento = e.target.value; this._renderizarLista();
     });
 
+    // Limpar todos os filtros
+    document.getElementById('btn-limpar-filtros')?.addEventListener('click', () => {
+      this._filtroTexto = '';
+      this._filtroMov = 'todos';
+      this._filtroRegime = '';
+      this._filtroSegmento = '';
+      document.getElementById('emp-search').value = '';
+      document.getElementById('emp-filtro-regime').value = '';
+      document.getElementById('emp-filtro-segmento').value = '';
+      document.querySelectorAll('.emp-filtro-mov').forEach(b => {
+        b.style.background = ''; b.style.color = ''; b.style.borderColor = '';
+      });
+      const btnTodos = document.querySelector('.emp-filtro-mov[data-mov="todos"]');
+      if (btnTodos) { btnTodos.style.background = '#3498db'; btnTodos.style.color = 'white'; btnTodos.style.borderColor = '#3498db'; }
+      this._renderizarLista();
+    });
+
     // Select all
     document.getElementById('emp-select-all')?.addEventListener('change', e => {
       document.querySelectorAll('.emp-check').forEach(cb => { cb.checked = e.target.checked; cb.dispatchEvent(new Event('change')); });
@@ -894,6 +922,22 @@ class GridFlowApp {
         });
         results.classList.add('show');
       }, 300);
+    });
+
+    // Máscara CNPJ: XX.XXX.XXX/XXXX-XX
+    document.getElementById('emp-cnpj')?.addEventListener('input', e => {
+      let v = e.target.value.replace(/\D/g, '').slice(0, 14);
+      if (v.length > 12) v = v.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+      else if (v.length > 8) v = v.replace(/^(\d{2})(\d{3})(\d{3})(\d{0,4})/, '$1.$2.$3/$4');
+      else if (v.length > 5) v = v.replace(/^(\d{2})(\d{3})(\d{0,3})/, '$1.$2.$3');
+      else if (v.length > 2) v = v.replace(/^(\d{2})(\d{0,3})/, '$1.$2');
+      e.target.value = v;
+    });
+
+    // Badge "Isento" quando IE = 0
+    document.getElementById('emp-ie')?.addEventListener('input', e => {
+      const badge = document.getElementById('ie-isento-badge');
+      if (badge) badge.style.display = e.target.value.trim() === '0' ? 'inline' : 'none';
     });
 
     document.getElementById('btn-remover-matriz')?.addEventListener('click', () => {
