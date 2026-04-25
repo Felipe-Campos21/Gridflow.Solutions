@@ -6,97 +6,73 @@ class GridFlowApp {
     this.colaborador = null;
     this.periodo = null;
     this.empresaSelecionada = null;
-    this.atividades = [];
-    this.historico = [];
-    this.empresas = [];
+    this.historicoAtual = {};
+    this.minhasEmpresas = [];
     this.searchTimeout = null;
     this.refreshInterval = null;
     this.currentTab = 'dashboard';
+    this.editandoColId = null;
+    this.empresaConfigurar = null;
   }
 
-  // ── Inicialização ───────────────────────────────────────────────────────
   async init() {
     this.configurarEventos();
     await this.carregarPeriodos();
     await this.verificarConexao();
     await this.carregarColaboradores();
     this.iniciarAutoRefresh();
+    await this.renderizarConteudo();
   }
 
   async verificarConexao() {
     try {
-      const res = await this.api('/api/health');
+      await this.api('/api/health');
       document.getElementById('status-dot').classList.add('online');
       document.getElementById('status-dot').classList.remove('offline');
-    } catch (e) {
+    } catch {
       document.getElementById('status-dot').classList.add('offline');
       document.getElementById('status-dot').classList.remove('online');
     }
   }
 
-  // ── API ──────────────────────────────────────────────────────────────────
   async api(endpoint, options = {}) {
     const url = CONFIG.API_URL + endpoint;
-    const headers = { 'Content-Type': 'application/json' };
-    
-    const response = await fetch(url, {
-      ...options,
-      headers: { ...headers, ...options.headers }
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Erro na requisição: ${response.status}`);
-    }
-    
-    return response.json();
+    const res = await fetch(url, { ...options, headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } });
+    if (!res.ok) throw new Error(`Erro ${res.status}`);
+    return res.json();
   }
 
-  // ── Colaboradores ───────────────────────────────────────────────────────
+  // ── Colaboradores (seleção de usuário) ───────────────────────────────────
   async carregarColaboradores() {
     try {
       const cols = await this.api('/api/colaboradores');
       this.renderUserList(cols);
-    } catch (e) {
-      console.error('Erro ao carregar colaboradores:', e);
-    }
+    } catch (e) { console.error(e); }
   }
 
-  renderUserList(colaboradores) {
+  renderUserList(cols) {
     const container = document.getElementById('user-list');
-    container.innerHTML = colaboradores.map(col => `
+    container.innerHTML = cols.filter(c => c.ativo).map(col => `
       <div class="user-list-item" data-id="${col.id}" data-nome="${col.nome}">
-        <div class="user-avatar">${col.nome.charAt(0).toUpperCase()}</div>
+        <div class="user-avatar">${col.nome.charAt(0)}</div>
         <div>
           <div style="font-weight:600">${col.nome}</div>
           <div style="font-size:0.75rem;color:#718096">${col.funcao || 'Usuário'}</div>
         </div>
-      </div>
-    `).join('');
-
-    container.querySelectorAll('.user-list-item').forEach(item => {
-      item.addEventListener('click', () => this.selecionarUsuario(item));
-    });
+      </div>`).join('');
+    container.querySelectorAll('.user-list-item').forEach(item =>
+      item.addEventListener('click', () => this.selecionarUsuario(item)));
   }
 
   async selecionarUsuario(item) {
-    const nome = item.dataset.nome;
-    const id = parseInt(item.dataset.id);
-    
-    this.usuario = nome;
-    this.colaborador = { id, nome };
-    
-    document.getElementById('current-user').textContent = nome;
-    document.getElementById('user-avatar').textContent = nome.charAt(0).toUpperCase();
-    
+    this.usuario = item.dataset.nome;
+    this.colaborador = { id: parseInt(item.dataset.id), nome: item.dataset.nome };
+    document.getElementById('current-user').textContent = this.usuario;
+    document.getElementById('user-avatar').textContent = this.usuario.charAt(0);
     this.closeUserModal();
-    
-    // Carregar empresas do colaborador
     await this.carregarMinhasEmpresas();
-    
-    // Se há empresas, selecionar a primeira
-    if (this.minhasEmpresas && this.minhasEmpresas.length > 0) {
-      await this.selecionarEmpresa(this.minhasEmpresas[0]);
-    }
+    if (this.minhasEmpresas.length > 0) await this.selecionarEmpresa(this.minhasEmpresas[0]);
+    await this.renderizarConteudo();
   }
 
   async carregarMinhasEmpresas() {
@@ -104,123 +80,78 @@ class GridFlowApp {
       const col = await this.api(`/api/colaboradores/${this.colaborador.id}`);
       this.colaborador = col;
       this.minhasEmpresas = col.empresas || [];
-    } catch (e) {
-      this.minhasEmpresas = [];
-    }
+    } catch { this.minhasEmpresas = []; }
   }
 
-  openUserModal() {
-    document.getElementById('user-modal').classList.add('show');
-  }
+  openUserModal() { document.getElementById('user-modal').classList.add('show'); }
+  closeUserModal() { document.getElementById('user-modal').classList.remove('show'); }
 
-  closeUserModal() {
-    document.getElementById('user-modal').classList.remove('show');
-  }
-
-  // ── Períodos ─────────────────────────────────────────────────────────────
+  // ── Períodos ──────────────────────────────────────────────────────────────
   async carregarPeriodos() {
-    const periodos = this.gerarPeriodos();
     this.periodo = this.obterPeriodoAtual();
-    this.renderPeriodoDropdown(periodos);
+    this.renderPeriodoDropdown(this.gerarPeriodos());
   }
 
   gerarPeriodos() {
     const periodos = [];
     const agora = new Date();
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 24; i++) {
       const d = new Date(agora.getFullYear(), agora.getMonth() - i, 1);
       const mes = String(d.getMonth() + 1).padStart(2, '0');
-      const ano = d.getFullYear();
-      periodos.push({ mes, ano, label: `${mes}/${ano}`, value: `${mes}/${ano}` });
+      periodos.push(`${mes}/${d.getFullYear()}`);
     }
     return periodos;
   }
 
   obterPeriodoAtual() {
-    const agora = new Date();
-    const mes = String(agora.getMonth() + 1).padStart(2, '0');
-    const ano = agora.getFullYear();
-    return `${mes}/${ano}`;
+    const d = new Date();
+    return `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
   }
 
   renderPeriodoDropdown(periodos) {
     const dropdown = document.getElementById('periodo-dropdown');
     dropdown.innerHTML = periodos.map(p => `
-      <div class="dropdown-item ${p.value === this.periodo ? 'active' : ''}" data-value="${p.value}">
-        ${p.label}
-      </div>
-    `).join('');
-
+      <div class="dropdown-item ${p === this.periodo ? 'active' : ''}" data-value="${p}">${p}</div>`).join('');
     document.getElementById('periodo-display').textContent = this.periodo;
-
     dropdown.querySelectorAll('.dropdown-item').forEach(item => {
       item.addEventListener('click', () => {
         this.periodo = item.dataset.value;
         document.getElementById('periodo-display').textContent = this.periodo;
+        dropdown.querySelectorAll('.dropdown-item').forEach(i => i.classList.remove('active'));
+        item.classList.add('active');
         dropdown.classList.remove('show');
         this.atualizarConteudo();
       });
     });
   }
 
-  // ── Navegação ───────────────────────────────────────────────────────────
+  // ── Navegação ─────────────────────────────────────────────────────────────
   configurarEventos() {
-    // Sidebar toggle
-    document.getElementById('sidebar-toggle').addEventListener('click', () => {
-      document.getElementById('app-sidebar').classList.toggle('collapsed');
-    });
-
-    // User switch
-    document.getElementById('user-switch').addEventListener('click', () => {
-      this.openUserModal();
-    });
-
-    // Periodo dropdown
-    document.getElementById('btn-periodo').addEventListener('click', (e) => {
+    document.getElementById('sidebar-toggle').addEventListener('click', () =>
+      document.getElementById('app-sidebar').classList.toggle('collapsed'));
+    document.getElementById('user-switch').addEventListener('click', () => this.openUserModal());
+    document.getElementById('btn-periodo').addEventListener('click', e => {
       e.stopPropagation();
       document.getElementById('periodo-dropdown').classList.toggle('show');
     });
-
-    // Close dropdown on outside click
-    document.addEventListener('click', () => {
-      document.getElementById('periodo-dropdown').classList.remove('show');
-    });
-
-    // Nav items
-    document.querySelectorAll('.nav-item').forEach(item => {
-      item.addEventListener('click', () => {
-        const tab = item.dataset.tab;
-        if (tab) this.mudarTab(tab);
-      });
-    });
+    document.addEventListener('click', () =>
+      document.getElementById('periodo-dropdown').classList.remove('show'));
+    document.querySelectorAll('.nav-item').forEach(item =>
+      item.addEventListener('click', () => { if (item.dataset.tab) this.mudarTab(item.dataset.tab); }));
   }
 
   mudarTab(tab) {
     this.currentTab = tab;
-    
-    // Update nav
-    document.querySelectorAll('.nav-item').forEach(item => {
-      item.classList.toggle('active', item.dataset.tab === tab);
-    });
-
-    // Update title
-    const titles = {
-      dashboard: 'Checklist',
-      atividades: 'Gerenciador de Atividades',
-      configurar: 'Configurar Empresa',
-      empresas: 'Gerenciador de Empresas',
-      colaboradores: 'Colaboradores',
-      status: 'Status Geral'
-    };
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.toggle('active', i.dataset.tab === tab));
+    const titles = { dashboard:'Checklist', atividades:'Gerenciador de Atividades',
+      configurar:'Configurar Empresa', empresas:'Gerenciador de Empresas',
+      colaboradores:'Colaboradores', status:'Status Geral' };
     document.getElementById('topbar-title').textContent = titles[tab] || tab;
-
-    // Render content
     this.renderizarConteudo();
   }
 
   async renderizarConteudo() {
     const content = document.getElementById('app-content');
-    
     switch (this.currentTab) {
       case 'dashboard':
         content.innerHTML = await this.renderDashboard();
@@ -228,30 +159,30 @@ class GridFlowApp {
         break;
       case 'atividades':
         content.innerHTML = await this.renderAtividades();
+        this.configurarEventosAtividades();
         break;
       case 'empresas':
         content.innerHTML = await this.renderEmpresas();
         break;
       case 'colaboradores':
         content.innerHTML = await this.renderColaboradores();
+        this.configurarEventosColaboradores();
         break;
       case 'configurar':
-        content.innerHTML = await this.renderConfigurar();
+        content.innerHTML = this.renderConfigurar();
+        this.configurarEventosConfigurar();
         break;
       case 'status':
+        content.innerHTML = '<div class="loading">Carregando...</div>';
         content.innerHTML = await this.renderStatus();
         break;
     }
   }
 
-  async atualizarConteudo() {
-    await this.renderizarConteudo();
-  }
+  async atualizarConteudo() { await this.renderizarConteudo(); }
 
-  // ── Dashboard ───────────────────────────────────────────────────────────
+  // ── Dashboard ─────────────────────────────────────────────────────────────
   async renderDashboard() {
-    const periodo = this.periodo;
-    
     return `
       <div class="dashboard-grid">
         <div class="col-left">
@@ -263,8 +194,7 @@ class GridFlowApp {
               <div class="search-results" id="db-search-results"></div>
             </div>
           </div>
-
-          ${this.minhasEmpresas && this.minhasEmpresas.length ? `
+          ${this.minhasEmpresas.length ? `
           <div class="card">
             <h3>⭐ Minhas Empresas</h3>
             <div id="db-minhas-empresas">
@@ -272,22 +202,17 @@ class GridFlowApp {
                 <div class="minha-empresa-item" data-id="${e.id}">
                   <div class="minha-empresa-nome">${e.nome}</div>
                   <div class="minha-empresa-cod">${e.codigo_interno || e.cnpj || ''}</div>
-                </div>
-              `).join('')}
+                </div>`).join('')}
             </div>
           </div>` : ''}
-
           <div class="card" id="db-empresa-card">
             <h3>🏢 Empresa Selecionada</h3>
             <div id="db-empresa-info">
-              <div class="empresa-info-empty">
-                ${this.minhasEmpresas && this.minhasEmpresas.length ? 'Clique em uma das suas empresas' : 'Busque e selecione uma empresa'}
-              </div>
+              <div class="empresa-info-empty">${this.minhasEmpresas.length ? 'Clique em uma das suas empresas' : 'Busque e selecione uma empresa'}</div>
             </div>
           </div>
-
           <div class="card" id="db-notas-card" style="display:none">
-            <h3 style="margin:0 0 10px;font-size:0.92rem">📝 Anotações — <span style="color:#3498db">${periodo}</span></h3>
+            <h3 style="margin:0 0 10px;font-size:0.92rem">📝 Anotações — <span style="color:#3498db">${this.periodo}</span></h3>
             <textarea id="db-nota-texto" rows="4" placeholder="Registre aqui pendências, observações ou lembretes..."></textarea>
             <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
               <button class="btn btn-primary btn-sm" id="db-nota-salvar">💾 Salvar</button>
@@ -295,349 +220,289 @@ class GridFlowApp {
             </div>
           </div>
         </div>
-
         <div class="col-right">
           <div class="card">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
               <h3 style="margin:0">✅ Atividades</h3>
-              <span style="font-size:0.78rem;font-weight:600;color:#3498db;background:#ebf8ff;padding:3px 10px;border-radius:20px">📅 ${periodo}</span>
+              <span style="font-size:0.78rem;font-weight:600;color:#3498db;background:#ebf8ff;padding:3px 10px;border-radius:20px">📅 ${this.periodo}</span>
             </div>
             <div id="db-atividades-container">
               <div class="atividades-vazio">Selecione uma empresa para ver as atividades</div>
             </div>
           </div>
-
           <div class="card">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-              <h3 style="margin:0">📋 Histórico — <span style="color:#3498db">${periodo}</span></h3>
-              <span class="sync-info" id="db-sync-info">Auto-atualiza a cada 5s</span>
+              <h3 style="margin:0">📋 Histórico — <span style="color:#3498db">${this.periodo}</span></h3>
+              <span class="sync-info">Auto-atualiza a cada 5s</span>
             </div>
             <div id="db-historico-lista">
               <div class="historico-vazio">Nenhum registro neste período</div>
             </div>
           </div>
         </div>
-      </div>
-    `;
+      </div>`;
   }
 
   configurarEventosDashboard() {
-    // Search
     const input = document.getElementById('db-search-input');
     if (input) {
       input.addEventListener('input', () => {
         clearTimeout(this.searchTimeout);
         const q = input.value.trim();
-        if (q.length < 2) {
-          document.getElementById('db-search-results').classList.remove('show');
-          return;
-        }
-        this.searchTimeout = setTimeout(() => this.buscarEmpresas(q), CONFIG.searchDebounce);
+        if (q.length < 2) { document.getElementById('db-search-results').classList.remove('show'); return; }
+        this.searchTimeout = setTimeout(() => this.buscarEmpresas(q), 300);
       });
     }
-
-    // Close search on outside click
-    document.addEventListener('click', (e) => {
-      if (!e.target.closest('.search-box')) {
-        document.getElementById('db-search-results')?.classList.remove('show');
-      }
+    document.addEventListener('click', e => {
+      if (!e.target.closest('.search-box')) document.getElementById('db-search-results')?.classList.remove('show');
     });
-
-    // Minhas empresas
     document.querySelectorAll('.minha-empresa-item').forEach(el => {
       el.addEventListener('click', async () => {
         document.querySelectorAll('.minha-empresa-item').forEach(i => i.classList.remove('ativa'));
         el.classList.add('ativa');
-        const empresa = this.minhasEmpresas.find(e => e.id == el.dataset.id);
-        await this.selecionarEmpresa(empresa);
+        await this.selecionarEmpresa(this.minhasEmpresas.find(e => e.id == el.dataset.id));
       });
     });
-
-    // Nota salvar
-    const btnSalvar = document.getElementById('db-nota-salvar');
-    if (btnSalvar) {
-      btnSalvar.addEventListener('click', () => this.salvarNota());
-    }
+    document.getElementById('db-nota-salvar')?.addEventListener('click', () => this.salvarNota());
   }
 
   async buscarEmpresas(q) {
     try {
-      let lista = await this.api(`/api/empresas?search=${encodeURIComponent(q)}`);
-      
-      // Filtrar por empresas do colaborador se não for admin
-      if (this.colaborador && !this.colaborador.admin && this.minhasEmpresas.length) {
-        const ids = new Set(this.minhasEmpresas.map(e => e.id));
-        lista = lista.filter(e => ids.has(e.id));
-      }
-
+      const lista = await this.api(`/api/empresas?search=${encodeURIComponent(q)}`);
       const results = document.getElementById('db-search-results');
-      if (lista.length === 0) {
+      if (!lista.length) {
         results.innerHTML = '<div class="search-result-item"><div class="result-nome">Nenhuma empresa encontrada</div></div>';
       } else {
         results.innerHTML = lista.map(e => `
           <div class="search-result-item" data-id="${e.id}">
             <div class="result-nome">${e.nome}</div>
             <div class="result-info">${e.cnpj || ''} ${e.codigo_interno ? '• ' + e.codigo_interno : ''}</div>
-          </div>
-        `).join('');
-
+          </div>`).join('');
         results.querySelectorAll('.search-result-item').forEach(item => {
           item.addEventListener('click', async () => {
-            const empresa = lista.find(e => e.id == item.dataset.id);
-            await this.selecionarEmpresa(empresa);
+            await this.selecionarEmpresa(lista.find(e => e.id == item.dataset.id));
             results.classList.remove('show');
-            input.value = '';
+            document.getElementById('db-search-input').value = '';
           });
         });
       }
       results.classList.add('show');
-    } catch (e) {
-      console.error('Erro na busca:', e);
-    }
+    } catch (e) { console.error(e); }
   }
 
   async selecionarEmpresa(empresa) {
     this.empresaSelecionada = empresa;
-    
-    // Update UI
     document.getElementById('db-empresa-info').innerHTML = `
       <div class="empresa-nome">${empresa.nome}</div>
       <div class="empresa-badges">
         ${empresa.cnpj ? `<span class="badge badge-blue">${empresa.cnpj}</span>` : ''}
         ${empresa.codigo_interno ? `<span class="badge badge-green">${empresa.codigo_interno}</span>` : ''}
-      </div>
-    `;
-
+      </div>`;
     document.getElementById('db-notas-card').style.display = 'block';
-
-    // Carregar atividades e histórico
-    await Promise.all([
-      this.carregarAtividades(),
-      this.carregarHistorico(),
-      this.carregarNota()
-    ]);
+    await Promise.all([this.carregarAtividades(), this.carregarHistorico(), this.carregarNota()]);
   }
 
   async carregarAtividades() {
     if (!this.empresaSelecionada) return;
-
     try {
       const empresaId = this.empresaSelecionada.id;
-      const periodo = this.periodo;
-      
-      // Buscar atividades da empresa
-      const atividades = await this.api(`/api/empresas/${empresaId}/atividades`);
-      
-      // Buscar status das atividades no período
-      const status = await this.api(`/api/historico?empresa_id=${empresaId}&periodo=${periodo}`);
-      const concluidas = new Set(status.filter(h => h.concluida).map(h => h.atividade_id));
+      const [atividades, historico] = await Promise.all([
+        this.api(`/api/empresas/${empresaId}/atividades`),
+        this.api(`/api/historico?empresa_id=${empresaId}&periodo=${encodeURIComponent(this.periodo)}`)
+      ]);
 
-      this.atividades = atividades;
+      this.historicoAtual = {};
+      historico.forEach(h => { this.historicoAtual[h.atividade_id] = h; });
+
+      const okIds = new Set(historico.filter(h => h.status === 'OK').map(h => h.atividade_id));
+      const naIds = new Set(historico.filter(h => h.status === 'Não Aplicável').map(h => h.atividade_id));
+
+      const habilitadas = atividades.filter(a => a.habilitada);
+      const grupos = {};
+      habilitadas.forEach(a => { (grupos[a.grupo || 'Geral'] = grupos[a.grupo || 'Geral'] || []).push(a); });
 
       const container = document.getElementById('db-atividades-container');
-      container.innerHTML = `
-        <div class="atividades-grid">
-          ${atividades.map(a => `
-            <button class="atividade-btn ${concluidas.has(a.id) ? 'concluida' : ''}" 
-                    data-id="${a.id}" data-codigo="${a.codigo}">
-              <span class="btn-codigo">${a.codigo}</span>
-              ${a.nome}
-            </button>
-          `).join('')}
-        </div>
-      `;
+      if (!habilitadas.length) {
+        container.innerHTML = '<div class="atividades-vazio">Nenhuma atividade habilitada</div>';
+        return;
+      }
 
-      // Bind click events
-      container.querySelectorAll('.atividade-btn').forEach(btn => {
-        btn.addEventListener('click', () => this.toggleAtividade(btn));
-      });
-    } catch (e) {
-      console.error('Erro ao carregar atividades:', e);
-    }
+      container.innerHTML = Object.entries(grupos).map(([grupo, atvsGrupo]) => `
+        <div style="margin-bottom:16px">
+          <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:#718096;margin-bottom:6px;letter-spacing:0.05em">${grupo}</div>
+          <div class="atividades-grid">
+            ${atvsGrupo.map(a => `
+              <button class="atividade-btn ${okIds.has(a.atividade_id) ? 'concluida' : naIds.has(a.atividade_id) ? 'na' : ''}"
+                      data-id="${a.atividade_id}" data-status="${okIds.has(a.atividade_id) ? 'OK' : naIds.has(a.atividade_id) ? 'NA' : ''}">
+                <span class="btn-codigo">${a.codigo || ''}</span>${a.nome}
+              </button>`).join('')}
+          </div>
+        </div>`).join('');
+
+      container.querySelectorAll('.atividade-btn').forEach(btn =>
+        btn.addEventListener('click', () => this.toggleAtividade(btn)));
+    } catch (e) { console.error(e); }
   }
 
   async toggleAtividade(btn) {
-    if (!this.empresaSelecionada || !this.usuario) return;
-
+    if (!this.usuario) { alert('Selecione um usuário primeiro (canto inferior esquerdo)'); return; }
     const atividadeId = parseInt(btn.dataset.id);
-    const periodo = this.periodo;
+    const status = btn.dataset.status;
     const empresaId = this.empresaSelecionada.id;
 
-    const concluida = !btn.classList.contains('concluida');
-
     try {
-      await this.api('/api/historico', {
-        method: 'POST',
-        body: JSON.stringify({
-          empresa_id: empresaId,
-          atividade_id: atividadeId,
-          periodo: periodo,
-          usuario: this.usuario,
-          concluida: concluida,
-          observacao: ''
-        })
-      });
-
-      btn.classList.toggle('concluida');
+      if (status === 'OK') {
+        const h = this.historicoAtual[atividadeId];
+        if (h) await this.api(`/api/historico/${h.id}`, { method: 'DELETE' });
+        btn.classList.remove('concluida', 'na');
+        btn.dataset.status = '';
+        delete this.historicoAtual[atividadeId];
+      } else {
+        const h = await this.api('/api/historico', {
+          method: 'POST',
+          body: JSON.stringify({ empresa_id: empresaId, atividade_id: atividadeId,
+            periodo: this.periodo, usuario: this.usuario, status: 'OK', observacao: '' })
+        });
+        btn.classList.add('concluida');
+        btn.classList.remove('na');
+        btn.dataset.status = 'OK';
+        this.historicoAtual[atividadeId] = h;
+      }
       await this.carregarHistorico();
-    } catch (e) {
-      console.error('Erro ao atualizar atividade:', e);
-    }
+    } catch (e) { console.error(e); }
   }
 
   async carregarHistorico() {
     if (!this.empresaSelecionada) return;
-
     try {
-      const periodo = this.periodo;
-      const empresaId = this.empresaSelecionada.id;
-      
-      const historico = await this.api(`/api/historico?empresa_id=${empresaId}&periodo=${periodo}`);
-
+      const historico = await this.api(`/api/historico?empresa_id=${this.empresaSelecionada.id}&periodo=${encodeURIComponent(this.periodo)}`);
       const container = document.getElementById('db-historico-lista');
-      
-      if (historico.length === 0) {
+      if (!historico.length) {
         container.innerHTML = '<div class="historico-vazio">Nenhum registro neste período</div>';
         return;
       }
-
-      // Ordenar por data mais recente
-      historico.sort((a, b) => new Date(b.data) - new Date(a.data));
-
-      container.innerHTML = `
-        <div class="historico-lista">
-          ${historico.map(h => `
-            <div class="historico-item">
-              <div class="hi-data">${this.formatarData(h.data)}</div>
-              <div class="hi-atividade">${h.atividade_codigo} - ${h.atividade_nome}</div>
-              <div class="hi-usuario">${h.usuario}</div>
-            </div>
-          `).join('')}
-        </div>
-      `;
-    } catch (e) {
-      console.error('Erro ao carregar histórico:', e);
-    }
+      container.innerHTML = `<div class="historico-lista">${historico.map(h => `
+        <div class="historico-item">
+          <div class="hi-data">${h.data}</div>
+          <div class="hi-atividade">${h.atividade_codigo ? h.atividade_codigo + ' - ' : ''}${h.atividade_nome}</div>
+          <div class="hi-usuario">${h.usuario}</div>
+        </div>`).join('')}</div>`;
+    } catch (e) { console.error(e); }
   }
 
   async carregarNota() {
     if (!this.empresaSelecionada) return;
-
     try {
-      const periodo = this.periodo;
-      const empresaId = this.empresaSelecionada.id;
-      
-      const notas = await this.api(`/api/notas?empresa_id=${empresaId}&periodo=${periodo}`);
-      
-      if (notas && notas.length > 0 && notas[0].texto) {
-        document.getElementById('db-nota-texto').value = notas[0].texto;
-      } else {
-        document.getElementById('db-nota-texto').value = '';
-      }
-    } catch (e) {
-      console.error('Erro ao carregar nota:', e);
-    }
+      const notas = await this.api(`/api/notas?empresa_id=${this.empresaSelecionada.id}&periodo=${encodeURIComponent(this.periodo)}`);
+      document.getElementById('db-nota-texto').value = (notas && notas.length) ? (notas[0].texto || '') : '';
+    } catch (e) { console.error(e); }
   }
 
   async salvarNota() {
     if (!this.empresaSelecionada || !this.usuario) return;
-
-    const texto = document.getElementById('db-nota-texto').value;
-    const periodo = this.periodo;
-    const empresaId = this.empresaSelecionada.id;
-
     try {
-      await this.api('/api/notas', {
-        method: 'POST',
-        body: JSON.stringify({
-          empresa_id: empresaId,
-          periodo: periodo,
-          usuario: this.usuario,
-          texto: texto
-        })
-      });
-
-      document.getElementById('db-nota-status').textContent = 'Salvo!';
-      setTimeout(() => {
-        document.getElementById('db-nota-status').textContent = '';
-      }, 2000);
-    } catch (e) {
-      console.error('Erro ao salvar nota:', e);
-      document.getElementById('db-nota-status').textContent = 'Erro ao salvar';
-    }
+      await this.api('/api/notas', { method: 'POST', body: JSON.stringify({
+        empresa_id: this.empresaSelecionada.id, periodo: this.periodo,
+        usuario: this.usuario, texto: document.getElementById('db-nota-texto').value
+      })});
+      const st = document.getElementById('db-nota-status');
+      st.textContent = 'Salvo!';
+      setTimeout(() => st.textContent = '', 2000);
+    } catch (e) { console.error(e); }
   }
 
-  formatarData(dataStr) {
-    const d = new Date(dataStr);
-    return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-  }
-
-  // ── Auto Refresh ─────────────────────────────────────────────────────────
   iniciarAutoRefresh() {
     this.refreshInterval = setInterval(async () => {
       await this.verificarConexao();
       if (this.currentTab === 'dashboard' && this.empresaSelecionada) {
-        await Promise.all([
-          this.carregarHistorico(),
-          this.carregarAtividades()
-        ]);
+        await Promise.all([this.carregarHistorico(), this.carregarAtividades()]);
       }
-    }, CONFIG.autoRefreshInterval);
+    }, 5000);
   }
 
-  // ── Outras Abas ──────────────────────────────────────────────────────────
+  // ── Atividades ────────────────────────────────────────────────────────────
   async renderAtividades() {
     try {
       const atividades = await this.api('/api/atividades');
-      
+      const grupos = [...new Set(atividades.map(a => a.grupo || 'Geral'))].sort();
       return `
         <div class="card">
-          <h3>Gerenciador de Atividades</h3>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+            <h3 style="margin:0">Gerenciador de Atividades</h3>
+            <button class="btn btn-primary" id="btn-nova-atividade">+ Nova Atividade</button>
+          </div>
+          <div id="form-atividade" style="display:none;background:#f7fafc;border-radius:8px;padding:16px;margin-bottom:16px">
+            <h4 style="margin:0 0 12px">Nova Atividade</h4>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+              <input id="atv-nome" type="text" placeholder="Nome da atividade *" style="padding:8px;border:1px solid #e2e8f0;border-radius:6px">
+              <input id="atv-grupo" type="text" placeholder="Grupo (ex: Fiscal, RH...)" list="grupos-list" style="padding:8px;border:1px solid #e2e8f0;border-radius:6px">
+              <datalist id="grupos-list">${grupos.map(g => `<option value="${g}">`).join('')}</datalist>
+            </div>
+            <input id="atv-descricao" type="text" placeholder="Descrição (opcional)" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;box-sizing:border-box;margin-bottom:10px">
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-primary" id="btn-salvar-atv">Salvar</button>
+              <button class="btn" id="btn-cancelar-atv">Cancelar</button>
+            </div>
+          </div>
           <table class="data-table">
-            <thead>
-              <tr>
-                <th>Código</th>
-                <th>Nome</th>
-                <th>Descrição</th>
-                <th>Grupo</th>
-                <th>Status</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Nome</th><th>Grupo</th><th>Descrição</th><th>Status</th><th></th></tr></thead>
             <tbody>
               ${atividades.map(a => `
                 <tr>
-                  <td><span class="atividade-codigo-tag">${a.codigo}</span></td>
                   <td>${a.nome}</td>
-                  <td>${a.descricao || '-'}</td>
                   <td><span class="grupo-tag">${a.grupo || 'Geral'}</span></td>
+                  <td>${a.descricao || '-'}</td>
                   <td>${a.ativo ? '✅ Ativo' : '❌ Inativo'}</td>
-                </tr>
-              `).join('')}
+                  <td>
+                    <button class="btn btn-sm btn-ativar-atv" data-id="${a.id}" data-ativo="${a.ativo}">
+                      ${a.ativo ? 'Desativar' : 'Ativar'}
+                    </button>
+                  </td>
+                </tr>`).join('')}
             </tbody>
           </table>
-        </div>
-      `;
-    } catch (e) {
-      return `<div class="loading">Erro ao carregar atividades</div>`;
-    }
+        </div>`;
+    } catch (e) { return `<div class="loading">Erro ao carregar atividades</div>`; }
   }
 
+  configurarEventosAtividades() {
+    document.getElementById('btn-nova-atividade')?.addEventListener('click', () => {
+      document.getElementById('form-atividade').style.display = 'block';
+    });
+    document.getElementById('btn-cancelar-atv')?.addEventListener('click', () => {
+      document.getElementById('form-atividade').style.display = 'none';
+    });
+    document.getElementById('btn-salvar-atv')?.addEventListener('click', async () => {
+      const nome = document.getElementById('atv-nome').value.trim();
+      const grupo = document.getElementById('atv-grupo').value.trim() || 'Geral';
+      const descricao = document.getElementById('atv-descricao').value.trim();
+      if (!nome) { alert('Nome é obrigatório'); return; }
+      try {
+        await this.api('/api/atividades', { method: 'POST', body: JSON.stringify({ nome, grupo, descricao }) });
+        await this.mudarTab('atividades');
+      } catch (e) { alert('Erro ao salvar: ' + e.message); }
+    });
+    document.querySelectorAll('.btn-ativar-atv').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.id;
+        const ativo = btn.dataset.ativo === '1' || btn.dataset.ativo === 'true';
+        try {
+          await this.api(`/api/atividades/${id}`, { method: 'PUT', body: JSON.stringify({ ativo: !ativo }) });
+          await this.mudarTab('atividades');
+        } catch (e) { alert('Erro: ' + e.message); }
+      });
+    });
+  }
+
+  // ── Empresas ──────────────────────────────────────────────────────────────
   async renderEmpresas() {
     try {
       const empresas = await this.api('/api/empresas/todas');
-      
       return `
         <div class="card">
           <h3>Gerenciador de Empresas (${empresas.length})</h3>
           <table class="data-table">
-            <thead>
-              <tr>
-                <th>Nome</th>
-                <th>CNPJ</th>
-                <th>Código Interno</th>
-                <th>Status</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Nome</th><th>CNPJ</th><th>Código</th><th>Status</th></tr></thead>
             <tbody>
               ${empresas.map(e => `
                 <tr>
@@ -645,142 +510,280 @@ class GridFlowApp {
                   <td>${e.cnpj || '-'}</td>
                   <td>${e.codigo_interno || '-'}</td>
                   <td>${e.ativo ? '✅ Ativo' : '❌ Inativo'}</td>
-                </tr>
-              `).join('')}
+                </tr>`).join('')}
             </tbody>
           </table>
-        </div>
-      `;
-    } catch (e) {
-      return `<div class="loading">Erro ao carregar empresas</div>`;
-    }
+        </div>`;
+    } catch { return `<div class="loading">Erro ao carregar empresas</div>`; }
   }
 
+  // ── Colaboradores (CRUD) ───────────────────────────────────────────────────
   async renderColaboradores() {
     try {
       const cols = await this.api('/api/colaboradores');
-      
       return `
         <div class="card">
-          <h3>Colaboradores</h3>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+            <h3 style="margin:0">Colaboradores</h3>
+            <button class="btn btn-primary" id="btn-novo-col">+ Novo Colaborador</button>
+          </div>
+          <div id="form-col" style="display:none;background:#f7fafc;border-radius:8px;padding:16px;margin-bottom:16px">
+            <h4 id="form-col-titulo" style="margin:0 0 12px">Novo Colaborador</h4>
+            <input type="hidden" id="col-id">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+              <input id="col-nome" type="text" placeholder="Nome completo *" style="padding:8px;border:1px solid #e2e8f0;border-radius:6px">
+              <input id="col-funcao" type="text" placeholder="Função (ex: Contador)" style="padding:8px;border:1px solid #e2e8f0;border-radius:6px">
+            </div>
+            <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;cursor:pointer">
+              <input id="col-admin" type="checkbox"> Administrador
+            </label>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-primary" id="btn-salvar-col">Salvar</button>
+              <button class="btn" id="btn-cancelar-col">Cancelar</button>
+            </div>
+          </div>
           <table class="data-table">
-            <thead>
-              <tr>
-                <th>Nome</th>
-                <th>Função</th>
-                <th>Admin</th>
-                <th>Empresas</th>
-                <th>Status</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Nome</th><th>Função</th><th>Perfil</th><th>Status</th><th></th></tr></thead>
             <tbody>
               ${cols.map(c => `
                 <tr>
-                  <td>${c.nome}</td>
+                  <td><div style="display:flex;align-items:center;gap:8px">
+                    <div class="user-avatar" style="width:28px;height:28px;font-size:0.75rem">${c.nome.charAt(0)}</div>${c.nome}
+                  </div></td>
                   <td>${c.funcao || '-'}</td>
-                  <td>${c.admin ? '👑 Sim' : 'Não'}</td>
-                  <td>${c.empresas?.length || 0}</td>
+                  <td>${c.admin ? '👑 Admin' : 'Usuário'}</td>
                   <td>${c.ativo ? '✅ Ativo' : '❌ Inativo'}</td>
-                </tr>
-              `).join('')}
+                  <td style="display:flex;gap:6px">
+                    <button class="btn btn-sm btn-editar-col" data-id="${c.id}" data-nome="${c.nome}" data-funcao="${c.funcao || ''}" data-admin="${c.admin}">Editar</button>
+                    <button class="btn btn-sm btn-toggle-col" data-id="${c.id}" data-ativo="${c.ativo}">${c.ativo ? 'Desativar' : 'Ativar'}</button>
+                  </td>
+                </tr>`).join('')}
             </tbody>
           </table>
-        </div>
-      `;
-    } catch (e) {
-      return `<div class="loading">Erro ao carregar colaboradores</div>`;
-    }
+        </div>`;
+    } catch { return `<div class="loading">Erro ao carregar colaboradores</div>`; }
   }
 
-  async renderConfigurar() {
-    if (!this.empresaSelecionada) {
-      return `
-        <div class="card">
-          <div class="empty-state">
-            <div class="empty-state-icon">🏢</div>
-            <div class="empty-state-text">Selecione uma empresa no Dashboard para configurá-la</div>
-          </div>
-        </div>
-      `;
-    }
+  configurarEventosColaboradores() {
+    document.getElementById('btn-novo-col')?.addEventListener('click', () => {
+      document.getElementById('col-id').value = '';
+      document.getElementById('col-nome').value = '';
+      document.getElementById('col-funcao').value = '';
+      document.getElementById('col-admin').checked = false;
+      document.getElementById('form-col-titulo').textContent = 'Novo Colaborador';
+      document.getElementById('form-col').style.display = 'block';
+    });
+    document.getElementById('btn-cancelar-col')?.addEventListener('click', () => {
+      document.getElementById('form-col').style.display = 'none';
+    });
+    document.getElementById('btn-salvar-col')?.addEventListener('click', async () => {
+      const id = document.getElementById('col-id').value;
+      const nome = document.getElementById('col-nome').value.trim();
+      const funcao = document.getElementById('col-funcao').value.trim();
+      const admin = document.getElementById('col-admin').checked;
+      if (!nome) { alert('Nome é obrigatório'); return; }
+      try {
+        if (id) {
+          await this.api(`/api/colaboradores/${id}`, { method: 'PUT', body: JSON.stringify({ nome, funcao, admin }) });
+        } else {
+          await this.api('/api/colaboradores', { method: 'POST', body: JSON.stringify({ nome, funcao, admin }) });
+        }
+        await this.carregarColaboradores();
+        await this.mudarTab('colaboradores');
+      } catch (e) { alert('Erro ao salvar: ' + e.message); }
+    });
+    document.querySelectorAll('.btn-editar-col').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.getElementById('col-id').value = btn.dataset.id;
+        document.getElementById('col-nome').value = btn.dataset.nome;
+        document.getElementById('col-funcao').value = btn.dataset.funcao;
+        document.getElementById('col-admin').checked = btn.dataset.admin === '1' || btn.dataset.admin === 'true';
+        document.getElementById('form-col-titulo').textContent = 'Editar Colaborador';
+        document.getElementById('form-col').style.display = 'block';
+        document.getElementById('form-col').scrollIntoView({ behavior: 'smooth' });
+      });
+    });
+    document.querySelectorAll('.btn-toggle-col').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const ativo = btn.dataset.ativo === '1' || btn.dataset.ativo === 'true';
+        try {
+          await this.api(`/api/colaboradores/${btn.dataset.id}`, { method: 'PUT', body: JSON.stringify({ ativo: !ativo }) });
+          await this.carregarColaboradores();
+          await this.mudarTab('colaboradores');
+        } catch (e) { alert('Erro: ' + e.message); }
+      });
+    });
+  }
 
+  // ── Configurar ────────────────────────────────────────────────────────────
+  renderConfigurar() {
+    const empresa = this.empresaConfigurar || this.empresaSelecionada;
+    return `
+      <div class="card">
+        <h3 style="margin:0 0 12px">Configurar Empresa</h3>
+        <div style="position:relative;margin-bottom:16px">
+          <input type="text" id="cfg-search" placeholder="🔍  Buscar empresa pelo nome..." style="width:100%;padding:10px 14px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.95rem;box-sizing:border-box">
+          <div id="cfg-search-results" class="search-results" style="position:absolute;top:100%;left:0;right:0;z-index:100"></div>
+        </div>
+        <div id="cfg-conteudo">
+          ${empresa ? '<div class="loading">Carregando atividades...</div>' : '<div style="color:#718096;text-align:center;padding:40px">Busque e selecione uma empresa acima</div>'}
+        </div>
+      </div>`;
+  }
+
+  configurarEventosConfigurar() {
+    const input = document.getElementById('cfg-search');
+    let t;
+    input.addEventListener('input', () => {
+      clearTimeout(t);
+      const q = input.value.trim();
+      if (q.length < 2) { document.getElementById('cfg-search-results').classList.remove('show'); return; }
+      t = setTimeout(() => this.buscarEmpresaConfigurar(q), 300);
+    });
+    document.addEventListener('click', e => {
+      if (!e.target.closest('#cfg-search') && !e.target.closest('#cfg-search-results'))
+        document.getElementById('cfg-search-results')?.classList.remove('show');
+    });
+    const empresa = this.empresaConfigurar || this.empresaSelecionada;
+    if (empresa) this.carregarConfigurarEmpresa(empresa.id);
+  }
+
+  async buscarEmpresaConfigurar(q) {
     try {
-      const empresaId = this.empresaSelecionada.id;
+      const lista = await this.api(`/api/empresas?search=${encodeURIComponent(q)}`);
+      const results = document.getElementById('cfg-search-results');
+      if (!lista.length) {
+        results.innerHTML = '<div class="search-result-item">Nenhuma empresa encontrada</div>';
+      } else {
+        results.innerHTML = lista.map(e => `
+          <div class="search-result-item" data-id="${e.id}">
+            <div class="result-nome">${e.nome}</div>
+            <div class="result-info">${e.codigo_interno || ''}</div>
+          </div>`).join('');
+        results.querySelectorAll('.search-result-item').forEach(item => {
+          item.addEventListener('click', async () => {
+            const emp = lista.find(e => e.id == item.dataset.id);
+            this.empresaConfigurar = emp;
+            document.getElementById('cfg-search').value = emp.nome;
+            results.classList.remove('show');
+            await this.carregarConfigurarEmpresa(emp.id);
+          });
+        });
+      }
+      results.classList.add('show');
+    } catch (e) { console.error(e); }
+  }
+
+  async carregarConfigurarEmpresa(empresaId) {
+    const container = document.getElementById('cfg-conteudo');
+    try {
       const atividades = await this.api(`/api/empresas/${empresaId}/atividades`);
-      
-      return `
-        <div class="card">
-          <h3>Configurar: ${this.empresaSelecionada.nome}</h3>
-          <p style="color:#718096;margin-bottom:16px">Habilite ou desabilite as atividades desta empresa</p>
-          <div>
-            ${atividades.map(a => `
+      const grupos = {};
+      atividades.forEach(a => { (grupos[a.grupo || 'Geral'] = grupos[a.grupo || 'Geral'] || []).push(a); });
+
+      container.innerHTML = `
+        <h4 style="margin:0 0 12px">${this.empresaConfigurar?.nome || this.empresaSelecionada?.nome || ''}</h4>
+        <p style="color:#718096;margin-bottom:16px;font-size:0.85rem">Habilite ou desabilite atividades para esta empresa</p>
+        ${Object.entries(grupos).map(([grupo, atvsGrupo]) => `
+          <div style="margin-bottom:20px">
+            <div style="font-weight:700;text-transform:uppercase;font-size:0.75rem;color:#718096;margin-bottom:8px;letter-spacing:0.05em">${grupo}</div>
+            ${atvsGrupo.map(a => `
               <div class="configurar-atividade-row">
                 <div class="cfg-atv-info">
-                  <div class="cfg-atv-nome">${a.codigo} - ${a.nome}</div>
+                  <div class="cfg-atv-nome">${a.nome}</div>
                   <div class="cfg-atv-grupo">${a.grupo || 'Geral'}</div>
                 </div>
                 <label class="toggle-ativo">
-                  <input type="checkbox" ${a.habilitada ? 'checked' : ''} data-id="${a.id}">
+                  <input type="checkbox" class="cfg-toggle" ${a.habilitada ? 'checked' : ''} data-empresa="${empresaId}" data-atv="${a.atividade_id}">
                   <span class="toggle-slider"></span>
                 </label>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      `;
-    } catch (e) {
-      return `<div class="loading">Erro ao carregar configuração</div>`;
-    }
+              </div>`).join('')}
+          </div>`).join('')}`;
+
+      container.querySelectorAll('.cfg-toggle').forEach(toggle => {
+        toggle.addEventListener('change', async () => {
+          try {
+            await this.api(`/api/empresas/${toggle.dataset.empresa}/atividades/${toggle.dataset.atv}`, {
+              method: 'PUT', body: JSON.stringify({ habilitada: toggle.checked })
+            });
+          } catch (e) { toggle.checked = !toggle.checked; alert('Erro ao salvar'); }
+        });
+      });
+    } catch (e) { container.innerHTML = '<div class="loading">Erro ao carregar</div>'; }
   }
 
+  // ── Status Geral ──────────────────────────────────────────────────────────
   async renderStatus() {
     try {
-      const [empresas, atividades, historico, cols] = await Promise.all([
-        this.api('/api/empresas/todas'),
-        this.api('/api/atividades'),
-        this.api('/api/historico?periodo=' + this.periodo),
-        this.api('/api/colaboradores')
-      ]);
+      const data = await this.api(`/api/status/geral?periodo=${encodeURIComponent(this.periodo)}`);
+      const { colaboradores, geral } = data;
 
-      const periodo = this.periodo;
-      const concluidas = historico.filter(h => h.concluida).length;
-      const total = historico.length;
+      const totalEmpresas = geral.length;
+      const totalAtv = geral.reduce((s, e) => s + e.total, 0);
+      const totalConc = geral.reduce((s, e) => s + e.concluidas, 0);
+      const pctGeral = totalAtv > 0 ? Math.round((totalConc / totalAtv) * 100) : 0;
 
       return `
-        <div class="card">
-          <h3>Status Geral</h3>
-          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:12px">
-            <div style="text-align:center;padding:16px;background:#f7fafc;border-radius:8px">
-              <div style="font-size:2rem;font-weight:700;color:#3498db">${empresas.length}</div>
-              <div style="font-size:0.8rem;color:#718096">Empresas</div>
-            </div>
-            <div style="text-align:center;padding:16px;background:#f7fafc;border-radius:8px">
-              <div style="font-size:2rem;font-weight:700;color:#27ae60">${atividades.length}</div>
-              <div style="font-size:0.8rem;color:#718096">Atividades</div>
-            </div>
-            <div style="text-align:center;padding:16px;background:#f7fafc;border-radius:8px">
-              <div style="font-size:2rem;font-weight:700;color:#e67e22">${cols.length}</div>
-              <div style="font-size:0.8rem;color:#718096">Colaboradores</div>
-            </div>
-            <div style="text-align:center;padding:16px;background:#f7fafc;border-radius:8px">
-              <div style="font-size:2rem;font-weight:700;color:#9b59b6">${concluidas}/${total}</div>
-              <div style="font-size:0.8rem;color:#718096">Concluídas (${periodo})</div>
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div class="card">
+            <h3 style="margin:0 0 16px">📊 Resumo — ${this.periodo}</h3>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+              ${[
+                ['🏢', totalEmpresas, 'Empresas', '#3498db'],
+                ['✅', totalConc, 'Concluídas', '#27ae60'],
+                ['⏳', totalAtv - totalConc, 'Pendentes', '#e67e22'],
+                ['📈', pctGeral + '%', 'Progresso', '#9b59b6']
+              ].map(([icon, val, lbl, cor]) => `
+                <div style="text-align:center;padding:16px;background:#f7fafc;border-radius:8px">
+                  <div style="font-size:1.5rem">${icon}</div>
+                  <div style="font-size:1.8rem;font-weight:700;color:${cor}">${val}</div>
+                  <div style="font-size:0.78rem;color:#718096">${lbl}</div>
+                </div>`).join('')}
             </div>
           </div>
-        </div>
-      `;
-    } catch (e) {
-      return `<div class="loading">Erro ao carregar status</div>`;
-    }
+
+          ${colaboradores.map(col => `
+            <div class="card">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <div class="user-avatar">${col.colaborador.nome.charAt(0)}</div>
+                  <div>
+                    <div style="font-weight:700">${col.colaborador.nome}</div>
+                    <div style="font-size:0.78rem;color:#718096">${col.colaborador.funcao || 'Usuário'} · ${col.total_empresas} empresa${col.total_empresas !== 1 ? 's' : ''}</div>
+                  </div>
+                </div>
+                <div style="text-align:right">
+                  <div style="font-size:1.5rem;font-weight:700;color:${col.pct >= 80 ? '#27ae60' : col.pct >= 50 ? '#e67e22' : '#e74c3c'}">${col.pct}%</div>
+                  <div style="font-size:0.75rem;color:#718096">${col.concluidas}/${col.total_atividades}</div>
+                </div>
+              </div>
+              <div style="background:#e2e8f0;border-radius:99px;height:8px;margin-bottom:12px">
+                <div style="background:${col.pct >= 80 ? '#27ae60' : col.pct >= 50 ? '#e67e22' : '#e74c3c'};width:${col.pct}%;height:8px;border-radius:99px;transition:width 0.3s"></div>
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px">
+                ${col.empresas.map(e => `
+                  <div style="background:${e.pct === 100 ? '#f0fff4' : '#fff5f5'};border:1px solid ${e.pct === 100 ? '#9ae6b4' : '#feb2b2'};border-radius:6px;padding:4px 10px;font-size:0.78rem">
+                    ${e.empresa.nome} <strong>${e.pct}%</strong>
+                  </div>`).join('')}
+              </div>
+            </div>`).join('')}
+
+          <div class="card">
+            <h3 style="margin:0 0 12px">🏢 Todas as Empresas</h3>
+            ${geral.map(e => `
+              <div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid #f0f0f0">
+                <div style="flex:1;font-size:0.85rem">${e.empresa.nome}</div>
+                <div style="width:120px;background:#e2e8f0;border-radius:99px;height:6px">
+                  <div style="background:${e.pct === 100 ? '#27ae60' : e.pct >= 50 ? '#e67e22' : '#e74c3c'};width:${e.pct}%;height:6px;border-radius:99px"></div>
+                </div>
+                <div style="font-size:0.82rem;font-weight:600;width:40px;text-align:right">${e.pct}%</div>
+              </div>`).join('')}
+          </div>
+        </div>`;
+    } catch (e) { return `<div class="loading">Erro ao carregar status: ${e.message}</div>`; }
   }
 }
 
-// ── Inicialização ─────────────────────────────────────────────────────────
 const App = new GridFlowApp();
-
-document.addEventListener('DOMContentLoaded', () => {
-  App.init();
-});
-
-// Expose App globally for onclick handlers
+document.addEventListener('DOMContentLoaded', () => App.init());
 window.App = App;
