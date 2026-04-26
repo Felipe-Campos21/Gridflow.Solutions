@@ -399,6 +399,13 @@ body {
   border-color: #27ae60;
   color: #276749;
 }
+.atividade-btn.na {
+  background: #fff5f5;
+  border-color: #e74c3c;
+  color: #c53030;
+}
+/* Filiais */
+.filial-header:hover { background: #f7fafc; }
 .atividades-vazio {
   color: #a0aec0;
   text-align: center;

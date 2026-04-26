@@ -43,6 +43,7 @@ function carregar() {
   if (!DB.seq) DB.seq = {};
   if (!DB.config) DB.config = { grupos_integrados: [] };
   if (!DB.config.grupos_integrados) DB.config.grupos_integrados = [];
+  if (!DB.config.grupos_por_empresa) DB.config.grupos_por_empresa = {};
   if (!DB.config.periodos) {
     const ps = [];
     const now = new Date();
@@ -509,6 +510,46 @@ const server = http.createServer(async (req, res) => {
       if (Array.isArray(body.grupos_integrados)) DB.config.grupos_integrados = body.grupos_integrados;
       salvar(); return json(res, DB.config);
     }
+  }
+
+  // ── Grupos Integrados por Empresa ─────────────────────────────────────────
+  if ((params = match('/api/empresas/:id/grupos-integrados', pathname))) {
+    const empId = String(params.id);
+    if (method === 'GET') {
+      return json(res, (DB.config.grupos_por_empresa || {})[empId] || []);
+    }
+    if (method === 'PUT') {
+      body = await readBody(req);
+      if (!DB.config.grupos_por_empresa) DB.config.grupos_por_empresa = {};
+      DB.config.grupos_por_empresa[empId] = Array.isArray(body.grupos) ? body.grupos : [];
+      salvar();
+      return json(res, DB.config.grupos_por_empresa[empId]);
+    }
+  }
+
+  // ── Sincronizar Filiais ────────────────────────────────────────────────────
+  if ((params = match('/api/empresas/:id/sincronizar', pathname)) && method === 'POST') {
+    body = await readBody(req);
+    const matrizId = parseInt(params.id);
+    const periodo  = body.periodo  || '';
+    const usuario  = body.usuario  || 'Sistema';
+    const filiais  = DB.empresas.filter(e => e.ativo && e.matriz_id === matrizId);
+    const matrizHist = DB.historico.filter(h => h.empresa_id === matrizId && h.periodo === periodo);
+    let count = 0;
+    for (const filial of filiais) {
+      const filialAtvIds = new Set(
+        DB.historico.filter(h => h.empresa_id === filial.id && h.periodo === periodo).map(h => h.atividade_id)
+      );
+      for (const mh of matrizHist) {
+        if (!filialAtvIds.has(mh.atividade_id)) {
+          DB.historico.push({ id: novoId('historico'), empresa_id: filial.id, atividade_id: mh.atividade_id,
+            usuario, observacao: mh.observacao || '', status: mh.status, periodo, data: agora() });
+          count++;
+        }
+      }
+    }
+    salvar();
+    return json(res, { success: true, sincronizados: count });
   }
 
   // ── Períodos ──────────────────────────────────────────────────────────────

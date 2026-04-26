@@ -13,6 +13,10 @@ class GridFlowApp {
     this.currentTab = 'dashboard';
     this.editandoColId = null;
     this.empresaConfigurar = null;
+    this.filiais = [];
+    this._historicoFiliais = {};
+    this._gruposIntegrados = [];
+    this._atividadesEmpresa = [];
   }
 
   async init() {
@@ -299,7 +303,7 @@ class GridFlowApp {
             </div>
           </div>
         </div>
-        <div class="col-right">
+        <div class="col-right" id="db-col-right">
           <div class="card">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
               <h3 style="margin:0">✅ Atividades</h3>
@@ -373,18 +377,57 @@ class GridFlowApp {
     this.empresaSelecionada = empresa;
     try { this.filiais = await this.api(`/api/empresas/${empresa.id}/filiais`); }
     catch { this.filiais = []; }
-    document.getElementById('db-empresa-info').innerHTML = `
+
+    const infoEl = document.getElementById('db-empresa-info');
+    const notasEl = document.getElementById('db-notas-card');
+    if (infoEl) infoEl.innerHTML = `
       <div class="empresa-nome">${empresa.nome}</div>
       <div class="empresa-badges">
         ${empresa.cnpj ? `<span class="badge badge-blue">${empresa.cnpj}</span>` : ''}
         ${empresa.codigo_interno ? `<span class="badge badge-green">${empresa.codigo_interno}</span>` : ''}
       </div>`;
-    document.getElementById('db-notas-card').style.display = 'block';
-    await Promise.all([this.carregarAtividades(), this.carregarHistorico(), this.carregarNota()]);
+    if (notasEl) notasEl.style.display = 'block';
+
+    const colRight = document.getElementById('db-col-right');
+    if (!colRight) return;
+
+    if (this.filiais.length > 0) {
+      colRight.innerHTML = '<div class="loading">Carregando filiais...</div>';
+      try {
+        this._gruposIntegrados = await this.api(`/api/empresas/${empresa.id}/grupos-integrados`);
+      } catch { this._gruposIntegrados = []; }
+      colRight.innerHTML = await this.renderFiliais(empresa);
+      this.configurarEventosFiliais(empresa.id);
+    } else {
+      this._gruposIntegrados = [];
+      colRight.innerHTML = this._renderColRightNormal();
+      await Promise.all([this.carregarAtividades(), this.carregarHistorico()]);
+    }
+    await this.carregarNota();
+  }
+
+  _renderColRightNormal() {
+    return `
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <h3 style="margin:0">✅ Atividades</h3>
+          <span style="font-size:0.78rem;font-weight:600;color:#3498db;background:#ebf8ff;padding:3px 10px;border-radius:20px">📅 ${this.periodo}</span>
+        </div>
+        <div id="db-atividades-container"><div class="loading"></div></div>
+      </div>
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <h3 style="margin:0">📋 Histórico — <span style="color:#3498db">${this.periodo}</span></h3>
+          <span class="sync-info">Auto-atualiza a cada 5s</span>
+        </div>
+        <div id="db-historico-lista"><div class="historico-vazio">Nenhum registro neste período</div></div>
+      </div>`;
   }
 
   async carregarAtividades() {
     if (!this.empresaSelecionada) return;
+    const container = document.getElementById('db-atividades-container');
+    if (!container) return;
     try {
       const empresaId = this.empresaSelecionada.id;
       const [atividades, historico] = await Promise.all([
@@ -392,6 +435,7 @@ class GridFlowApp {
         this.api(`/api/historico?empresa_id=${empresaId}&periodo=${encodeURIComponent(this.periodo)}`)
       ]);
 
+      this._atividadesEmpresa = atividades;
       this.historicoAtual = {};
       historico.forEach(h => { this.historicoAtual[h.atividade_id] = h; });
 
@@ -402,7 +446,6 @@ class GridFlowApp {
       const grupos = {};
       habilitadas.forEach(a => { (grupos[a.grupo || 'Geral'] = grupos[a.grupo || 'Geral'] || []).push(a); });
 
-      const container = document.getElementById('db-atividades-container');
       if (!habilitadas.length) {
         container.innerHTML = '<div class="atividades-vazio">Nenhuma atividade habilitada</div>';
         return;
@@ -414,61 +457,329 @@ class GridFlowApp {
           <div class="atividades-grid">
             ${atvsGrupo.map(a => `
               <button class="atividade-btn ${okIds.has(a.atividade_id) ? 'concluida' : naIds.has(a.atividade_id) ? 'na' : ''}"
-                      data-id="${a.atividade_id}" data-status="${okIds.has(a.atividade_id) ? 'OK' : naIds.has(a.atividade_id) ? 'NA' : ''}">
+                data-id="${a.atividade_id}"
+                data-nome="${a.nome.replace(/"/g,'&quot;')}"
+                data-grupo="${a.grupo || 'Geral'}"
+                data-status="${okIds.has(a.atividade_id) ? 'OK' : naIds.has(a.atividade_id) ? 'NA' : ''}">
                 <span class="btn-codigo">${a.codigo || ''}</span>${a.nome}
               </button>`).join('')}
           </div>
         </div>`).join('');
 
       container.querySelectorAll('.atividade-btn').forEach(btn =>
-        btn.addEventListener('click', () => this.toggleAtividade(btn)));
+        btn.addEventListener('click', () => this.abrirModalAtividade(btn, empresaId)));
     } catch (e) { console.error(e); }
   }
 
-  async toggleAtividade(btn) {
+  abrirModalAtividade(btn, empresaId) {
     if (!this.usuario) { alert('Selecione um usuário primeiro (canto inferior esquerdo)'); return; }
     const atividadeId = parseInt(btn.dataset.id);
     const status = btn.dataset.status;
-    const empresaId = this.empresaSelecionada.id;
+    const nomeAtv = btn.dataset.nome || btn.textContent.trim();
+    const grupo   = btn.dataset.grupo || '';
+
+    const empresa = this.filiais?.find(f => f.id === empresaId) || this.empresaSelecionada;
+    document.getElementById('modal-atv-nome').textContent = nomeAtv;
+    document.getElementById('modal-atv-empresa').textContent = empresa?.nome || '';
+    document.getElementById('modal-atv-periodo').textContent = this.periodo;
+
+    const h = this._getHistorico(atividadeId, empresaId);
+    document.getElementById('modal-atv-obs').value = h?.observacao || '';
+
+    const btns = document.getElementById('modal-atv-btns');
+    btns.innerHTML = '';
+
+    const mk = (html, styles, onClick) => {
+      const b = document.createElement('button');
+      b.innerHTML = html;
+      b.style.cssText = `padding:10px 14px;border-radius:6px;cursor:pointer;font-size:0.85rem;font-weight:600;border:none;display:flex;align-items:center;gap:5px;${styles}`;
+      b.addEventListener('click', onClick);
+      return b;
+    };
+
+    btns.appendChild(mk('Cancelar', 'background:#edf2f7;color:#4a5568;', () =>
+      document.getElementById('modal-atividade').classList.remove('show')));
+
+    const spacer = document.createElement('div');
+    spacer.style.flex = '1';
+    btns.appendChild(spacer);
+
+    if (status === 'OK') {
+      btns.appendChild(mk('↩ Cancelar OK', 'background:#fefcbf;color:#744210;border:1px solid #f6e05e;', () =>
+        this.confirmarAtividade(atividadeId, empresaId, null, btn, grupo)));
+    } else if (status === 'NA') {
+      btns.appendChild(mk('↩ Cancelar N/A', 'background:#fefcbf;color:#744210;border:1px solid #f6e05e;', () =>
+        this.confirmarAtividade(atividadeId, empresaId, null, btn, grupo)));
+    }
+
+    btns.appendChild(mk('<span style="color:#000;font-weight:900;font-size:1rem">✕</span> Não Aplicável',
+      'background:#e74c3c;color:white;',
+      () => this.confirmarAtividade(atividadeId, empresaId, 'Não Aplicável', btn, grupo)));
+
+    btns.appendChild(mk('✓ Registrar OK', 'background:#27ae60;color:white;',
+      () => this.confirmarAtividade(atividadeId, empresaId, 'OK', btn, grupo)));
+
+    document.getElementById('btn-modal-atv-close').onclick =
+      () => document.getElementById('modal-atividade').classList.remove('show');
+    document.getElementById('modal-atividade').classList.add('show');
+    document.getElementById('modal-atv-obs').focus();
+  }
+
+  async confirmarAtividade(atividadeId, empresaId, novoStatus, btn, grupo) {
+    const obs = document.getElementById('modal-atv-obs').value.trim();
+    document.getElementById('modal-atividade').classList.remove('show');
+
+    const isMatriz = empresaId === this.empresaSelecionada?.id;
+    const h = this._getHistorico(atividadeId, empresaId);
 
     try {
-      if (status === 'OK') {
-        const h = this.historicoAtual[atividadeId];
-        if (h) await this.api(`/api/historico/${h.id}`, { method: 'DELETE' });
+      if (h) {
+        await this.api(`/api/historico/${h.id}`, { method: 'DELETE' });
+        this._setHistorico(atividadeId, empresaId, null);
         btn.classList.remove('concluida', 'na');
         btn.dataset.status = '';
-        delete this.historicoAtual[atividadeId];
-      } else {
-        const h = await this.api('/api/historico', {
-          method: 'POST',
-          body: JSON.stringify({ empresa_id: empresaId, atividade_id: atividadeId,
-            periodo: this.periodo, usuario: this.usuario, status: 'OK', observacao: '' })
-        });
-        btn.classList.add('concluida');
-        btn.classList.remove('na');
-        btn.dataset.status = 'OK';
-        this.historicoAtual[atividadeId] = h;
-      }
-      // Propagar para filiais se esta empresa é matriz
-      if (this.filiais && this.filiais.length > 0) {
-        for (const filial of this.filiais) {
-          try {
-            if (status !== 'OK') {
-              await this.api('/api/historico', { method: 'POST', body: JSON.stringify({
-                empresa_id: filial.id, atividade_id: atividadeId,
-                periodo: this.periodo, usuario: this.usuario, status: 'OK', observacao: ''
-              })});
-            } else {
-              const hf = await this.api(`/api/historico?empresa_id=${filial.id}&periodo=${encodeURIComponent(this.periodo)}`);
-              const rec = hf.find(h => h.atividade_id === atividadeId && h.status === 'OK');
-              if (rec) await this.api(`/api/historico/${rec.id}`, { method: 'DELETE' });
-            }
-          } catch (ef) { console.error('Erro propagando filial:', ef); }
-        }
       }
 
-      await this.carregarHistorico();
-    } catch (e) { console.error(e); }
+      if (novoStatus === null) {
+        if (isMatriz) await this.carregarHistorico();
+        return;
+      }
+
+      const novo = await this.api('/api/historico', {
+        method: 'POST',
+        body: JSON.stringify({ empresa_id: empresaId, atividade_id: atividadeId,
+          periodo: this.periodo, usuario: this.usuario, status: novoStatus, observacao: obs })
+      });
+      this._setHistorico(atividadeId, empresaId, novo);
+
+      btn.classList.toggle('concluida', novoStatus === 'OK');
+      btn.classList.toggle('na', novoStatus === 'Não Aplicável');
+      btn.dataset.status = novoStatus === 'OK' ? 'OK' : 'NA';
+
+      // Propagar para filiais se grupo integrado e é a empresa matriz
+      if (isMatriz && this.filiais?.length > 0 && grupo && this._gruposIntegrados?.includes(grupo)) {
+        await this._propagarGrupoIntegrado(atividadeId, novoStatus, obs);
+      }
+
+      if (isMatriz) await this.carregarHistorico();
+      else this._atualizarProgressoFilial(btn, empresaId);
+
+    } catch (e) { console.error(e); alert('Erro ao registrar: ' + e.message); }
+  }
+
+  _getHistorico(atividadeId, empresaId) {
+    if (empresaId === this.empresaSelecionada?.id) return this.historicoAtual[atividadeId];
+    return (this._historicoFiliais[empresaId] || {})[atividadeId];
+  }
+
+  _setHistorico(atividadeId, empresaId, h) {
+    if (empresaId === this.empresaSelecionada?.id) {
+      if (h) this.historicoAtual[atividadeId] = h;
+      else delete this.historicoAtual[atividadeId];
+    } else {
+      if (!this._historicoFiliais[empresaId]) this._historicoFiliais[empresaId] = {};
+      if (h) this._historicoFiliais[empresaId][atividadeId] = h;
+      else delete this._historicoFiliais[empresaId][atividadeId];
+    }
+  }
+
+  async _propagarGrupoIntegrado(atividadeId, status, obs) {
+    for (const filial of this.filiais) {
+      try {
+        const hf = this._getHistorico(atividadeId, filial.id);
+        if (hf) {
+          await this.api(`/api/historico/${hf.id}`, { method: 'DELETE' });
+          this._setHistorico(atividadeId, filial.id, null);
+        }
+        if (status) {
+          const novo = await this.api('/api/historico', {
+            method: 'POST',
+            body: JSON.stringify({ empresa_id: filial.id, atividade_id: atividadeId,
+              periodo: this.periodo, usuario: this.usuario, status, observacao: obs })
+          });
+          this._setHistorico(atividadeId, filial.id, novo);
+          const filialBtn = document.querySelector(
+            `.filial-atv-btn[data-id="${atividadeId}"][data-empresa-id="${filial.id}"]`);
+          if (filialBtn) {
+            filialBtn.classList.toggle('concluida', status === 'OK');
+            filialBtn.classList.toggle('na', status === 'Não Aplicável');
+            filialBtn.dataset.status = status === 'OK' ? 'OK' : 'NA';
+            this._atualizarProgressoFilial(filialBtn, filial.id);
+          }
+        }
+      } catch (ef) { console.error('Erro propagando filial:', ef); }
+    }
+  }
+
+  _atualizarProgressoFilial(btn, empresaId) {
+    const bloco = btn.closest('.filial-bloco');
+    if (!bloco) return;
+    const hist = this._historicoFiliais[empresaId] || {};
+    const habilitadas = (this._atividadesEmpresa || []).filter(a => a.habilitada);
+    const total = habilitadas.length;
+    const ok = Object.values(hist).filter(h => h.status === 'OK' || h.status === 'Não Aplicável').length;
+    const pct = total > 0 ? Math.round((ok / total) * 100) : 0;
+    const badge = bloco.querySelector('.filial-pct-badge');
+    if (badge) {
+      const cor = pct === 100 ? '#27ae60' : pct >= 50 ? '#e67e22' : '#e74c3c';
+      badge.textContent = `${pct}% (${ok}/${total})`;
+      badge.style.color = cor;
+      badge.style.background = pct === 100 ? '#f0fff4' : '#fff5f5';
+      badge.style.borderColor = pct === 100 ? '#9ae6b4' : '#fed7d7';
+    }
+  }
+
+  // ── Filiais ────────────────────────────────────────────────────────────────
+  async renderFiliais(empresa) {
+    try {
+      const [atividades, ...historicoFiliais] = await Promise.all([
+        this.api(`/api/empresas/${empresa.id}/atividades`),
+        ...this.filiais.map(f =>
+          this.api(`/api/historico?empresa_id=${f.id}&periodo=${encodeURIComponent(this.periodo)}`).catch(() => []))
+      ]);
+
+      this._atividadesEmpresa = atividades;
+      this._historicoFiliais = {};
+      const habilitadas = atividades.filter(a => a.habilitada);
+      const grupos = [...new Set(habilitadas.map(a => a.grupo || 'Geral'))].sort();
+
+      const filiaisData = this.filiais.map((f, i) => {
+        const hist = historicoFiliais[i] || [];
+        this._historicoFiliais[f.id] = {};
+        hist.forEach(h => { this._historicoFiliais[f.id][h.atividade_id] = h; });
+        const ok = hist.filter(h => h.status === 'OK' || h.status === 'Não Aplicável').length;
+        const total = habilitadas.length;
+        const pct = total > 0 ? Math.round((ok / total) * 100) : 0;
+        const okIds = new Set(hist.filter(h => h.status === 'OK').map(h => h.atividade_id));
+        const naIds = new Set(hist.filter(h => h.status === 'Não Aplicável').map(h => h.atividade_id));
+        return { ...f, ok, total, pct, okIds, naIds };
+      });
+
+      const gi = this._gruposIntegrados;
+      return `
+        <div class="card" style="padding:0;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #f0f0f0">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span>🏢</span>
+              <span style="font-weight:700;text-transform:uppercase;font-size:0.78rem;color:#718096;letter-spacing:.05em">
+                FILIAIS (${this.filiais.length})
+              </span>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-primary btn-sm" id="btn-sincronizar-filiais">⟳ Sincronizar Filiais</button>
+              <button class="btn btn-sm" id="btn-configurar-grupos">⚙ Configurar grupos</button>
+            </div>
+          </div>
+          ${gi.length ? `
+          <div style="padding:8px 20px;background:#f0fff4;border-bottom:1px solid #c6f6d5;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span style="font-size:0.75rem;font-weight:700;color:#276749">Grupos integrados</span>
+            <span style="font-size:0.72rem;color:#718096">(registrados na matriz — valem para todas as filiais):</span>
+            ${gi.map(g => `<span style="background:#ebf8ff;color:#2b6cb0;padding:2px 10px;border-radius:10px;font-size:0.74rem;font-weight:600">${g}</span>`).join('')}
+          </div>` : ''}
+          <div id="filiais-lista" style="max-height:calc(100vh - 240px);overflow-y:auto">
+            ${filiaisData.map(f => {
+              const cor = f.pct === 100 ? '#27ae60' : f.pct >= 50 ? '#e67e22' : '#e74c3c';
+              return `
+                <div class="filial-bloco" data-filial-id="${f.id}">
+                  <div class="filial-header" style="display:flex;align-items:center;gap:10px;padding:12px 20px;cursor:pointer;border-bottom:1px solid #f0f0f0">
+                    <span class="filial-arrow" style="color:#a0aec0;font-size:0.7rem;transition:transform .2s;flex-shrink:0">▶</span>
+                    <div style="flex:1;min-width:0">
+                      <span style="font-weight:600;font-size:0.85rem">${f.nome}</span>
+                      ${f.codigo_interno ? `<span style="margin-left:8px;background:#edf2f7;color:#4a5568;padding:1px 7px;border-radius:4px;font-size:0.72rem;font-weight:700">${f.codigo_interno}</span>` : ''}
+                    </div>
+                    <span class="filial-pct-badge" style="background:${f.pct===100?'#f0fff4':'#fff5f5'};color:${cor};border:1px solid ${f.pct===100?'#9ae6b4':'#fed7d7'};padding:3px 10px;border-radius:20px;font-size:0.75rem;font-weight:700;white-space:nowrap;flex-shrink:0">
+                      ${f.pct}% (${f.ok}/${f.total})
+                    </span>
+                  </div>
+                  <div class="filial-body" style="display:none;padding:14px 20px;background:#fafafa;border-bottom:1px solid #f0f0f0">
+                    ${grupos.map(grupo => {
+                      const atvsGrupo = habilitadas.filter(a => (a.grupo || 'Geral') === grupo);
+                      return `
+                        <div style="margin-bottom:14px">
+                          <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:#718096;margin-bottom:6px;letter-spacing:.05em">${grupo}</div>
+                          <div class="atividades-grid">
+                            ${atvsGrupo.map(a => `
+                              <button class="atividade-btn filial-atv-btn ${f.okIds.has(a.atividade_id)?'concluida':f.naIds.has(a.atividade_id)?'na':''}"
+                                data-id="${a.atividade_id}"
+                                data-empresa-id="${f.id}"
+                                data-nome="${a.nome.replace(/"/g,'&quot;')}"
+                                data-grupo="${a.grupo||'Geral'}"
+                                data-status="${f.okIds.has(a.atividade_id)?'OK':f.naIds.has(a.atividade_id)?'NA':''}">
+                                <span class="btn-codigo">${a.codigo||''}</span>${a.nome}
+                              </button>`).join('')}
+                          </div>
+                        </div>`;
+                    }).join('')}
+                  </div>
+                </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+    } catch (e) { return `<div class="loading">Erro ao carregar filiais: ${e.message}</div>`; }
+  }
+
+  configurarEventosFiliais(matrizId) {
+    document.querySelectorAll('.filial-header').forEach(header => {
+      header.addEventListener('click', () => {
+        const bloco = header.closest('.filial-bloco');
+        const body  = bloco.querySelector('.filial-body');
+        const arrow = header.querySelector('.filial-arrow');
+        const open  = body.style.display !== 'none';
+        body.style.display  = open ? 'none' : 'block';
+        arrow.style.transform = open ? '' : 'rotate(90deg)';
+      });
+    });
+
+    document.querySelectorAll('.filial-atv-btn').forEach(btn =>
+      btn.addEventListener('click', () => this.abrirModalAtividade(btn, parseInt(btn.dataset.empresaId))));
+
+    document.getElementById('btn-sincronizar-filiais')?.addEventListener('click', async () => {
+      if (!this.usuario) { alert('Selecione um usuário primeiro'); return; }
+      if (!confirm(`Sincronizar tudo da matriz para as ${this.filiais.length} filial(ais) no período ${this.periodo}?`)) return;
+      try {
+        const r = await this.api(`/api/empresas/${matrizId}/sincronizar`, {
+          method: 'POST',
+          body: JSON.stringify({ periodo: this.periodo, usuario: this.usuario })
+        });
+        alert(`${r.sincronizados} atividade(s) sincronizada(s)!`);
+        await this.selecionarEmpresa(this.empresaSelecionada);
+      } catch (e) { alert('Erro: ' + e.message); }
+    });
+
+    document.getElementById('btn-configurar-grupos')?.addEventListener('click', () =>
+      this.abrirConfigurarGrupos(matrizId));
+  }
+
+  async abrirConfigurarGrupos(matrizId) {
+    const grupos = [...new Set((this._atividadesEmpresa || []).filter(a => a.habilitada).map(a => a.grupo || 'Geral'))].sort();
+    const lista = document.getElementById('modal-grupos-lista');
+    lista.innerHTML = grupos.map(g => `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f0f0f0">
+        <div>
+          <div style="font-weight:600;font-size:0.9rem">${g}</div>
+          <div style="font-size:0.74rem;color:#718096">Ao marcar na matriz → marca nas filiais automaticamente</div>
+        </div>
+        <label class="toggle-ativo" style="margin:0">
+          <input type="checkbox" class="grupo-toggle" data-grupo="${g}" ${this._gruposIntegrados.includes(g)?'checked':''}>
+          <span class="toggle-slider"></span>
+        </label>
+      </div>`).join('');
+
+    const salvarBtn = document.getElementById('btn-salvar-grupos');
+    salvarBtn.onclick = async () => {
+      const selecionados = [...document.querySelectorAll('.grupo-toggle:checked')].map(cb => cb.dataset.grupo);
+      try {
+        this._gruposIntegrados = await this.api(`/api/empresas/${matrizId}/grupos-integrados`, {
+          method: 'PUT', body: JSON.stringify({ grupos: selecionados })
+        });
+        document.getElementById('modal-grupos').classList.remove('show');
+        await this.selecionarEmpresa(this.empresaSelecionada);
+      } catch (e) { alert('Erro: ' + e.message); }
+    };
+
+    document.getElementById('btn-modal-grupos-close').onclick =
+      () => document.getElementById('modal-grupos').classList.remove('show');
+    document.getElementById('modal-grupos').classList.add('show');
   }
 
   async carregarHistorico() {
