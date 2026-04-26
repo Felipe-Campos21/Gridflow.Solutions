@@ -415,49 +415,62 @@ body {
 
 /* ── Histórico ───────────────────────────────────────────────────────────── */
 .historico-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: #f8fafc;
-  margin-bottom: 6px;
+  padding: 8px 4px;
+  border-bottom: 1px solid #f0f0f0;
   font-size: 0.82rem;
 }
-.historico-item:last-child { margin-bottom: 0; }
+.historico-item:last-child { border-bottom: none; }
 
-/* Badge OK / N/A */
-.hi-status-badge {
-  flex-shrink: 0;
-  padding: 2px 9px;
-  border-radius: 20px;
-  font-size: 0.7rem;
-  font-weight: 700;
-  margin-top: 2px;
+/* Linha 1: nome + badge + data + ×  */
+.hi-linha1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
-.hi-badge-ok  { background: #f0fff4; border: 1px solid #9ae6b4; color: #276749; }
-.hi-badge-na  { background: #fff5f5; border: 1px solid #feb2b2; color: #c53030; }
+.hi-atividade {
+  font-weight: 600;
+  color: #2d3748;
+  flex-shrink: 0;
+}
+.hi-badge {
+  flex-shrink: 0;
+  padding: 1px 8px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border: 1px solid;
+}
+.hi-badge-ok { background: #f0fff4; border-color: #9ae6b4; color: #276749; }
+.hi-badge-na { background: #fff5f5; border-color: #feb2b2; color: #c53030; }
+.hi-spacer   { flex: 1; }
+.hi-data     { color: #a0aec0; font-size: 0.74rem; white-space: nowrap; flex-shrink: 0; }
 
-/* Corpo do item */
-.hi-corpo { flex: 1; min-width: 0; }
-.hi-atividade { font-weight: 600; color: #2d3748; margin-bottom: 2px; }
-.hi-obs {
-  font-size: 0.78rem;
+/* Botão remover */
+.hi-del {
+  background: none;
+  border: none;
+  color: #cbd5e0;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+.hi-del:hover { color: #e53e3e; }
+
+/* Linha 2: por usuário · "obs" */
+.hi-linha2 {
+  font-size: 0.75rem;
+  color: #718096;
+  margin-top: 2px;
+  padding-left: 2px;
+}
+.hi-obs-inline {
   color: #4a5568;
   font-style: italic;
-  background: #fffbeb;
-  border-left: 2px solid #f6ad55;
-  padding: 3px 8px;
-  border-radius: 0 4px 4px 0;
-  margin: 4px 0;
 }
-.hi-meta {
-  display: flex;
-  gap: 12px;
-  margin-top: 4px;
-}
-.hi-usuario { color: #718096; font-size: 0.74rem; }
-.hi-data    { color: #a0aec0; font-size: 0.74rem; }
 
 .historico-vazio {
   color: #a0aec0;

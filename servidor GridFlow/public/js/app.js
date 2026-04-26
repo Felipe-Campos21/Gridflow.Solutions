@@ -855,26 +855,60 @@ class GridFlowApp {
       const historico = await this.api(`/api/historico?empresa_id=${this.empresaSelecionada.id}&periodo=${encodeURIComponent(this.periodo)}`);
       const container = document.getElementById('db-historico-lista');
       if (!container) return;
+
+      // Atualiza o label "Atualizado HH:MM" no cabeçalho
+      const agora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const syncEl = document.querySelector('.sync-info');
+      if (syncEl) syncEl.textContent = `Atualizado ${agora}`;
+
       if (!historico.length) {
         container.innerHTML = '<div class="historico-vazio">Nenhum registro neste período</div>';
         return;
       }
+
       container.innerHTML = historico.map(h => {
         const isOK = h.status === 'OK';
-        const dataFormatada = h.data ? h.data.replace('T', ' ').substring(0, 16) : '—';
+        const badge = isOK
+          ? `<span class="hi-badge hi-badge-ok">✅ OK</span>`
+          : `<span class="hi-badge hi-badge-na">❌ N/A</span>`;
+        const obs = h.observacao
+          ? ` · <em class="hi-obs-inline">"${h.observacao}"</em>`
+          : '';
         return `
-          <div class="historico-item">
-            <div class="hi-status-badge ${isOK ? 'hi-badge-ok' : 'hi-badge-na'}">${isOK ? 'OK' : 'N/A'}</div>
-            <div class="hi-corpo">
-              <div class="hi-atividade">${h.atividade_nome || '—'}</div>
-              ${h.observacao ? `<div class="hi-obs">💬 ${h.observacao}</div>` : ''}
-              <div class="hi-meta">
-                <span class="hi-usuario">👤 ${h.usuario}</span>
-                <span class="hi-data">🕐 ${dataFormatada}</span>
-              </div>
+          <div class="historico-item" data-hist-id="${h.id}" data-atv-id="${h.atividade_id}">
+            <div class="hi-linha1">
+              <span class="hi-atividade">${h.atividade_nome || '—'}</span>
+              ${badge}
+              <span class="hi-spacer"></span>
+              <span class="hi-data">${h.data || ''}</span>
+              <button class="hi-del" data-id="${h.id}" title="Remover registro">×</button>
             </div>
+            <div class="hi-linha2">por <strong>${h.usuario}</strong>${obs}</div>
           </div>`;
       }).join('');
+
+      // Bind botões de remover
+      container.querySelectorAll('.hi-del').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const histId  = parseInt(btn.dataset.id);
+          const item    = btn.closest('.historico-item');
+          const atvId   = parseInt(item?.dataset.atvId);
+          try {
+            await this.api(`/api/historico/${histId}`, { method: 'DELETE' });
+            item?.remove();
+            // Desmarca o botão de atividade correspondente
+            const atvBtn = document.querySelector(`.atividade-btn[data-id="${atvId}"]`);
+            if (atvBtn) {
+              atvBtn.classList.remove('concluida', 'na');
+              atvBtn.dataset.status = '';
+              delete this.historicoAtual[atvId];
+            }
+            if (!container.querySelector('.historico-item'))
+              container.innerHTML = '<div class="historico-vazio">Nenhum registro neste período</div>';
+          } catch (e) { console.error(e); }
+        });
+      });
+
     } catch (e) { console.error(e); }
   }
 
