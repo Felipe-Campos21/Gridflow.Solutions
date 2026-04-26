@@ -1994,6 +1994,19 @@ class GridFlowApp {
     }
   }
 
+  _renderPendentesDropdown(lista) {
+    const grupos = {};
+    for (const p of lista) {
+      const g = p.grupo || 'Geral';
+      if (!grupos[g]) grupos[g] = [];
+      grupos[g].push(p.nome);
+    }
+    return Object.entries(grupos).map(([grupo, atividades]) => `
+      <div class="pdrop-grupo">${grupo.toUpperCase()}</div>
+      ${atividades.map(nome => `<div class="pdrop-item">⏳ ${nome}</div>`).join('')}
+    `).join('');
+  }
+
   _statusColor(pct) {
     if (pct >= 100) return '#27ae60';
     if (pct >= 70)  return '#e67e22';
@@ -2173,7 +2186,7 @@ class GridFlowApp {
                 <div class="badge-pendente" data-empid="d${e.empresa.id}">
                   ⏳ ${e.pendentes} pendentes ▾
                   <div class="pendente-dropdown" id="cd-drop-${e.empresa.id}">
-                    ${e.pendentes_lista.map(p => `<div class="pendente-dropdown-item">${p.grupo ? `<span style="font-size:0.7rem;color:#a0aec0">${p.grupo} · </span>` : ''}${p.nome}</div>`).join('')}
+                    ${this._renderPendentesDropdown(e.pendentes_lista)}
                   </div>
                 </div>` : `<div class="badge-ok" style="background:#f0fff4;border-color:#9ae6b4;color:#22543d">✅ Concluído</div>`}
             </div>
@@ -2250,7 +2263,7 @@ class GridFlowApp {
                     <div class="badge-pendente" data-empid="${e.empresa.id}">
                       ⏳ ${e.pendentes} pendentes ▾
                       <div class="pendente-dropdown" id="pend-drop-${e.empresa.id}">
-                        ${e.pendentes_lista.map(p => `<div class="pendente-dropdown-item">${p.grupo ? `<span style="font-size:0.7rem;color:#a0aec0">${p.grupo} · </span>` : ''}${p.nome}</div>`).join('')}
+                        ${this._renderPendentesDropdown(e.pendentes_lista)}
                       </div>
                     </div>` : `<div class="badge-ok" style="background:#f0fff4;border-color:#9ae6b4;color:#22543d">✅ Concluído</div>`}
                 </div>
