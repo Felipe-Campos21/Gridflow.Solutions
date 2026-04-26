@@ -48,15 +48,7 @@ function carregar() {
   let maxNotaId = DB.seq.notas || 0;
   for (const n of DB.notas) { if (!n.id) { n.id = ++maxNotaId; } }
   DB.seq.notas = maxNotaId;
-  if (!DB.config.periodos) {
-    const ps = [];
-    const now = new Date();
-    for (let i = 0; i < 12; i++) {
-      const dt = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      ps.push(String(dt.getMonth()+1).padStart(2,'0') + '/' + dt.getFullYear());
-    }
-    DB.config.periodos = ps;
-  }
+  // Períodos são gerados dinamicamente pelo ano atual — não armazenar mais
 }
 
 function salvar() { fs.writeFileSync(DB_FILE, JSON.stringify(DB, null, 2)); }
@@ -603,27 +595,18 @@ const server = http.createServer(async (req, res) => {
   // ── Períodos ──────────────────────────────────────────────────────────────
   if (pathname === '/api/periodos') {
     if (method === 'GET') {
-      const ps = [...(DB.config.periodos || [])].sort((a, b) => {
-        const [ma,ya] = a.split('/').map(Number);
-        const [mb,yb] = b.split('/').map(Number);
-        return (yb*100+mb) - (ya*100+ma);
-      });
+      // Gera os 12 meses do ano corrente automaticamente (mais recente primeiro)
+      const ano = new Date().getFullYear();
+      const ps = [];
+      for (let m = 12; m >= 1; m--) ps.push(String(m).padStart(2,'0') + '/' + ano);
       return json(res, ps);
     }
-    if (method === 'POST') {
-      body = await readBody(req);
-      const valor = (body.valor || '').trim();
-      if (!/^\d{2}\/\d{4}$/.test(valor)) return json(res, { error:'Formato inválido. Use MM/AAAA' }, 400);
-      if (!DB.config.periodos) DB.config.periodos = [];
-      if (!DB.config.periodos.includes(valor)) { DB.config.periodos.push(valor); salvar(); }
-      return json(res, { success:true });
-    }
+    // POST/DELETE mantidos mas descartados — períodos são fixos pelo ano
+    return json(res, { success: true });
   }
 
   if ((params = match('/api/periodos/:valor', pathname)) && method === 'DELETE') {
-    const valor = decodeURIComponent(params.valor);
-    if (DB.config.periodos) { DB.config.periodos = DB.config.periodos.filter(p => p !== valor); salvar(); }
-    return json(res, { success:true });
+    return json(res, { success: true });
   }
 
   // Servir arquivos estáticos do frontend
