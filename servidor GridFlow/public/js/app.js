@@ -208,6 +208,19 @@ class GridFlowApp {
     });
     document.querySelectorAll('.nav-item').forEach(item =>
       item.addEventListener('click', () => { if (item.dataset.tab) this.mudarTab(item.dataset.tab); }));
+
+    document.getElementById('btn-backup')?.addEventListener('click', () => this._fazerBackup());
+  }
+
+  _fazerBackup() {
+    const url = CONFIG.API_URL + '/api/backup';
+    const a = document.createElement('a');
+    a.href = url;
+    const data = new Date().toISOString().slice(0, 10);
+    a.download = `gridflow-backup-${data}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   }
 
   mudarTab(tab) {

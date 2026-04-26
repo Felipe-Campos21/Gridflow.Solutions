@@ -609,6 +609,38 @@ const server = http.createServer(async (req, res) => {
     return json(res, { success: true });
   }
 
+  // Backup completo do banco de dados
+  if (pathname === '/api/backup' && method === 'GET') {
+    try {
+      const data = fs.readFileSync(DB_FILE);
+      const date = new Date().toISOString().slice(0, 10);
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Content-Disposition': `attachment; filename="gridflow-backup-${date}.json"`,
+        'Access-Control-Allow-Origin': '*'
+      });
+      res.end(data);
+    } catch (e) {
+      json(res, { error: 'Erro ao gerar backup: ' + e.message }, 500);
+    }
+    return;
+  }
+
+  // Restaurar backup
+  if (pathname === '/api/backup/restaurar' && method === 'POST') {
+    try {
+      body = await readBody(req);
+      if (!body || !body.colaboradores || !body.empresas) {
+        return json(res, { error: 'Arquivo de backup inválido' }, 400);
+      }
+      fs.writeFileSync(DB_FILE, JSON.stringify(body, null, 2));
+      carregar();
+      return json(res, { ok: true, msg: 'Banco restaurado com sucesso' });
+    } catch (e) {
+      return json(res, { error: 'Erro ao restaurar: ' + e.message }, 500);
+    }
+  }
+
   // Servir arquivos estáticos do frontend
   if (!pathname.startsWith('/api')) {
     const filePath = pathname === '/'
