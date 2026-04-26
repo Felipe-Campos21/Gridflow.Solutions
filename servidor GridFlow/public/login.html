@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GridFlow - Acesso</title>
+  <link rel="stylesheet" href="css/login.css">
+</head>
+<body>
+<div class="login-layout">
+
+  <!-- Painel esquerdo -->
+  <div class="login-left">
+    <div class="login-box">
+      <div class="login-logo">
+        <div class="login-logo-icon">
+          <img src="logo.png" alt="GridFlow" style="width:54px;height:54px;object-fit:contain">
+        </div>
+        <div class="login-logo-text">Grid<strong>Flow</strong></div>
+      </div>
+
+      <h1 class="login-title">Bem-vindo!</h1>
+      <p class="login-subtitle">Acesse sua conta para continuar.</p>
+
+      <div class="login-form" id="form-login">
+        <div class="login-input-wrap" style="position:relative">
+          <span class="login-input-icon">👤</span>
+          <input type="text" id="login-input" class="login-input"
+            placeholder="Nome do usuário" autocomplete="off">
+          <div id="login-dropdown" class="login-dropdown"></div>
+        </div>
+        <div id="login-error" class="login-error"></div>
+        <div class="login-btns">
+          <button class="btn-entrar" id="btn-entrar">Entrar</button>
+          <button class="btn-criar" id="btn-criar-toggle">Criar usuário</button>
+        </div>
+      </div>
+
+      <!-- Formulário de criar usuário (oculto por padrão) -->
+      <div class="login-form" id="form-criar" style="display:none">
+        <div class="criar-titulo">Novo usuário</div>
+        <input type="text" id="criar-nome" class="login-input" placeholder="Nome completo" style="margin-bottom:10px">
+        <input type="text" id="criar-cargo" class="login-input" placeholder="Cargo (ex: Auxiliar Contábil)" style="margin-bottom:10px">
+        <div id="criar-error" class="login-error"></div>
+        <div class="login-btns">
+          <button class="btn-entrar" id="btn-criar-salvar">Criar e Entrar</button>
+          <button class="btn-criar" id="btn-criar-cancelar">Cancelar</button>
+        </div>
+      </div>
+
+      <div class="login-divider"><span>ou</span></div>
+
+      <div class="login-seguro">
+        <div class="login-seguro-icon">🛡️</div>
+        <div>
+          <div class="login-seguro-titulo">Acesso seguro</div>
+          <div class="login-seguro-texto">Seus dados estão protegidos com segurança de nível empresarial.</div>
+        </div>
+      </div>
+    </div>
+    <div class="login-footer">© 2026 GridFlow. Todos os direitos reservados.</div>
+  </div>
+
+  <!-- Painel direito -->
+  <div class="login-right">
+    <div class="login-right-content">
+      <div class="login-illustration">
+        <svg viewBox="0 0 540 340" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:520px">
+          <defs>
+            <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="4" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <filter id="glow2" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="2" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <radialGradient id="platGrad" cx="50%" cy="30%" r="70%">
+              <stop offset="0%" stop-color="#1a4080"/>
+              <stop offset="100%" stop-color="#0a1f50"/>
+            </radialGradient>
+            <radialGradient id="greenNode" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#4dff9a"/>
+              <stop offset="100%" stop-color="#00c85a"/>
+            </radialGradient>
+          </defs>
+
+          <!-- Grid de fundo sutil -->
+          <g opacity="0.07" stroke="#4fc3f7" stroke-width="0.8">
+            <line x1="0" y1="55" x2="540" y2="55"/><line x1="0" y1="110" x2="540" y2="110"/>
+            <line x1="0" y1="165" x2="540" y2="165"/><line x1="0" y1="220" x2="540" y2="220"/>
+            <line x1="0" y1="275" x2="540" y2="275"/>
+            <line x1="70" y1="0" x2="70" y2="340"/><line x1="140" y1="0" x2="140" y2="340"/>
+            <line x1="210" y1="0" x2="210" y2="340"/><line x1="280" y1="0" x2="280" y2="340"/>
+            <line x1="350" y1="0" x2="350" y2="340"/><line x1="420" y1="0" x2="420" y2="340"/>
+            <line x1="490" y1="0" x2="490" y2="340"/>
+          </g>
+
+          <!-- Plataforma -->
+          <ellipse cx="270" cy="278" rx="210" ry="28" fill="#0d2a5e" opacity="0.7"/>
+          <ellipse cx="270" cy="272" rx="210" ry="28" fill="url(#platGrad)" opacity="0.5"/>
+
+          <!-- Linhas de conexão -->
+          <g stroke="#1e6bc0" stroke-width="1.8" opacity="0.8" filter="url(#glow2)">
+            <line x1="270" y1="200" x2="110" y2="225"/>
+            <line x1="270" y1="200" x2="195" y2="255"/>
+            <line x1="270" y1="200" x2="345" y2="252"/>
+            <line x1="270" y1="200" x2="415" y2="218"/>
+          </g>
+
+          <!-- Nós secundários (ciano) -->
+          <circle cx="110" cy="225" r="11" fill="#4fc3f7" filter="url(#glow)"/>
+          <circle cx="195" cy="255" r="11" fill="#29b6f6" filter="url(#glow)"/>
+          <circle cx="345" cy="252" r="11" fill="#4fc3f7" filter="url(#glow)"/>
+          <circle cx="415" cy="218" r="11" fill="#29b6f6" filter="url(#glow)"/>
+
+          <!-- Nó central (verde) -->
+          <circle cx="270" cy="200" r="18" fill="url(#greenNode)" filter="url(#glow)"/>
+          <circle cx="270" cy="200" r="26" fill="none" stroke="#00e676" stroke-width="1.5" opacity="0.35"/>
+          <circle cx="270" cy="200" r="34" fill="none" stroke="#00e676" stroke-width="0.8" opacity="0.18"/>
+
+          <!-- Card 1: Gráfico de pizza (canto superior esquerdo) -->
+          <rect x="28" y="30" width="160" height="108" rx="10" fill="#0a1c48" stroke="#1e5fc0" stroke-width="1.2" opacity="0.95"/>
+          <!-- Círculo do gráfico -->
+          <circle cx="78" cy="85" r="30" fill="none" stroke="#1e3a6a" stroke-width="2"/>
+          <!-- Fatia azul -->
+          <path d="M78 55 A30 30 0 1 1 48.9 99.5 L78 85 Z" fill="#3498db" opacity="0.9"/>
+          <!-- Fatia laranja -->
+          <path d="M48.9 99.5 A30 30 0 0 1 78 55 L78 85 Z" fill="#e67e22" opacity="0.85"/>
+          <!-- Legendas -->
+          <rect x="120" y="62" width="52" height="7" rx="3" fill="#3498db" opacity="0.8"/>
+          <rect x="120" y="77" width="38" height="7" rx="3" fill="#e2e8f0" opacity="0.25"/>
+          <rect x="120" y="92" width="45" height="7" rx="3" fill="#e2e8f0" opacity="0.25"/>
+          <rect x="120" y="107" width="32" height="7" rx="3" fill="#e2e8f0" opacity="0.25"/>
+
+          <!-- Card 2: Checkmark (canto superior direito) -->
+          <rect x="385" y="18" width="118" height="108" rx="10" fill="#0a1c48" stroke="#1e5fc0" stroke-width="1.2" opacity="0.95"/>
+          <circle cx="444" cy="62" r="26" fill="none" stroke="#00e676" stroke-width="2" opacity="0.5"/>
+          <path d="M430 62 L440 74 L460 50" stroke="#00e676" stroke-width="3.5" fill="none"
+            stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>
+          <rect x="400" y="96" width="88" height="7" rx="3" fill="#e2e8f0" opacity="0.25"/>
+          <rect x="412" y="110" width="64" height="7" rx="3" fill="#00e676" opacity="0.4"/>
+
+          <!-- Card 3: Barras (direita meio) -->
+          <rect x="368" y="148" width="158" height="88" rx="10" fill="#0a1c48" stroke="#1e5fc0" stroke-width="1.2" opacity="0.95"/>
+          <line x1="380" y1="222" x2="516" y2="222" stroke="#e2e8f0" stroke-width="0.8" opacity="0.2"/>
+          <rect x="390" y="192" width="20" height="30" rx="2" fill="#3498db" opacity="0.85"/>
+          <rect x="420" y="176" width="20" height="46" rx="2" fill="#3498db" opacity="0.7"/>
+          <rect x="450" y="184" width="20" height="38" rx="2" fill="#3498db" opacity="0.8"/>
+          <rect x="480" y="162" width="20" height="60" rx="2" fill="#00e676" opacity="0.9" filter="url(#glow2)"/>
+
+          <!-- Partículas decorativas -->
+          <circle cx="165" cy="48" r="3" fill="#4fc3f7" opacity="0.6"/>
+          <circle cx="340" cy="35" r="2" fill="#00e676" opacity="0.5"/>
+          <circle cx="60" cy="168" r="2.5" fill="#4fc3f7" opacity="0.4"/>
+          <circle cx="480" cy="300" r="2" fill="#4fc3f7" opacity="0.4"/>
+        </svg>
+      </div>
+
+      <h2 class="login-tagline">Gestão integrada, decisões<br>inteligentes.</h2>
+      <div class="login-tagline-bar"></div>
+      <p class="login-tagline-sub">Organize processos, centralize informações e tenha controle total do seu negócio em um só lugar.</p>
+      <div class="login-features">
+        <div class="login-feature">
+          <span class="feat-icon">📦</span>
+          <span>Dados centralizados</span>
+        </div>
+        <div class="login-feature">
+          <span class="feat-icon">📊</span>
+          <span>Relatórios em tempo real</span>
+        </div>
+        <div class="login-feature">
+          <span class="feat-icon">🛡️</span>
+          <span>Segurança e confiabilidade</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/login.js"></script>
+</body>
+</html>

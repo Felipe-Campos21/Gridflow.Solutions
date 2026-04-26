@@ -25,12 +25,28 @@ class GridFlowApp {
   }
 
   async init() {
+    // Verificar login salvo — redireciona para login.html se não houver
+    const savedUser = localStorage.getItem('gridflow_user');
+    if (!savedUser) {
+      window.location.replace('login.html');
+      return;
+    }
+    const user = JSON.parse(savedUser);
+    this.usuario    = user.nome;
+    this.colaborador = { id: user.id, nome: user.nome };
+    document.getElementById('current-user').textContent = user.nome;
+    document.getElementById('user-avatar').textContent  = user.nome.charAt(0);
+
     this.configurarEventos();
     await this.carregarPeriodos();
     await this.verificarConexao();
     await this.carregarColaboradores();
     this.iniciarAutoRefresh();
+    await this.carregarMinhasEmpresas();
     await this.renderizarConteudo();
+    if (this.currentTab === 'dashboard' && this.minhasEmpresas.length > 0) {
+      await this.selecionarEmpresa(this.minhasEmpresas[0]);
+    }
   }
 
   async verificarConexao() {
@@ -96,6 +112,10 @@ class GridFlowApp {
 
   openUserModal() { document.getElementById('user-modal').classList.add('show'); }
   closeUserModal() { document.getElementById('user-modal').classList.remove('show'); }
+  logout() {
+    localStorage.removeItem('gridflow_user');
+    window.location.replace('login.html');
+  }
 
   // ── Períodos ──────────────────────────────────────────────────────────────
   async carregarPeriodos() {
@@ -105,7 +125,13 @@ class GridFlowApp {
     } catch {
       this._periodos = this._gerarPeriodosLocais();
     }
-    this.periodo = this._periodos[0] || this.obterPeriodoAtual();
+    // Restaurar último período usado pelo usuário (ou usar o primeiro da lista)
+    const savedPeriodo = localStorage.getItem('gridflow_periodo');
+    if (savedPeriodo && this._periodos.includes(savedPeriodo)) {
+      this.periodo = savedPeriodo;
+    } else {
+      this.periodo = this._periodos[0] || this.obterPeriodoAtual();
+    }
     this.renderPeriodoDropdown(this._periodos);
   }
 
@@ -161,6 +187,7 @@ class GridFlowApp {
     dropdown.querySelectorAll('.periodo-sel').forEach(span => {
       span.addEventListener('click', () => {
         this.periodo = span.dataset.value;
+        localStorage.setItem('gridflow_periodo', this.periodo);
         document.getElementById('periodo-display').textContent = this.periodo;
         dropdown.classList.remove('show');
         this.renderPeriodoDropdown(this._periodos);
