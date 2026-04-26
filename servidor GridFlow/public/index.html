@@ -42,6 +42,10 @@
         <span class="nav-icon">👥</span>
         <span class="nav-label">Colaboradores</span>
       </button>
+      <button class="nav-item" data-tab="relatorio">
+        <span class="nav-icon">📝</span>
+        <span class="nav-label">Relatório</span>
+      </button>
       <div class="nav-divider"></div>
       <button class="nav-item" data-tab="status">
         <span class="nav-icon">📊</span>
@@ -135,6 +139,36 @@
       <div id="modal-grupos-lista"></div>
       <div style="margin-top:20px;display:flex;justify-content:flex-end">
         <button class="btn btn-primary" id="btn-salvar-grupos" style="padding:10px 24px">💾 Salvar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Reset Checklist -->
+<div id="modal-reset" class="modal">
+  <div class="modal-content" style="max-width:420px">
+    <div class="modal-header">
+      <h2>🔄 Resetar Checklist</h2>
+      <button class="modal-close" id="btn-modal-reset-close">×</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:0.84rem;color:#718096;margin-bottom:16px">
+        Escolha o que deseja resetar para <strong id="reset-empresa-nome"></strong> no período <strong id="reset-periodo-nome" style="color:#3498db"></strong>.
+      </p>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
+        <button class="btn btn-danger" id="btn-reset-tudo" style="padding:12px;font-size:0.9rem">
+          🔄 Resetar Checklist Completo
+        </button>
+        <button class="btn btn-secondary" id="btn-reset-grupo-toggle" style="padding:12px;font-size:0.9rem">
+          📋 Resetar por Grupo
+        </button>
+      </div>
+      <div id="reset-grupos-area" style="display:none">
+        <div style="font-size:0.8rem;font-weight:600;color:#4a5568;margin-bottom:8px">Selecione os grupos:</div>
+        <div id="reset-grupos-lista" style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px"></div>
+        <button class="btn btn-primary" id="btn-reset-grupos-confirmar" style="width:100%;padding:10px">
+          Resetar Grupos Selecionados
+        </button>
       </div>
     </div>
   </div>

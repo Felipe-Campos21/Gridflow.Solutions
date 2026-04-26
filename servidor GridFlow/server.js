@@ -44,6 +44,10 @@ function carregar() {
   if (!DB.config) DB.config = { grupos_integrados: [] };
   if (!DB.config.grupos_integrados) DB.config.grupos_integrados = [];
   if (!DB.config.grupos_por_empresa) DB.config.grupos_por_empresa = {};
+  // Backfill IDs em notas antigas
+  let maxNotaId = DB.seq.notas || 0;
+  for (const n of DB.notas) { if (!n.id) { n.id = ++maxNotaId; } }
+  DB.seq.notas = maxNotaId;
   if (!DB.config.periodos) {
     const ps = [];
     const now = new Date();
@@ -401,6 +405,17 @@ const server = http.createServer(async (req, res) => {
   // ── Notas por Empresa/Período ─────────────────────────────────────────────
   if (pathname === '/api/notas') {
     if (method === 'GET') {
+      // Sem empresa_id → retorna TODAS as notas (para aba Relatório)
+      if (!query.empresa_id) {
+        const todas = DB.notas
+          .filter(n => n.texto && n.texto.trim())
+          .map(n => {
+            const e = DB.empresas.find(x => x.id === n.empresa_id) || {};
+            return { ...n, empresa_nome: e.nome || '', codigo_interno: e.codigo_interno || '' };
+          })
+          .sort((a, b) => (b.atualizado_em || b.criado_em || '').localeCompare(a.atualizado_em || a.criado_em || ''));
+        return json(res, todas);
+      }
       const eId = parseInt(query.empresa_id);
       const per  = query.periodo || '';
       const nota = DB.notas.find(n => n.empresa_id === eId && n.periodo === per);
@@ -416,10 +431,43 @@ const server = http.createServer(async (req, res) => {
         existing.usuario = body.usuario || '';
         existing.atualizado_em = agora();
       } else {
-        DB.notas.push({ empresa_id: eId, periodo: per, texto: body.texto || '', usuario: body.usuario || '', criado_em: agora() });
+        DB.notas.push({ id: novoId('notas'), empresa_id: eId, periodo: per, texto: body.texto || '', usuario: body.usuario || '', criado_em: agora() });
       }
       salvar(); return json(res, { success: true });
     }
+    if (method === 'PUT') {
+      body = await readBody(req);
+      const nota = DB.notas.find(n => n.id === parseInt(body.id));
+      if (!nota) return json(res, { error: 'Não encontrado' }, 404);
+      nota.texto = body.texto || nota.texto;
+      nota.usuario = body.usuario || nota.usuario;
+      nota.atualizado_em = agora();
+      salvar(); return json(res, { success: true });
+    }
+    if (method === 'DELETE') {
+      const notaId = parseInt(query.id);
+      const idx = DB.notas.findIndex(n => n.id === notaId);
+      if (idx === -1) return json(res, { error: 'Não encontrado' }, 404);
+      DB.notas.splice(idx, 1);
+      salvar(); return json(res, { ok: true });
+    }
+  }
+
+  // Reset do checklist por empresa/período (com opção de filtrar por grupos)
+  if (method === 'DELETE' && pathname === '/api/historico/reset') {
+    body = await readBody(req);
+    const empId  = parseInt(body.empresa_id);
+    const per    = body.periodo || '';
+    const grupos = Array.isArray(body.grupos) && body.grupos.length ? body.grupos : null;
+    if (grupos) {
+      const atvIds = new Set(DB.atividades.filter(a => grupos.includes(a.grupo)).map(a => a.id));
+      DB.historico = DB.historico.filter(h =>
+        !(h.empresa_id === empId && h.periodo === per && atvIds.has(h.atividade_id))
+      );
+    } else {
+      DB.historico = DB.historico.filter(h => !(h.empresa_id === empId && h.periodo === per));
+    }
+    salvar(); return json(res, { ok: true });
   }
 
   // ── Status por colaborador/período ────────────────────────────────────────

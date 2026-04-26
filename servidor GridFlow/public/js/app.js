@@ -259,7 +259,7 @@ class GridFlowApp {
     document.querySelectorAll('.nav-item').forEach(i => i.classList.toggle('active', i.dataset.tab === tab));
     const titles = { dashboard:'Checklist', atividades:'Gerenciador de Atividades',
       configurar:'Configurar Empresa', empresas:'Gerenciador de Empresas',
-      colaboradores:'Colaboradores', status:'Status Geral' };
+      colaboradores:'Colaboradores', status:'Status Geral', relatorio:'Relatório de Anotações' };
     document.getElementById('topbar-title').textContent = titles[tab] || tab;
     this.renderizarConteudo();
   }
@@ -292,6 +292,11 @@ class GridFlowApp {
         content.innerHTML = this._renderStatusShell();
         this._configurarEventosStatus();
         await this._carregarStatus();
+        break;
+      case 'relatorio':
+        content.innerHTML = this._renderRelatorioShell();
+        this._configurarEventosRelatorio();
+        await this._carregarRelatorio();
         break;
     }
   }
@@ -434,7 +439,10 @@ class GridFlowApp {
         <div class="card" style="margin-bottom:16px">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
             <h3 style="margin:0">✅ Atividades</h3>
-            <span style="font-size:0.78rem;font-weight:600;color:#3498db;background:#ebf8ff;padding:3px 10px;border-radius:20px">📅 ${this.periodo}</span>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:0.78rem;font-weight:600;color:#3498db;background:#ebf8ff;padding:3px 10px;border-radius:20px">📅 ${this.periodo}</span>
+              <button id="btn-resetar-checklist" style="font-size:0.75rem;padding:3px 10px;background:#fff5f5;border:1px solid #fed7d7;border-radius:20px;color:#c53030;cursor:pointer;font-weight:600">🔄 Resetar</button>
+            </div>
           </div>
           <div id="db-atividades-container"><div class="loading"></div></div>
         </div>
@@ -465,6 +473,76 @@ class GridFlowApp {
       await Promise.all([this.carregarAtividades(), this.carregarHistorico()]);
     }
     await this.carregarNota();
+    this._configurarBtnReset();
+  }
+
+  _configurarBtnReset() {
+    const btn = document.getElementById('btn-resetar-checklist');
+    if (!btn || !this.empresaSelecionada) return;
+    btn.addEventListener('click', () => this._abrirModalReset());
+  }
+
+  _abrirModalReset() {
+    const empresa = this.empresaSelecionada;
+    if (!empresa) return;
+    document.getElementById('reset-empresa-nome').textContent = empresa.nome;
+    document.getElementById('reset-periodo-nome').textContent = this.periodo;
+    document.getElementById('reset-grupos-area').style.display = 'none';
+
+    const modal = document.getElementById('modal-reset');
+    modal.classList.add('show');
+
+    const btnTudo = document.getElementById('btn-reset-tudo');
+    const btnGrupoToggle = document.getElementById('btn-reset-grupo-toggle');
+    const btnGruposConfirmar = document.getElementById('btn-reset-grupos-confirmar');
+    const closeBtn = document.getElementById('btn-modal-reset-close');
+
+    const close = () => modal.classList.remove('show');
+    closeBtn.onclick = close;
+    modal.onclick = e => { if (e.target === modal) close(); };
+
+    btnTudo.onclick = async () => {
+      if (!confirm(`Resetar TODAS as atividades de ${empresa.nome} no período ${this.periodo}? Esta ação não pode ser desfeita.`)) return;
+      try {
+        await this.api('/api/historico/reset', {
+          method: 'DELETE',
+          body: JSON.stringify({ empresa_id: empresa.id, periodo: this.periodo })
+        });
+        close();
+        await Promise.all([this.carregarAtividades(), this.carregarHistorico()]);
+      } catch (e) { alert('Erro ao resetar: ' + e.message); }
+    };
+
+    btnGrupoToggle.onclick = () => {
+      const area = document.getElementById('reset-grupos-area');
+      if (area.style.display === 'none') {
+        const grupos = [...new Set((this._atividadesEmpresa || []).filter(a => a.habilitada).map(a => a.grupo || 'Geral'))];
+        const lista = document.getElementById('reset-grupos-lista');
+        lista.innerHTML = grupos.map(g => `
+          <label style="display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer">
+            <input type="checkbox" value="${g}" style="width:15px;height:15px;cursor:pointer">
+            <span style="font-size:0.85rem;font-weight:600;color:#2d3748">${g}</span>
+          </label>`).join('');
+        area.style.display = 'block';
+      } else {
+        area.style.display = 'none';
+      }
+    };
+
+    btnGruposConfirmar.onclick = async () => {
+      const checks = document.querySelectorAll('#reset-grupos-lista input[type=checkbox]:checked');
+      const grupos = [...checks].map(c => c.value);
+      if (!grupos.length) { alert('Selecione ao menos um grupo.'); return; }
+      if (!confirm(`Resetar os grupos [${grupos.join(', ')}] de ${empresa.nome} no período ${this.periodo}?`)) return;
+      try {
+        await this.api('/api/historico/reset', {
+          method: 'DELETE',
+          body: JSON.stringify({ empresa_id: empresa.id, periodo: this.periodo, grupos })
+        });
+        close();
+        await Promise.all([this.carregarAtividades(), this.carregarHistorico()]);
+      } catch (e) { alert('Erro ao resetar grupos: ' + e.message); }
+    };
   }
 
   _renderColRightNormal() {
@@ -472,7 +550,10 @@ class GridFlowApp {
       <div class="card">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
           <h3 style="margin:0">✅ Atividades</h3>
-          <span style="font-size:0.78rem;font-weight:600;color:#3498db;background:#ebf8ff;padding:3px 10px;border-radius:20px">📅 ${this.periodo}</span>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:0.78rem;font-weight:600;color:#3498db;background:#ebf8ff;padding:3px 10px;border-radius:20px">📅 ${this.periodo}</span>
+            <button id="btn-resetar-checklist" style="font-size:0.75rem;padding:3px 10px;background:#fff5f5;border:1px solid #fed7d7;border-radius:20px;color:#c53030;cursor:pointer;font-weight:600">🔄 Resetar</button>
+          </div>
         </div>
         <div id="db-atividades-container"><div class="loading"></div></div>
       </div>
@@ -2462,6 +2543,163 @@ class GridFlowApp {
       if (!e.target.closest('.badge-pendente')) {
         document.querySelectorAll('.pendente-dropdown.open').forEach(d => d.classList.remove('open'));
       }
+    });
+  }
+
+  // ── Relatório de Anotações ────────────────────────────────────────────────
+  _renderRelatorioShell() {
+    return `
+      <div class="status-page">
+        <div class="status-header-card" style="margin-bottom:16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+            <div>
+              <div style="font-size:1.1rem;font-weight:700;color:#2d3748">📝 Relatório de Anotações</div>
+              <div style="font-size:0.8rem;color:#718096;margin-top:2px">Todas as notas registradas por empresa e período</div>
+            </div>
+            <button id="btn-rel-refresh" style="padding:6px 14px;background:#ebf8ff;border:1px solid #bee3f8;border-radius:8px;color:#2b6cb0;font-weight:600;cursor:pointer;font-size:0.82rem">🔄 Atualizar</button>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
+            <input id="rel-search" type="text" placeholder="🔍 Buscar empresa ou anotação..."
+              style="flex:1;min-width:180px;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem">
+            <select id="rel-periodo" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;color:#4a5568;background:#fff">
+              <option value="">Todos os períodos</option>
+              ${(this._periodos || []).map(p => `<option value="${p}">${p}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div id="rel-lista" style="display:flex;flex-direction:column;gap:10px">
+          <div class="loading"></div>
+        </div>
+      </div>`;
+  }
+
+  _configurarEventosRelatorio() {
+    document.getElementById('btn-rel-refresh')?.addEventListener('click', () => this._carregarRelatorio());
+
+    let to;
+    document.getElementById('rel-search')?.addEventListener('input', () => {
+      clearTimeout(to);
+      to = setTimeout(() => this._filtrarRelatorio(), 200);
+    });
+
+    document.getElementById('rel-periodo')?.addEventListener('change', () => this._filtrarRelatorio());
+  }
+
+  _filtrarRelatorio() {
+    if (!this._relatorioNotas) return;
+    const q = (document.getElementById('rel-search')?.value || '').toLowerCase();
+    const per = document.getElementById('rel-periodo')?.value || '';
+    let lista = this._relatorioNotas;
+    if (q) lista = lista.filter(n =>
+      (n.empresa_nome || '').toLowerCase().includes(q) ||
+      (n.texto || '').toLowerCase().includes(q) ||
+      (n.usuario || '').toLowerCase().includes(q)
+    );
+    if (per) lista = lista.filter(n => n.periodo === per);
+    this._renderRelatorioLista(lista);
+  }
+
+  async _carregarRelatorio() {
+    const el = document.getElementById('rel-lista');
+    if (!el) return;
+    el.innerHTML = '<div class="loading"></div>';
+    try {
+      this._relatorioNotas = await this.api('/api/notas');
+      this._filtrarRelatorio();
+    } catch (e) {
+      el.innerHTML = `<div style="color:#c53030;padding:20px;text-align:center">Erro ao carregar anotações: ${e.message}</div>`;
+    }
+  }
+
+  _renderRelatorioLista(lista) {
+    const el = document.getElementById('rel-lista');
+    if (!el) return;
+    if (!lista.length) {
+      el.innerHTML = '<div style="text-align:center;color:#a0aec0;padding:40px;font-size:0.9rem">Nenhuma anotação encontrada</div>';
+      return;
+    }
+    el.innerHTML = lista.map(n => {
+      const data = n.atualizado_em || n.criado_em || '';
+      const dataFmt = data ? data.slice(0, 10).split('-').reverse().join('/') : '—';
+      return `
+        <div class="card rel-nota-card" data-nota-id="${n.id}" style="padding:14px 16px">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+                <span style="font-size:0.8rem;font-weight:700;color:#2b6cb0;background:#ebf8ff;padding:2px 10px;border-radius:12px">${n.empresa_nome || '—'}</span>
+                ${n.periodo ? `<span style="font-size:0.75rem;color:#718096;background:#f7fafc;border:1px solid #e2e8f0;padding:2px 8px;border-radius:12px">📅 ${n.periodo}</span>` : ''}
+                ${n.usuario ? `<span style="font-size:0.75rem;color:#718096">por <strong>${n.usuario}</strong></span>` : ''}
+                <span style="font-size:0.72rem;color:#a0aec0;margin-left:auto">${dataFmt}</span>
+              </div>
+              <div class="rel-nota-texto" style="font-size:0.88rem;color:#2d3748;line-height:1.5;white-space:pre-wrap">${n.texto || ''}</div>
+              <textarea class="rel-nota-edit" data-id="${n.id}" style="display:none;width:100%;padding:8px 10px;border:1px solid #3498db;border-radius:6px;font-size:0.88rem;resize:vertical;font-family:inherit;box-sizing:border-box;margin-top:6px" rows="3">${n.texto || ''}</textarea>
+              <div class="rel-edit-btns" style="display:none;margin-top:8px;display:none;gap:8px">
+                <button class="btn-rel-salvar" data-id="${n.id}" style="padding:5px 14px;background:#3498db;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;font-weight:600">Salvar</button>
+                <button class="btn-rel-cancelar" data-id="${n.id}" style="padding:5px 14px;background:#f7fafc;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.82rem">Cancelar</button>
+              </div>
+            </div>
+            <div style="display:flex;gap:6px;flex-shrink:0">
+              <button class="btn-rel-editar" data-id="${n.id}" title="Editar" style="padding:4px 10px;background:#f7fafc;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.82rem;color:#4a5568">✏️</button>
+              <button class="btn-rel-excluir" data-id="${n.id}" title="Excluir" style="padding:4px 10px;background:#fff5f5;border:1px solid #fed7d7;border-radius:6px;cursor:pointer;font-size:0.82rem;color:#c53030">🗑️</button>
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+
+    el.querySelectorAll('.btn-rel-editar').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const card = btn.closest('.rel-nota-card');
+        card.querySelector('.rel-nota-texto').style.display = 'none';
+        card.querySelector('.rel-nota-edit').style.display = 'block';
+        const editBtns = card.querySelector('.rel-edit-btns');
+        editBtns.style.display = 'flex';
+        card.querySelector('.rel-nota-edit').focus();
+      });
+    });
+
+    el.querySelectorAll('.btn-rel-cancelar').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const card = btn.closest('.rel-nota-card');
+        card.querySelector('.rel-nota-texto').style.display = '';
+        card.querySelector('.rel-nota-edit').style.display = 'none';
+        card.querySelector('.rel-edit-btns').style.display = 'none';
+      });
+    });
+
+    el.querySelectorAll('.btn-rel-salvar').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = parseInt(btn.dataset.id);
+        const card = btn.closest('.rel-nota-card');
+        const novo = card.querySelector('.rel-nota-edit').value.trim();
+        if (!novo) { alert('O texto não pode ficar vazio.'); return; }
+        try {
+          await this.api('/api/notas', {
+            method: 'PUT',
+            body: JSON.stringify({ id, texto: novo })
+          });
+          const nota = this._relatorioNotas?.find(n => n.id === id);
+          if (nota) nota.texto = novo;
+          card.querySelector('.rel-nota-texto').textContent = novo;
+          card.querySelector('.rel-nota-texto').style.display = '';
+          card.querySelector('.rel-nota-edit').style.display = 'none';
+          card.querySelector('.rel-edit-btns').style.display = 'none';
+        } catch (e) { alert('Erro ao salvar: ' + e.message); }
+      });
+    });
+
+    el.querySelectorAll('.btn-rel-excluir').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Excluir esta anotação?')) return;
+        const id = parseInt(btn.dataset.id);
+        try {
+          await this.api(`/api/notas?id=${id}`, { method: 'DELETE' });
+          if (this._relatorioNotas) this._relatorioNotas = this._relatorioNotas.filter(n => n.id !== id);
+          btn.closest('.rel-nota-card').remove();
+          if (!document.querySelectorAll('.rel-nota-card').length) {
+            el.innerHTML = '<div style="text-align:center;color:#a0aec0;padding:40px;font-size:0.9rem">Nenhuma anotação encontrada</div>';
+          }
+        } catch (e) { alert('Erro ao excluir: ' + e.message); }
+      });
     });
   }
 }
