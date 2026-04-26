@@ -35,12 +35,13 @@ class GridFlowApp {
     this.usuario    = user.nome;
     this.colaborador = { id: user.id, nome: user.nome };
     document.getElementById('current-user').textContent = user.nome;
-    document.getElementById('user-avatar').textContent  = user.nome.charAt(0);
+    // Avatar provisório com inicial — será substituído com foto ao carregar colaboradores
+    document.getElementById('user-avatar').textContent = user.nome.charAt(0).toUpperCase();
 
     this.configurarEventos();
     await this.carregarPeriodos();
     await this.verificarConexao();
-    await this.carregarColaboradores();
+    await this.carregarColaboradores(); // renderUserList() atualiza o avatar com a foto real
     this.iniciarAutoRefresh();
     await this.carregarMinhasEmpresas();
     await this.renderizarConteudo();
@@ -72,11 +73,30 @@ class GridFlowApp {
     } catch (e) { console.error(e); }
   }
 
+  _atualizarAvatarSidebar(nome, foto) {
+    const av = document.getElementById('user-avatar');
+    if (!av) return;
+    if (foto) {
+      av.innerHTML = `<img src="${foto}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+    } else {
+      av.innerHTML = '';
+      av.textContent = nome.charAt(0).toUpperCase();
+    }
+  }
+
   renderUserList(cols) {
+    // Atualiza avatar da sidebar para o usuário atual
+    const meCol = cols.find(c => c.id === this.colaborador?.id);
+    if (meCol) this._atualizarAvatarSidebar(meCol.nome, meCol.foto || '');
+
     const container = document.getElementById('user-list');
     container.innerHTML = cols.filter(c => c.ativo).map(col => `
-      <div class="user-list-item" data-id="${col.id}" data-nome="${col.nome}">
-        <div class="user-avatar">${col.nome.charAt(0)}</div>
+      <div class="user-list-item" data-id="${col.id}" data-nome="${col.nome}" data-foto="${col.foto || ''}">
+        <div class="user-avatar">
+          ${col.foto
+            ? `<img src="${col.foto}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+            : col.nome.charAt(0).toUpperCase()}
+        </div>
         <div>
           <div style="font-weight:600">${col.nome}</div>
           <div style="font-size:0.75rem;color:#718096">${col.funcao || 'Usuário'}</div>
@@ -90,7 +110,7 @@ class GridFlowApp {
     this.usuario = item.dataset.nome;
     this.colaborador = { id: parseInt(item.dataset.id), nome: item.dataset.nome };
     document.getElementById('current-user').textContent = this.usuario;
-    document.getElementById('user-avatar').textContent = this.usuario.charAt(0);
+    this._atualizarAvatarSidebar(item.dataset.nome, item.dataset.foto || '');
     this.closeUserModal();
     await this.carregarMinhasEmpresas();
     await this.renderizarConteudo();
@@ -1773,6 +1793,13 @@ class GridFlowApp {
         const payload = { nome, funcao, admin, ...(foto !== undefined ? { foto } : {}) };
         if (id) {
           await this.api(`/api/colaboradores/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+          // Se editou o próprio perfil, atualiza avatar da sidebar imediatamente
+          if (parseInt(id) === this.colaborador?.id) {
+            const fotoAtual = foto !== undefined ? foto : this._colsFotoAtual;
+            this._atualizarAvatarSidebar(nome, fotoAtual || '');
+            document.getElementById('current-user').textContent = nome;
+            this.usuario = nome;
+          }
         } else {
           await this.api('/api/colaboradores', { method: 'POST', body: JSON.stringify(payload) });
         }
@@ -1790,6 +1817,7 @@ class GridFlowApp {
         document.getElementById('col-admin').checked = btn.dataset.admin === '1' || btn.dataset.admin === 'true';
         document.getElementById('form-col-titulo').textContent = 'Editar Colaborador';
         this._colsFotoBase64 = '';
+        this._colsFotoAtual = btn.dataset.foto || '';
         this._removerFoto = false;
         if (btn.dataset.foto) {
           document.getElementById('col-foto-preview').innerHTML = `<img src="${btn.dataset.foto}" style="width:100%;height:100%;object-fit:cover">`;
