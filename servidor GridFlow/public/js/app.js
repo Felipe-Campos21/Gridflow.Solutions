@@ -429,7 +429,7 @@ class GridFlowApp {
       try { this._gruposIntegrados = await this.api(`/api/empresas/${empresa.id}/grupos-integrados`); }
       catch { this._gruposIntegrados = []; }
 
-      // Layout: atividades da matriz em cima + filiais embaixo
+      // Layout: atividades da matriz em cima + filiais + histórico
       colRight.innerHTML = `
         <div class="card" style="margin-bottom:16px">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
@@ -438,12 +438,20 @@ class GridFlowApp {
           </div>
           <div id="db-atividades-container"><div class="loading"></div></div>
         </div>
-        <div id="db-filiais-section"><div class="loading">Carregando filiais...</div></div>`;
+        <div id="db-filiais-section"><div class="loading">Carregando filiais...</div></div>
+        <div class="card" style="margin-top:16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <h3 style="margin:0">📋 Histórico — <span style="color:#3498db">${this.periodo}</span></h3>
+            <span class="sync-info">Auto-atualiza a cada 5s</span>
+          </div>
+          <div id="db-historico-lista"><div class="historico-vazio">Nenhum registro neste período</div></div>
+        </div>`;
 
-      // Carrega atividades da matriz + filiais em paralelo
+      // Carrega atividades da matriz + filiais + histórico em paralelo
       const [filialHtml] = await Promise.all([
         this.renderFiliais(empresa),
-        this.carregarAtividades()
+        this.carregarAtividades(),
+        this.carregarHistorico()
       ]);
 
       const filiaisEl = document.getElementById('db-filiais-section');
@@ -846,16 +854,27 @@ class GridFlowApp {
     try {
       const historico = await this.api(`/api/historico?empresa_id=${this.empresaSelecionada.id}&periodo=${encodeURIComponent(this.periodo)}`);
       const container = document.getElementById('db-historico-lista');
+      if (!container) return;
       if (!historico.length) {
         container.innerHTML = '<div class="historico-vazio">Nenhum registro neste período</div>';
         return;
       }
-      container.innerHTML = `<div class="historico-lista">${historico.map(h => `
-        <div class="historico-item">
-          <div class="hi-data">${h.data}</div>
-          <div class="hi-atividade">${h.atividade_codigo ? h.atividade_codigo + ' - ' : ''}${h.atividade_nome}</div>
-          <div class="hi-usuario">${h.usuario}</div>
-        </div>`).join('')}</div>`;
+      container.innerHTML = historico.map(h => {
+        const isOK = h.status === 'OK';
+        const dataFormatada = h.data ? h.data.replace('T', ' ').substring(0, 16) : '—';
+        return `
+          <div class="historico-item">
+            <div class="hi-status-badge ${isOK ? 'hi-badge-ok' : 'hi-badge-na'}">${isOK ? 'OK' : 'N/A'}</div>
+            <div class="hi-corpo">
+              <div class="hi-atividade">${h.atividade_nome || '—'}</div>
+              ${h.observacao ? `<div class="hi-obs">💬 ${h.observacao}</div>` : ''}
+              <div class="hi-meta">
+                <span class="hi-usuario">👤 ${h.usuario}</span>
+                <span class="hi-data">🕐 ${dataFormatada}</span>
+              </div>
+            </div>
+          </div>`;
+      }).join('');
     } catch (e) { console.error(e); }
   }
 
