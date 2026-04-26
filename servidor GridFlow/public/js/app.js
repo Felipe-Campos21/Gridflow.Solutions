@@ -2071,7 +2071,7 @@ class GridFlowApp {
         const offset = (CIRC * (1 - col.pct / 100)).toFixed(2);
         const iniciais = col.colaborador.nome.split(' ').filter(Boolean).map(p => p[0]).slice(0, 2).join('').toUpperCase();
         return `
-          <div class="collab-status-card">
+          <div class="collab-status-card collab-clicavel" data-colid="${col.colaborador.id}">
             <div class="collab-ring-wrap">
               <svg width="80" height="80" viewBox="0 0 80 80" style="transform:rotate(-90deg)">
                 <circle cx="40" cy="40" r="32" fill="none" stroke="#e2e8f0" stroke-width="7"/>
@@ -2084,17 +2084,17 @@ class GridFlowApp {
             <div class="collab-card-role">${col.colaborador.funcao || 'Usuário'}</div>
             <div class="collab-card-pct" style="color:${cor}">${col.pct}%</div>
             <div class="collab-card-info">${col.concluidas}/${col.total_atividades} atividades · ${col.total_empresas} empresa${col.total_empresas !== 1 ? 's' : ''}</div>
-            <button class="collab-card-detail btn-detail-collab" data-colid="${col.colaborador.id}">Ver detalhes →</button>
+            <div class="collab-card-detail">Ver detalhes →</div>
           </div>`;
       }).join('')}
     </div>`;
 
-    content.querySelectorAll('.btn-detail-collab').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const colId = parseInt(btn.dataset.colid);
-        const col = this._statusData?.colaboradores.find(c => c.colaborador.id === colId);
-        if (col) {
-          this._statusColabDetalhe = col;
+    content.querySelectorAll('.collab-clicavel').forEach(card => {
+      card.addEventListener('click', () => {
+        const colId = String(card.dataset.colid);
+        const colObj = this._statusData?.colaboradores.find(c => String(c.colaborador.id) === colId);
+        if (colObj) {
+          this._statusColabDetalhe = colObj;
           this._renderStatusContent();
         }
       });
