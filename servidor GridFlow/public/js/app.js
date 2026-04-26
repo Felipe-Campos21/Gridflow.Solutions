@@ -1595,16 +1595,16 @@ class GridFlowApp {
       this._colsFotoBase64 = '';
       this._removerFoto = false;
       return `
-        <div style="display:grid;grid-template-columns:1fr 360px;gap:16px;align-items:start">
+        <div style="display:flex;flex-direction:column;gap:16px">
 
-          <!-- Lista -->
+          <!-- Lista de colaboradores -->
           <div class="card" style="padding:0;overflow:hidden">
             <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #f0f0f0">
               <div style="display:flex;align-items:center;gap:8px">
                 <span style="font-size:1.1rem">👥</span>
                 <span style="font-weight:700;text-transform:uppercase;font-size:0.78rem;color:#718096;letter-spacing:.05em">Colaboradores</span>
               </div>
-              <button class="btn btn-primary" id="btn-novo-col" style="font-size:0.82rem;padding:6px 14px">✦ Novo</button>
+              <button class="btn btn-primary" id="btn-novo-col" style="font-size:0.82rem;padding:6px 14px">✦ Novo Colaborador</button>
             </div>
             <div style="display:grid;grid-template-columns:1fr 110px 100px;padding:8px 20px;border-bottom:1px solid #f0f0f0;background:#f8fafc">
               <span style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:#a0aec0">Colaborador</span>
@@ -1641,75 +1641,74 @@ class GridFlowApp {
               </div>`).join('')}
           </div>
 
-          <!-- Formulário + Vincular -->
-          <div style="display:flex;flex-direction:column;gap:16px">
+          <!-- Vincular empresa a todos — sempre visível -->
+          <div class="card">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+              <span>🔗</span>
+              <span style="font-weight:700;text-transform:uppercase;font-size:0.78rem;color:#718096;letter-spacing:.05em">Vincular Empresa a Todos</span>
+            </div>
+            <p style="font-size:0.8rem;color:#718096;margin-bottom:12px">Adiciona uma empresa para todos os colaboradores ativos de uma vez.</p>
+            <div style="position:relative">
+              <input type="text" id="vincular-search" placeholder="🔍 Buscar empresa..."
+                style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem">
+              <div id="vincular-results" class="search-results" style="position:absolute;top:100%;left:0;right:0;z-index:100"></div>
+            </div>
+          </div>
+        </div>
 
-            <!-- Form criar/editar -->
-            <div class="card">
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
-                <span>➕</span>
-                <span id="form-col-titulo" style="font-weight:700;text-transform:uppercase;font-size:0.78rem;color:#718096;letter-spacing:.05em">Novo Colaborador</span>
-              </div>
-              <input type="hidden" id="col-id">
+        <!-- Painel formulário (oculto por padrão, abre ao clicar Novo/Editar) -->
+        <div id="col-form-panel" style="display:none;position:fixed;top:0;right:0;bottom:0;width:380px;background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,0.12);z-index:500;overflow-y:auto;padding:24px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span id="form-col-icone">➕</span>
+              <span id="form-col-titulo" style="font-weight:700;font-size:0.92rem;color:#2d3748">Novo Colaborador</span>
+            </div>
+            <button id="btn-fechar-form-col" style="background:none;border:none;font-size:1.4rem;color:#a0aec0;cursor:pointer;line-height:1">×</button>
+          </div>
+          <input type="hidden" id="col-id">
 
-              <div style="margin-bottom:12px">
-                <label style="font-size:0.8rem;font-weight:600;color:#4a5568;display:block;margin-bottom:4px">Nome completo *</label>
-                <input id="col-nome" type="text" placeholder="Ex: João da Silva"
-                  style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem">
-              </div>
+          <div style="margin-bottom:12px">
+            <label style="font-size:0.8rem;font-weight:600;color:#4a5568;display:block;margin-bottom:4px">Nome completo *</label>
+            <input id="col-nome" type="text" placeholder="Ex: João da Silva"
+              style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem;box-sizing:border-box">
+          </div>
 
-              <div style="margin-bottom:12px">
-                <label style="font-size:0.8rem;font-weight:600;color:#4a5568;display:block;margin-bottom:4px">Função / Cargo</label>
-                <input id="col-funcao" type="text" placeholder="Ex: Assistente Financeiro"
-                  style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem">
-              </div>
+          <div style="margin-bottom:12px">
+            <label style="font-size:0.8rem;font-weight:600;color:#4a5568;display:block;margin-bottom:4px">Função / Cargo</label>
+            <input id="col-funcao" type="text" placeholder="Ex: Assistente Financeiro"
+              style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem;box-sizing:border-box">
+          </div>
 
-              <div style="margin-bottom:14px;display:flex;align-items:center;gap:10px">
-                <label class="toggle-ativo" style="margin:0">
-                  <input id="col-admin" type="checkbox">
-                  <span class="toggle-slider"></span>
-                </label>
-                <span style="font-size:0.85rem;color:#4a5568">Administrador
-                  <span style="color:#718096;font-size:0.76rem">(acesso total)</span></span>
-              </div>
+          <div style="margin-bottom:14px;display:flex;align-items:center;gap:10px">
+            <label class="toggle-ativo" style="margin:0">
+              <input id="col-admin" type="checkbox">
+              <span class="toggle-slider"></span>
+            </label>
+            <span style="font-size:0.85rem;color:#4a5568">Administrador
+              <span style="color:#718096;font-size:0.76rem">(acesso total)</span></span>
+          </div>
 
-              <div style="margin-bottom:16px">
-                <label style="font-size:0.8rem;font-weight:600;color:#4a5568;display:block;margin-bottom:6px">
-                  Foto <span style="color:#718096;font-weight:400">(opcional — PNG ou JPG)</span>
-                </label>
-                <div style="display:flex;align-items:center;gap:12px">
-                  <div id="col-foto-preview"
-                    style="width:50px;height:50px;border-radius:50%;background:#e2e8f0;display:flex;align-items:center;justify-content:center;font-size:1.3rem;overflow:hidden;flex-shrink:0;color:#718096">?</div>
-                  <div>
-                    <div style="display:flex;gap:6px;margin-bottom:4px">
-                      <button class="btn btn-sm" id="btn-foto-sel" style="background:#f7fafc">🖼 Selecionar</button>
-                      <button class="btn btn-sm" id="btn-foto-remover" style="background:#fff5f5;border-color:#fed7d7;color:#c53030;display:none">✕ Remover</button>
-                    </div>
-                    <div id="col-foto-nome" style="font-size:0.72rem;color:#718096">Quadrada recomendada</div>
-                  </div>
-                  <input type="file" id="col-foto-input" accept="image/png,image/jpeg" style="display:none">
+          <div style="margin-bottom:20px">
+            <label style="font-size:0.8rem;font-weight:600;color:#4a5568;display:block;margin-bottom:6px">
+              Foto <span style="color:#718096;font-weight:400">(opcional — PNG ou JPG)</span>
+            </label>
+            <div style="display:flex;align-items:center;gap:12px">
+              <div id="col-foto-preview"
+                style="width:50px;height:50px;border-radius:50%;background:#e2e8f0;display:flex;align-items:center;justify-content:center;font-size:1.3rem;overflow:hidden;flex-shrink:0;color:#718096">?</div>
+              <div>
+                <div style="display:flex;gap:6px;margin-bottom:4px">
+                  <button class="btn btn-sm" id="btn-foto-sel" style="background:#f7fafc">🖼 Selecionar</button>
+                  <button class="btn btn-sm" id="btn-foto-remover" style="background:#fff5f5;border-color:#fed7d7;color:#c53030;display:none">✕ Remover</button>
                 </div>
+                <div id="col-foto-nome" style="font-size:0.72rem;color:#718096">Quadrada recomendada</div>
               </div>
-
-              <div style="display:flex;gap:8px">
-                <button class="btn btn-primary" id="btn-salvar-col" style="flex:1">💾 Salvar</button>
-                <button class="btn" id="btn-limpar-col">Limpar</button>
-              </div>
+              <input type="file" id="col-foto-input" accept="image/png,image/jpeg" style="display:none">
             </div>
+          </div>
 
-            <!-- Vincular empresa a todos -->
-            <div class="card">
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-                <span>🔗</span>
-                <span style="font-weight:700;text-transform:uppercase;font-size:0.78rem;color:#718096;letter-spacing:.05em">Vincular Empresa a Todos</span>
-              </div>
-              <p style="font-size:0.8rem;color:#718096;margin-bottom:12px">Adiciona uma empresa para todos os colaboradores de uma vez.</p>
-              <div style="position:relative">
-                <input type="text" id="vincular-search" placeholder="🔍 Buscar empresa..."
-                  style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem">
-                <div id="vincular-results" class="search-results" style="position:absolute;top:100%;left:0;right:0;z-index:100"></div>
-              </div>
-            </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary" id="btn-salvar-col" style="flex:1">💾 Salvar</button>
+            <button class="btn" id="btn-limpar-col">Cancelar</button>
           </div>
         </div>
 
@@ -1736,6 +1735,9 @@ class GridFlowApp {
   configurarEventosColaboradores() {
     this._colAtualId = null;
 
+    const abrirPanel = () => { document.getElementById('col-form-panel').style.display = 'block'; };
+    const fecharPanel = () => { document.getElementById('col-form-panel').style.display = 'none'; };
+
     const limparForm = () => {
       document.getElementById('col-id').value = '';
       document.getElementById('col-nome').value = '';
@@ -1746,12 +1748,14 @@ class GridFlowApp {
       document.getElementById('col-foto-nome').textContent = 'Quadrada recomendada';
       document.getElementById('btn-foto-remover').style.display = 'none';
       document.getElementById('form-col-titulo').textContent = 'Novo Colaborador';
+      document.getElementById('form-col-icone').textContent = '➕';
       this._colsFotoBase64 = '';
       this._removerFoto = false;
     };
 
-    document.getElementById('btn-novo-col')?.addEventListener('click', limparForm);
-    document.getElementById('btn-limpar-col')?.addEventListener('click', limparForm);
+    document.getElementById('btn-novo-col')?.addEventListener('click', () => { limparForm(); abrirPanel(); document.getElementById('col-nome').focus(); });
+    document.getElementById('btn-limpar-col')?.addEventListener('click', () => { limparForm(); fecharPanel(); });
+    document.getElementById('btn-fechar-form-col')?.addEventListener('click', fecharPanel);
 
     // Upload de foto
     document.getElementById('btn-foto-sel')?.addEventListener('click', () =>
@@ -1803,6 +1807,7 @@ class GridFlowApp {
         } else {
           await this.api('/api/colaboradores', { method: 'POST', body: JSON.stringify(payload) });
         }
+        fecharPanel();
         await this.carregarColaboradores();
         await this.mudarTab('colaboradores');
       } catch (e) { alert('Erro ao salvar: ' + e.message); }
@@ -1816,16 +1821,23 @@ class GridFlowApp {
         document.getElementById('col-funcao').value = btn.dataset.funcao;
         document.getElementById('col-admin').checked = btn.dataset.admin === '1' || btn.dataset.admin === 'true';
         document.getElementById('form-col-titulo').textContent = 'Editar Colaborador';
+        document.getElementById('form-col-icone').textContent = '✏️';
         this._colsFotoBase64 = '';
         this._colsFotoAtual = btn.dataset.foto || '';
         this._removerFoto = false;
+        const preview = document.getElementById('col-foto-preview');
         if (btn.dataset.foto) {
-          document.getElementById('col-foto-preview').innerHTML = `<img src="${btn.dataset.foto}" style="width:100%;height:100%;object-fit:cover">`;
+          preview.innerHTML = `<img src="${btn.dataset.foto}" style="width:100%;height:100%;object-fit:cover">`;
           document.getElementById('btn-foto-remover').style.display = 'inline-flex';
           document.getElementById('col-foto-nome').textContent = 'Foto atual';
+        } else {
+          preview.innerHTML = btn.dataset.nome.charAt(0).toUpperCase();
+          document.getElementById('btn-foto-remover').style.display = 'none';
+          document.getElementById('col-foto-nome').textContent = 'Sem foto';
         }
-        document.getElementById('col-foto-preview').style.background = this.avatarColor(btn.dataset.nome);
-        document.querySelector('.card').scrollIntoView({ behavior: 'smooth' });
+        preview.style.background = this.avatarColor(btn.dataset.nome);
+        abrirPanel();
+        document.getElementById('col-nome').focus();
       });
     });
 
@@ -2252,6 +2264,9 @@ class GridFlowApp {
         const cor = this._statusColor(col.pct);
         const offset = (CIRC * (1 - col.pct / 100)).toFixed(2);
         const iniciais = col.colaborador.nome.split(' ').filter(Boolean).map(p => p[0]).slice(0, 2).join('').toUpperCase();
+        const fotoAvatar = col.colaborador.foto
+          ? `<img src="${col.colaborador.foto}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+          : iniciais;
         return `
           <div class="collab-status-card collab-clicavel" data-colid="${col.colaborador.id}">
             <div class="collab-ring-wrap">
@@ -2260,7 +2275,7 @@ class GridFlowApp {
                 <circle cx="40" cy="40" r="32" fill="none" stroke="${cor}" stroke-width="7"
                   stroke-dasharray="${CIRC}" stroke-dashoffset="${offset}" stroke-linecap="round"/>
               </svg>
-              <div class="collab-ring-avatar">${iniciais}</div>
+              <div class="collab-ring-avatar" style="${col.colaborador.foto ? 'background:transparent' : ''}">${fotoAvatar}</div>
             </div>
             <div class="collab-card-name">${col.colaborador.nome}</div>
             <div class="collab-card-role">${col.colaborador.funcao || 'Usuário'}</div>
@@ -2293,6 +2308,9 @@ class GridFlowApp {
     const completas = col.empresas.filter(e => e.pct === 100).length;
     const R = 22, CIRC2 = (2 * Math.PI * R).toFixed(2);
     const offset2 = (2 * Math.PI * R * (1 - col.pct / 100)).toFixed(2);
+    const detalheAvatarInner = col.colaborador.foto
+      ? `<img src="${col.colaborador.foto}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
+      : iniciais;
 
     summaryEl.innerHTML = `
       <div class="card status-summary-card">
@@ -2305,7 +2323,7 @@ class GridFlowApp {
                 <circle cx="26" cy="26" r="${R}" fill="none" stroke="${cor}" stroke-width="5"
                   stroke-dasharray="${CIRC2}" stroke-dashoffset="${offset2}" stroke-linecap="round"/>
               </svg>
-              <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:34px;height:34px;border-radius:50%;background:#3498db;color:#fff;font-size:0.82rem;font-weight:700;display:flex;align-items:center;justify-content:center">${iniciais}</div>
+              <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:34px;height:34px;border-radius:50%;background:${col.colaborador.foto ? 'transparent' : '#3498db'};color:#fff;font-size:0.82rem;font-weight:700;display:flex;align-items:center;justify-content:center;overflow:hidden">${detalheAvatarInner}</div>
             </div>
             <div>
               <div style="font-weight:700;font-size:1rem;color:#2d3748">${col.colaborador.nome}</div>
