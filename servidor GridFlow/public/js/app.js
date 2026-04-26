@@ -44,9 +44,6 @@ class GridFlowApp {
     this.iniciarAutoRefresh();
     await this.carregarMinhasEmpresas();
     await this.renderizarConteudo();
-    if (this.currentTab === 'dashboard' && this.minhasEmpresas.length > 0) {
-      await this.selecionarEmpresa(this.minhasEmpresas[0]);
-    }
   }
 
   async verificarConexao() {
@@ -97,9 +94,6 @@ class GridFlowApp {
     this.closeUserModal();
     await this.carregarMinhasEmpresas();
     await this.renderizarConteudo();
-    if (this.currentTab === 'dashboard' && this.minhasEmpresas.length > 0) {
-      await this.selecionarEmpresa(this.minhasEmpresas[0]);
-    }
   }
 
   async carregarMinhasEmpresas() {
@@ -285,22 +279,11 @@ class GridFlowApp {
           </div>
         </div>
         <div class="col-right" id="db-col-right">
-          <div class="card">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-              <h3 style="margin:0">✅ Atividades</h3>
-              <span style="font-size:0.78rem;font-weight:600;color:#3498db;background:#ebf8ff;padding:3px 10px;border-radius:20px">📅 ${this.periodo}</span>
-            </div>
-            <div id="db-atividades-container">
-              <div class="atividades-vazio">Selecione uma empresa para ver as atividades</div>
-            </div>
-          </div>
-          <div class="card">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-              <h3 style="margin:0">📋 Histórico — <span style="color:#3498db">${this.periodo}</span></h3>
-              <span class="sync-info">Auto-atualiza a cada 5s</span>
-            </div>
-            <div id="db-historico-lista">
-              <div class="historico-vazio">Nenhum registro neste período</div>
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;min-height:320px;gap:14px;color:#a0aec0;text-align:center;padding:40px 20px">
+            <div style="font-size:3rem;line-height:1">🏢</div>
+            <div style="font-size:1rem;font-weight:700;color:#4a5568">Nenhuma empresa selecionada</div>
+            <div style="font-size:0.85rem;color:#a0aec0;max-width:260px;line-height:1.5">
+              Escolha uma empresa na lista ao lado para visualizar e preencher as atividades do período.
             </div>
           </div>
         </div>
