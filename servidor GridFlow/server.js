@@ -1,8 +1,9 @@
 // Servidor Ambar v2 - Sem dependencias externas (so Node.js puro)
-const http = require('http');
-const fs   = require('fs');
-const path = require('path');
-const url  = require('url');
+const http  = require('http');
+const https = require('https');
+const fs    = require('fs');
+const path  = require('path');
+const url   = require('url');
 
 const PORT    = process.env.PORT || 5000;
 const DB_FILE = process.env.DB_PATH || path.join(__dirname, 'ambar-central.json');
@@ -657,9 +658,81 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log('📍 Endereço: http://localhost:' + PORT);
   console.log('📡 API:      http://localhost:' + PORT + '/api');
   console.log('\nAguardando conexões dos apps desktop...\n');
+  agendarBackupAutomatico();
 });
 
 server.on('error', e => {
   if (e.code === 'EADDRINUSE') console.error('\n❌ Porta ' + PORT + ' já está em uso. Feche o outro servidor e tente novamente.');
   else console.error('\n❌ Erro:', e.message);
 });
+
+// ── Backup automático para GitHub ─────────────────────────────────────────────
+const GH_OWNER  = 'Felipe-Campos21';
+const GH_REPO   = 'Reposit-rio-Teste';
+const GH_BRANCH = 'backup';
+const GH_FILE   = 'ambar-central.json';
+
+function githubRequest(method, apiPath, body, token) {
+  return new Promise((resolve, reject) => {
+    const data = body ? JSON.stringify(body) : null;
+    const req = https.request({
+      hostname: 'api.github.com',
+      path: apiPath,
+      method,
+      headers: {
+        'Authorization': `token ${token}`,
+        'User-Agent': 'GridFlow-Backup/1.0',
+        'Content-Type': 'application/json',
+        ...(data ? { 'Content-Length': Buffer.byteLength(data) } : {})
+      }
+    }, res => {
+      let d = '';
+      res.on('data', c => d += c);
+      res.on('end', () => { try { resolve(JSON.parse(d)); } catch { resolve({}); } });
+    });
+    req.on('error', reject);
+    if (data) req.write(data);
+    req.end();
+  });
+}
+
+async function fazerBackupGitHub() {
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) return; // Sem token configurado, pula silenciosamente
+
+  try {
+    const conteudo = fs.readFileSync(DB_FILE);
+    const base64   = Buffer.from(conteudo).toString('base64');
+    const agora    = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+
+    // Busca SHA atual do arquivo (necessário para atualizar)
+    let sha;
+    try {
+      const atual = await githubRequest('GET',
+        `/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_FILE}?ref=${GH_BRANCH}`,
+        null, token);
+      sha = atual.sha;
+    } catch { /* arquivo ainda não existe no branch, cria novo */ }
+
+    await githubRequest('PUT',
+      `/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_FILE}`,
+      { message: `backup automático — ${agora}`, content: base64, branch: GH_BRANCH, ...(sha ? { sha } : {}) },
+      token);
+
+    console.log(`✅ Backup GitHub realizado — ${agora}`);
+  } catch (e) {
+    console.error('❌ Erro no backup GitHub:', e.message);
+  }
+}
+
+// Horários de backup (Seg–Sex): 07:25 | 11:10 | 13:25 | 17:25
+function agendarBackupAutomatico() {
+  const HORARIOS = [{ h:7,m:25 }, { h:11,m:10 }, { h:13,m:25 }, { h:17,m:25 }];
+  setInterval(() => {
+    const agora = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+    if (agora.getDay() === 0 || agora.getDay() === 6) return; // Sem backup fim de semana
+    const h = agora.getHours(), m = agora.getMinutes();
+    if (HORARIOS.some(t => t.h === h && t.m === m)) fazerBackupGitHub();
+  }, 60 * 1000);
+  console.log('📅 Backup automático agendado: 07:25 | 11:10 | 13:25 | 17:25 (Seg–Sex)');
+}
