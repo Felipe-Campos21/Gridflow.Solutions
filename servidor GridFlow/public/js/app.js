@@ -1851,14 +1851,20 @@ class GridFlowApp {
   renderConfigurar() {
     const empresa = this.empresaConfigurar || this.empresaSelecionada;
     return `
-      <div class="card">
-        <h3 style="margin:0 0 12px">Configurar Empresa</h3>
-        <div style="position:relative;margin-bottom:16px">
-          <input type="text" id="cfg-search" placeholder="🔍  Buscar empresa pelo nome..." style="width:100%;padding:10px 14px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.95rem;box-sizing:border-box">
-          <div id="cfg-search-results" class="search-results" style="position:absolute;top:100%;left:0;right:0;z-index:100"></div>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div class="card cfg-busca-card">
+          <div class="cfg-section-label">📋 SELECIONAR EMPRESA</div>
+          <div style="position:relative">
+            <input type="text" id="cfg-search" class="cfg-search-input"
+              placeholder="🔍  Buscar empresa pelo nome..."
+              value="${empresa ? empresa.nome : ''}">
+            <div id="cfg-search-results" class="search-results"></div>
+          </div>
         </div>
         <div id="cfg-conteudo">
-          ${empresa ? '<div class="loading">Carregando atividades...</div>' : '<div style="color:#718096;text-align:center;padding:40px">Busque e selecione uma empresa acima</div>'}
+          ${empresa
+            ? '<div class="loading"></div>'
+            : `<div class="empty-state"><div class="empty-state-icon">⚙️</div><div class="empty-state-text">Busque e selecione uma empresa acima</div></div>`}
         </div>
       </div>`;
   }
@@ -1885,16 +1891,16 @@ class GridFlowApp {
       const lista = await this.api(`/api/empresas?search=${encodeURIComponent(q)}`);
       const results = document.getElementById('cfg-search-results');
       if (!lista.length) {
-        results.innerHTML = '<div class="search-result-item">Nenhuma empresa encontrada</div>';
+        results.innerHTML = '<div class="search-result-item" style="color:#a0aec0">Nenhuma empresa encontrada</div>';
       } else {
         results.innerHTML = lista.map(e => `
           <div class="search-result-item" data-id="${e.id}">
             <div class="result-nome">${e.nome}</div>
             <div class="result-info">${e.codigo_interno || ''}</div>
           </div>`).join('');
-        results.querySelectorAll('.search-result-item').forEach(item => {
+        results.querySelectorAll('.search-result-item[data-id]').forEach(item => {
           item.addEventListener('click', async () => {
-            const emp = lista.find(e => e.id == item.dataset.id);
+            const emp = lista.find(e => String(e.id) === item.dataset.id);
             this.empresaConfigurar = emp;
             document.getElementById('cfg-search').value = emp.nome;
             results.classList.remove('show');
@@ -1908,40 +1914,89 @@ class GridFlowApp {
 
   async carregarConfigurarEmpresa(empresaId) {
     const container = document.getElementById('cfg-conteudo');
+    container.innerHTML = '<div class="loading"></div>';
     try {
       const atividades = await this.api(`/api/empresas/${empresaId}/atividades`);
+      const nomeEmpresa = this.empresaConfigurar?.nome || this.empresaSelecionada?.nome || '';
       const grupos = {};
-      atividades.forEach(a => { (grupos[a.grupo || 'Geral'] = grupos[a.grupo || 'Geral'] || []).push(a); });
+      atividades.forEach(a => { const g = a.grupo || 'Geral'; (grupos[g] = grupos[g] || []).push(a); });
+
+      const total    = atividades.length;
+      const habCount = atividades.filter(a => a.habilitada).length;
 
       container.innerHTML = `
-        <h4 style="margin:0 0 12px">${this.empresaConfigurar?.nome || this.empresaSelecionada?.nome || ''}</h4>
-        <p style="color:#718096;margin-bottom:16px;font-size:0.85rem">Habilite ou desabilite atividades para esta empresa</p>
-        ${Object.entries(grupos).map(([grupo, atvsGrupo]) => `
-          <div style="margin-bottom:20px">
-            <div style="font-weight:700;text-transform:uppercase;font-size:0.75rem;color:#718096;margin-bottom:8px;letter-spacing:0.05em">${grupo}</div>
-            ${atvsGrupo.map(a => `
-              <div class="configurar-atividade-row">
-                <div class="cfg-atv-info">
-                  <div class="cfg-atv-nome">${a.nome}</div>
-                  <div class="cfg-atv-grupo">${a.grupo || 'Geral'}</div>
-                </div>
-                <label class="toggle-ativo">
-                  <input type="checkbox" class="cfg-toggle" ${a.habilitada ? 'checked' : ''} data-empresa="${empresaId}" data-atv="${a.atividade_id}">
-                  <span class="toggle-slider"></span>
-                </label>
+        <div class="card cfg-lista-card">
+          <div class="cfg-empresa-header">
+            <div>
+              <div class="cfg-empresa-nome">⚙️ ${nomeEmpresa.toUpperCase()}</div>
+              <div class="cfg-count" id="cfg-count-label">${habCount} de ${total} atividades habilitadas</div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn cfg-btn-habilitar" id="btn-habilitar-todas">Habilitar Todas</button>
+              <button class="btn cfg-btn-desabilitar" id="btn-desabilitar-todas">Desabilitar Todas</button>
+            </div>
+          </div>
+
+          <div class="cfg-grupos">
+            ${Object.entries(grupos).map(([grupo, atvsGrupo]) => `
+              <div class="cfg-grupo-section">
+                <div class="cfg-grupo-header">${grupo.toUpperCase()}</div>
+                ${atvsGrupo.map(a => `
+                  <div class="cfg-atv-row">
+                    <span class="cfg-atv-nome">${a.nome}</span>
+                    <label class="toggle-ativo">
+                      <input type="checkbox" class="cfg-toggle" ${a.habilitada ? 'checked' : ''}
+                        data-empresa="${empresaId}" data-atv="${a.atividade_id}">
+                      <span class="toggle-slider"></span>
+                    </label>
+                  </div>`).join('')}
               </div>`).join('')}
-          </div>`).join('')}`;
+          </div>
+        </div>`;
+
+      const atualizarContagem = () => {
+        const todos    = container.querySelectorAll('.cfg-toggle');
+        const habN     = [...todos].filter(t => t.checked).length;
+        const label    = document.getElementById('cfg-count-label');
+        if (label) label.textContent = `${habN} de ${todos.length} atividades habilitadas`;
+      };
+
+      const salvarToggle = async (toggle) => {
+        try {
+          await this.api(`/api/empresas/${toggle.dataset.empresa}/atividades/${toggle.dataset.atv}`, {
+            method: 'PUT', body: JSON.stringify({ habilitada: toggle.checked })
+          });
+          atualizarContagem();
+        } catch { toggle.checked = !toggle.checked; }
+      };
 
       container.querySelectorAll('.cfg-toggle').forEach(toggle => {
-        toggle.addEventListener('change', async () => {
-          try {
-            await this.api(`/api/empresas/${toggle.dataset.empresa}/atividades/${toggle.dataset.atv}`, {
-              method: 'PUT', body: JSON.stringify({ habilitada: toggle.checked })
-            });
-          } catch (e) { toggle.checked = !toggle.checked; alert('Erro ao salvar'); }
-        });
+        toggle.addEventListener('change', () => salvarToggle(toggle));
       });
-    } catch (e) { container.innerHTML = '<div class="loading">Erro ao carregar</div>'; }
+
+      document.getElementById('btn-habilitar-todas')?.addEventListener('click', async () => {
+        const toggles = [...container.querySelectorAll('.cfg-toggle:not(:checked)')];
+        toggles.forEach(t => { t.checked = true; });
+        await Promise.all(toggles.map(t =>
+          this.api(`/api/empresas/${t.dataset.empresa}/atividades/${t.dataset.atv}`, {
+            method: 'PUT', body: JSON.stringify({ habilitada: true })
+          }).catch(() => { t.checked = false; })
+        ));
+        atualizarContagem();
+      });
+
+      document.getElementById('btn-desabilitar-todas')?.addEventListener('click', async () => {
+        const toggles = [...container.querySelectorAll('.cfg-toggle:checked')];
+        toggles.forEach(t => { t.checked = false; });
+        await Promise.all(toggles.map(t =>
+          this.api(`/api/empresas/${t.dataset.empresa}/atividades/${t.dataset.atv}`, {
+            method: 'PUT', body: JSON.stringify({ habilitada: false })
+          }).catch(() => { t.checked = true; })
+        ));
+        atualizarContagem();
+      });
+
+    } catch (e) { container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-text">Erro ao carregar</div></div>`; }
   }
 
   // ── Status Geral ──────────────────────────────────────────────────────────

@@ -643,6 +643,88 @@ body {
   margin-top: 4px;
 }
 
+/* ── Configurar Tab ──────────────────────────────────────────────────────── */
+.cfg-busca-card { padding: 16px 20px; }
+.cfg-section-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #a0aec0;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+.cfg-search-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.cfg-search-input:focus { border-color: #3498db; }
+
+.cfg-lista-card { padding: 0; overflow: hidden; }
+.cfg-empresa-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.cfg-empresa-nome {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #4a5568;
+  letter-spacing: 0.03em;
+}
+.cfg-count {
+  font-size: 0.78rem;
+  color: #718096;
+  margin-top: 3px;
+}
+.cfg-btn-habilitar, .cfg-btn-desabilitar {
+  padding: 7px 16px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+.cfg-btn-habilitar { background: #f7fafc; color: #2d3748; }
+.cfg-btn-habilitar:hover { background: #ebf8ff; border-color: #bee3f8; color: #2b6cb0; }
+.cfg-btn-desabilitar { background: #f7fafc; color: #2d3748; }
+.cfg-btn-desabilitar:hover { background: #fff5f5; border-color: #feb2b2; color: #c53030; }
+
+.cfg-grupos { padding: 8px 0 16px; }
+.cfg-grupo-section { padding: 0 20px; }
+.cfg-grupo-header {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  color: #a0aec0;
+  padding: 14px 0 6px;
+  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 2px;
+}
+.cfg-grupo-section:first-child .cfg-grupo-header { padding-top: 8px; }
+.cfg-atv-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid #f7fafc;
+}
+.cfg-atv-row:last-child { border-bottom: none; }
+.cfg-atv-nome {
+  font-size: 0.88rem;
+  color: #2d3748;
+}
+
 /* ── Status Tab ──────────────────────────────────────────────────────────── */
 .status-page { display: flex; flex-direction: column; gap: 14px; }
 
