@@ -21,6 +21,7 @@ class GridFlowApp {
     this._statusSearch = '';
     this._statusRegime = '';
     this._statusData = null;
+    this._statusColabDetalhe = null;
   }
 
   async init() {
@@ -1981,6 +1982,10 @@ class GridFlowApp {
   }
 
   _renderStatusContent() {
+    if (this._statusColabDetalhe) {
+      this._renderCollabDetalhe(this._statusColabDetalhe);
+      return;
+    }
     this._renderStatusSummary();
     if (this._statusView === 'colaboradores') {
       this._renderStatusColaboradores();
@@ -2080,23 +2085,110 @@ class GridFlowApp {
             <div class="collab-card-pct" style="color:${cor}">${col.pct}%</div>
             <div class="collab-card-info">${col.concluidas}/${col.total_atividades} atividades · ${col.total_empresas} empresa${col.total_empresas !== 1 ? 's' : ''}</div>
             <button class="collab-card-detail btn-detail-collab" data-colid="${col.colaborador.id}">Ver detalhes →</button>
-            <div class="collab-detail-panel" id="detail-${col.colaborador.id}">
-              ${col.empresas.map(e => `
-                <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f7fafc">
-                  <div style="font-size:0.78rem;color:#4a5568;flex:1;margin-right:8px">${e.empresa.nome}</div>
-                  <div style="font-size:0.78rem;font-weight:700;color:${this._statusColor(e.pct)}">${e.pct}%</div>
-                </div>`).join('')}
-            </div>
           </div>`;
       }).join('')}
     </div>`;
 
     content.querySelectorAll('.btn-detail-collab').forEach(btn => {
       btn.addEventListener('click', () => {
-        const panel = document.getElementById(`detail-${btn.dataset.colid}`);
-        if (panel) {
-          panel.classList.toggle('open');
-          btn.textContent = panel.classList.contains('open') ? 'Ocultar detalhes ↑' : 'Ver detalhes →';
+        const colId = parseInt(btn.dataset.colid);
+        const col = this._statusData?.colaboradores.find(c => c.colaborador.id === colId);
+        if (col) {
+          this._statusColabDetalhe = col;
+          this._renderStatusContent();
+        }
+      });
+    });
+  }
+
+  _renderCollabDetalhe(col) {
+    const summaryEl = document.getElementById('status-summary-area');
+    const content   = document.getElementById('status-main-content');
+    if (!summaryEl || !content) return;
+
+    const cor      = this._statusColor(col.pct);
+    const iniciais = col.colaborador.nome.split(' ').filter(Boolean).map(p => p[0]).slice(0, 2).join('').toUpperCase();
+    const completas = col.empresas.filter(e => e.pct === 100).length;
+    const R = 22, CIRC2 = (2 * Math.PI * R).toFixed(2);
+    const offset2 = (2 * Math.PI * R * (1 - col.pct / 100)).toFixed(2);
+
+    summaryEl.innerHTML = `
+      <div class="card status-summary-card">
+        <div class="collab-detalhe-header">
+          <button class="btn btn-secondary btn-sm" id="btn-collab-voltar">← Voltar</button>
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="position:relative;width:52px;height:52px;flex-shrink:0">
+              <svg width="52" height="52" viewBox="0 0 52 52" style="transform:rotate(-90deg);position:absolute;top:0;left:0">
+                <circle cx="26" cy="26" r="${R}" fill="none" stroke="#e2e8f0" stroke-width="5"/>
+                <circle cx="26" cy="26" r="${R}" fill="none" stroke="${cor}" stroke-width="5"
+                  stroke-dasharray="${CIRC2}" stroke-dashoffset="${offset2}" stroke-linecap="round"/>
+              </svg>
+              <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:34px;height:34px;border-radius:50%;background:#3498db;color:#fff;font-size:0.82rem;font-weight:700;display:flex;align-items:center;justify-content:center">${iniciais}</div>
+            </div>
+            <div>
+              <div style="font-weight:700;font-size:1rem;color:#2d3748">${col.colaborador.nome}</div>
+              <div style="font-size:0.78rem;color:#718096">${col.colaborador.funcao || 'Usuário'}</div>
+            </div>
+          </div>
+          <div class="collab-detalhe-stats">
+            <div class="summary-stat"><div class="summary-stat-icon">🏢</div><div class="summary-stat-value" style="color:#2d3748">${col.total_empresas}</div><div class="summary-stat-label">Empresas</div></div>
+            <div class="summary-stat"><div class="summary-stat-icon">✅</div><div class="summary-stat-value" style="color:#27ae60">${completas}</div><div class="summary-stat-label">100%</div></div>
+            <div class="summary-stat summary-stat-blue"><div class="summary-stat-icon">📋</div><div class="summary-stat-value" style="color:#3498db">${col.concluidas}/${col.total_atividades}</div><div class="summary-stat-label">Feitas</div></div>
+            <div class="summary-stat summary-stat-pink"><div class="summary-stat-icon">📈</div><div class="summary-stat-value" style="color:${cor}">${col.pct}%</div><div class="summary-stat-label">Progresso</div></div>
+          </div>
+        </div>
+        <div class="status-progress-label" style="margin-top:12px">Progresso (${col.pct}%)</div>
+        <div class="status-progress-track">
+          <div class="status-progress-fill" style="width:${col.pct}%;background:${cor}"></div>
+        </div>
+      </div>`;
+
+    document.getElementById('btn-collab-voltar')?.addEventListener('click', () => {
+      this._statusColabDetalhe = null;
+      this._renderStatusContent();
+    });
+
+    content.innerHTML = `<div class="status-emp-grid">
+      ${col.empresas.map(e => {
+        const cor2 = this._statusColor(e.pct);
+        return `
+          <div class="emp-status-card">
+            <div class="emp-card-top">
+              <div style="flex:1;min-width:0">
+                <div class="emp-card-id">${e.empresa.codigo_interno || e.empresa.id}</div>
+                <div class="emp-card-nome">${e.empresa.nome}</div>
+              </div>
+              <div style="text-align:right;margin-left:8px">
+                <div class="emp-card-pct" style="color:${cor2}">${e.pct}%</div>
+                <div class="emp-card-pct-label">concluído</div>
+              </div>
+            </div>
+            <div class="status-progress-track" style="margin-bottom:10px">
+              <div class="status-progress-fill" style="width:${e.pct}%;background:${cor2}"></div>
+            </div>
+            <div class="emp-card-badges">
+              <div class="badge-ok">✅ ${e.ok} OK</div>
+              ${e.nao_aplicavel > 0 ? `<div class="badge-na">✗ ${e.nao_aplicavel} N/A</div>` : ''}
+              ${e.pendentes > 0 ? `
+                <div class="badge-pendente" data-empid="d${e.empresa.id}">
+                  ⏳ ${e.pendentes} pendentes ▾
+                  <div class="pendente-dropdown" id="cd-drop-${e.empresa.id}">
+                    ${e.pendentes_lista.map(p => `<div class="pendente-dropdown-item">${p.grupo ? `<span style="font-size:0.7rem;color:#a0aec0">${p.grupo} · </span>` : ''}${p.nome}</div>`).join('')}
+                  </div>
+                </div>` : `<div class="badge-ok" style="background:#f0fff4;border-color:#9ae6b4;color:#22543d">✅ Concluído</div>`}
+            </div>
+          </div>`;
+      }).join('')}
+    </div>`;
+
+    content.querySelectorAll('.badge-pendente').forEach(badge => {
+      badge.addEventListener('click', ev => {
+        ev.stopPropagation();
+        const empId = badge.dataset.empid.replace('d', '');
+        const drop = document.getElementById(`cd-drop-${empId}`);
+        if (drop) {
+          content.querySelectorAll('.pendente-dropdown.open').forEach(d => { if (d !== drop) d.classList.remove('open'); });
+          drop.classList.toggle('open');
         }
       });
     });
@@ -2195,6 +2287,7 @@ class GridFlowApp {
         this._statusView = btn.dataset.view;
         this._statusSearch = '';
         this._statusRegime = '';
+        this._statusColabDetalhe = null;
         const s = document.getElementById('status-search');
         if (s) s.value = '';
         if (this._statusData) this._renderStatusContent();
@@ -2208,6 +2301,7 @@ class GridFlowApp {
         clearTimeout(searchTO);
         searchTO = setTimeout(() => {
           this._statusSearch = searchEl.value;
+          this._statusColabDetalhe = null;
           if (this._statusData) this._renderStatusContent();
         }, 200);
       });
