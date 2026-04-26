@@ -17,6 +17,10 @@ class GridFlowApp {
     this._historicoFiliais = {};
     this._gruposIntegrados = [];
     this._atividadesEmpresa = [];
+    this._statusView = 'colaboradores';
+    this._statusSearch = '';
+    this._statusRegime = '';
+    this._statusData = null;
   }
 
   async init() {
@@ -256,8 +260,10 @@ class GridFlowApp {
         this.configurarEventosConfigurar();
         break;
       case 'status':
-        content.innerHTML = '<div class="loading">Carregando...</div>';
-        content.innerHTML = await this.renderStatus();
+        this._statusSearch = '';
+        content.innerHTML = this._renderStatusShell();
+        this._configurarEventosStatus();
+        await this._carregarStatus();
         break;
     }
   }
@@ -1938,76 +1944,286 @@ class GridFlowApp {
   }
 
   // ── Status Geral ──────────────────────────────────────────────────────────
-  async renderStatus() {
+  // ── Status Tab ────────────────────────────────────────────────────────────
+
+  _renderStatusShell() {
+    const userName = this.usuario || '—';
+    return `
+      <div class="status-page">
+        <div class="card status-header-card">
+          <div>
+            <div class="status-title">📊 Status de Atividades</div>
+            <div class="status-subtitle">${userName} · Período: <span style="color:#3498db;font-weight:700">${this.periodo || '—'}</span></div>
+          </div>
+          <div class="status-controls">
+            <input id="status-search" class="status-search" placeholder="🔍 Buscar empresa..." value="${this._statusSearch || ''}">
+            <div class="status-view-toggle">
+              <button class="btn-status-view${this._statusView === 'colaboradores' ? ' active' : ''}" data-view="colaboradores">👥 Colaboradores</button>
+              <button class="btn-status-view${this._statusView === 'empresas' ? ' active' : ''}" data-view="empresas">🏢 Todas as Empresas</button>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="btn-status-refresh">🔄 Atualizar</button>
+          </div>
+        </div>
+        <div id="status-summary-area"></div>
+        <div id="status-main-content"><div class="loading"></div></div>
+      </div>`;
+  }
+
+  async _carregarStatus() {
+    const el = document.getElementById('status-main-content');
+    if (el) el.innerHTML = '<div class="loading"></div>';
     try {
-      const data = await this.api(`/api/status/geral?periodo=${encodeURIComponent(this.periodo)}`);
-      const { colaboradores, geral } = data;
+      this._statusData = await this.api(`/api/status/geral?periodo=${encodeURIComponent(this.periodo)}`);
+      this._renderStatusContent();
+    } catch (e) {
+      if (el) el.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-text">Erro ao carregar: ${e.message}</div></div>`;
+    }
+  }
 
-      const totalEmpresas = geral.length;
-      const totalAtv = geral.reduce((s, e) => s + e.total, 0);
-      const totalConc = geral.reduce((s, e) => s + e.concluidas, 0);
-      const pctGeral = totalAtv > 0 ? Math.round((totalConc / totalAtv) * 100) : 0;
+  _renderStatusContent() {
+    this._renderStatusSummary();
+    if (this._statusView === 'colaboradores') {
+      this._renderStatusColaboradores();
+    } else {
+      this._renderStatusEmpresas();
+    }
+  }
 
-      return `
-        <div style="display:flex;flex-direction:column;gap:16px">
-          <div class="card">
-            <h3 style="margin:0 0 16px">📊 Resumo — ${this.periodo}</h3>
-            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
-              ${[
-                ['🏢', totalEmpresas, 'Empresas', '#3498db'],
-                ['✅', totalConc, 'Concluídas', '#27ae60'],
-                ['⏳', totalAtv - totalConc, 'Pendentes', '#e67e22'],
-                ['📈', pctGeral + '%', 'Progresso', '#9b59b6']
-              ].map(([icon, val, lbl, cor]) => `
-                <div style="text-align:center;padding:16px;background:#f7fafc;border-radius:8px">
-                  <div style="font-size:1.5rem">${icon}</div>
-                  <div style="font-size:1.8rem;font-weight:700;color:${cor}">${val}</div>
-                  <div style="font-size:0.78rem;color:#718096">${lbl}</div>
+  _statusColor(pct) {
+    if (pct >= 100) return '#27ae60';
+    if (pct >= 70)  return '#e67e22';
+    if (pct >= 40)  return '#e67e22';
+    return '#e74c3c';
+  }
+
+  _renderStatusSummary() {
+    const summaryEl = document.getElementById('status-summary-area');
+    if (!summaryEl || !this._statusData) return;
+    const { colaboradores, geral } = this._statusData;
+    const totalAtv  = geral.reduce((s, e) => s + e.total, 0);
+    const totalConc = geral.reduce((s, e) => s + e.concluidas, 0);
+    const pctGeral  = totalAtv > 0 ? Math.round((totalConc / totalAtv) * 100) : 0;
+    const cor = this._statusColor(pctGeral);
+
+    let cards;
+    if (this._statusView === 'colaboradores') {
+      cards = [
+        { icon: '🏢', value: geral.length,                       label: 'Empresas',          style: '' },
+        { icon: '👥', value: colaboradores.length,               label: 'Colaboradores',     style: '' },
+        { icon: '📋', value: `${totalConc}/${totalAtv}`,         label: 'Atividades feitas', style: 'blue' },
+        { icon: '📈', value: `${pctGeral}%`,                     label: 'Progresso geral',   style: 'color' },
+      ];
+    } else {
+      const completas = geral.filter(e => e.pct === 100).length;
+      cards = [
+        { icon: '🏢', value: geral.length,                       label: 'Total',             style: '' },
+        { icon: '✅', value: completas,                          label: '100%',              style: '' },
+        { icon: '📋', value: `${totalConc}/${totalAtv}`,         label: 'Feitas',            style: 'blue' },
+        { icon: '📈', value: `${pctGeral}%`,                     label: 'Geral',             style: 'color' },
+      ];
+    }
+
+    summaryEl.innerHTML = `
+      <div class="card status-summary-card">
+        <div class="status-summary-cards">
+          ${cards.map(c => `
+            <div class="summary-stat${c.style === 'blue' ? ' summary-stat-blue' : c.style === 'color' ? ' summary-stat-pink' : ''}">
+              <div class="summary-stat-icon">${c.icon}</div>
+              <div class="summary-stat-value" style="${c.style === 'blue' ? 'color:#3498db' : c.style === 'color' ? `color:${cor}` : 'color:#2d3748'}">${c.value}</div>
+              <div class="summary-stat-label">${c.label}</div>
+            </div>`).join('')}
+        </div>
+        <div class="status-progress-label">Progresso geral (${pctGeral}%)</div>
+        <div class="status-progress-track">
+          <div class="status-progress-fill" style="width:${pctGeral}%;background:${cor}"></div>
+        </div>
+      </div>`;
+  }
+
+  _renderStatusColaboradores() {
+    const content = document.getElementById('status-main-content');
+    if (!content || !this._statusData) return;
+    const { colaboradores } = this._statusData;
+    const search = (this._statusSearch || '').toLowerCase();
+    const CIRC = 201.06;
+
+    let filtered = colaboradores;
+    if (search) {
+      filtered = colaboradores.filter(col =>
+        col.colaborador.nome.toLowerCase().includes(search) ||
+        col.empresas.some(e => e.empresa.nome.toLowerCase().includes(search))
+      );
+    }
+
+    if (filtered.length === 0) {
+      content.innerHTML = `<div class="empty-state"><div class="empty-state-icon">👥</div><div class="empty-state-text">Nenhum colaborador encontrado</div></div>`;
+      return;
+    }
+
+    content.innerHTML = `<div class="status-collab-grid">
+      ${filtered.map(col => {
+        const cor = this._statusColor(col.pct);
+        const offset = (CIRC * (1 - col.pct / 100)).toFixed(2);
+        const iniciais = col.colaborador.nome.split(' ').filter(Boolean).map(p => p[0]).slice(0, 2).join('').toUpperCase();
+        return `
+          <div class="collab-status-card">
+            <div class="collab-ring-wrap">
+              <svg width="80" height="80" viewBox="0 0 80 80" style="transform:rotate(-90deg)">
+                <circle cx="40" cy="40" r="32" fill="none" stroke="#e2e8f0" stroke-width="7"/>
+                <circle cx="40" cy="40" r="32" fill="none" stroke="${cor}" stroke-width="7"
+                  stroke-dasharray="${CIRC}" stroke-dashoffset="${offset}" stroke-linecap="round"/>
+              </svg>
+              <div class="collab-ring-avatar">${iniciais}</div>
+            </div>
+            <div class="collab-card-name">${col.colaborador.nome}</div>
+            <div class="collab-card-role">${col.colaborador.funcao || 'Usuário'}</div>
+            <div class="collab-card-pct" style="color:${cor}">${col.pct}%</div>
+            <div class="collab-card-info">${col.concluidas}/${col.total_atividades} atividades · ${col.total_empresas} empresa${col.total_empresas !== 1 ? 's' : ''}</div>
+            <button class="collab-card-detail btn-detail-collab" data-colid="${col.colaborador.id}">Ver detalhes →</button>
+            <div class="collab-detail-panel" id="detail-${col.colaborador.id}">
+              ${col.empresas.map(e => `
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f7fafc">
+                  <div style="font-size:0.78rem;color:#4a5568;flex:1;margin-right:8px">${e.empresa.nome}</div>
+                  <div style="font-size:0.78rem;font-weight:700;color:${this._statusColor(e.pct)}">${e.pct}%</div>
                 </div>`).join('')}
             </div>
-          </div>
+          </div>`;
+      }).join('')}
+    </div>`;
 
-          ${colaboradores.map(col => `
-            <div class="card">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-                <div style="display:flex;align-items:center;gap:10px">
-                  <div class="user-avatar">${col.colaborador.nome.charAt(0)}</div>
-                  <div>
-                    <div style="font-weight:700">${col.colaborador.nome}</div>
-                    <div style="font-size:0.78rem;color:#718096">${col.colaborador.funcao || 'Usuário'} · ${col.total_empresas} empresa${col.total_empresas !== 1 ? 's' : ''}</div>
+    content.querySelectorAll('.btn-detail-collab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const panel = document.getElementById(`detail-${btn.dataset.colid}`);
+        if (panel) {
+          panel.classList.toggle('open');
+          btn.textContent = panel.classList.contains('open') ? 'Ocultar detalhes ↑' : 'Ver detalhes →';
+        }
+      });
+    });
+  }
+
+  _renderStatusEmpresas() {
+    const content = document.getElementById('status-main-content');
+    if (!content || !this._statusData) return;
+    const { geral } = this._statusData;
+    const search = (this._statusSearch || '').toLowerCase();
+    const regime = this._statusRegime || '';
+
+    let filtered = geral;
+    if (search) {
+      filtered = filtered.filter(e =>
+        e.empresa.nome.toLowerCase().includes(search) ||
+        String(e.empresa.codigo_interno).includes(search)
+      );
+    }
+    if (regime) {
+      filtered = filtered.filter(e =>
+        (e.empresa.regime_tributario || '').toLowerCase() === regime.toLowerCase()
+      );
+    }
+
+    const regimes = [...new Set(geral.map(e => e.empresa.regime_tributario).filter(Boolean))].sort();
+
+    const regimeFilter = regimes.length > 0 ? `
+      <div class="regime-filter">
+        <button class="btn-regime${!regime ? ' active' : ''}" data-regime="">Todos</button>
+        ${regimes.map(r => `<button class="btn-regime${regime === r ? ' active' : ''}" data-regime="${r}">${r}</button>`).join('')}
+      </div>` : '';
+
+    const cards = filtered.length === 0
+      ? `<div class="empty-state"><div class="empty-state-icon">🏢</div><div class="empty-state-text">Nenhuma empresa encontrada</div></div>`
+      : `<div class="status-emp-grid">
+          ${filtered.map(e => {
+            const cor = this._statusColor(e.pct);
+            return `
+              <div class="emp-status-card">
+                <div class="emp-card-top">
+                  <div style="flex:1;min-width:0">
+                    <div class="emp-card-id">${e.empresa.codigo_interno || e.empresa.id}</div>
+                    <div class="emp-card-nome">${e.empresa.nome}</div>
+                    ${e.empresa.regime_tributario ? `<div style="font-size:0.68rem;color:#a0aec0;margin-top:2px">${e.empresa.regime_tributario}</div>` : ''}
+                  </div>
+                  <div style="text-align:right;margin-left:8px">
+                    <div class="emp-card-pct" style="color:${cor}">${e.pct}%</div>
+                    <div class="emp-card-pct-label">concluído</div>
                   </div>
                 </div>
-                <div style="text-align:right">
-                  <div style="font-size:1.5rem;font-weight:700;color:${col.pct >= 80 ? '#27ae60' : col.pct >= 50 ? '#e67e22' : '#e74c3c'}">${col.pct}%</div>
-                  <div style="font-size:0.75rem;color:#718096">${col.concluidas}/${col.total_atividades}</div>
+                <div class="status-progress-track" style="margin-bottom:10px">
+                  <div class="status-progress-fill" style="width:${e.pct}%;background:${cor}"></div>
                 </div>
-              </div>
-              <div style="background:#e2e8f0;border-radius:99px;height:8px;margin-bottom:12px">
-                <div style="background:${col.pct >= 80 ? '#27ae60' : col.pct >= 50 ? '#e67e22' : '#e74c3c'};width:${col.pct}%;height:8px;border-radius:99px;transition:width 0.3s"></div>
-              </div>
-              <div style="display:flex;flex-wrap:wrap;gap:6px">
-                ${col.empresas.map(e => `
-                  <div style="background:${e.pct === 100 ? '#f0fff4' : '#fff5f5'};border:1px solid ${e.pct === 100 ? '#9ae6b4' : '#feb2b2'};border-radius:6px;padding:4px 10px;font-size:0.78rem">
-                    ${e.empresa.nome} <strong>${e.pct}%</strong>
-                  </div>`).join('')}
-              </div>
-            </div>`).join('')}
-
-          <div class="card">
-            <h3 style="margin:0 0 12px">🏢 Todas as Empresas</h3>
-            ${geral.map(e => `
-              <div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid #f0f0f0">
-                <div style="flex:1;font-size:0.85rem">${e.empresa.nome}</div>
-                <div style="width:120px;background:#e2e8f0;border-radius:99px;height:6px">
-                  <div style="background:${e.pct === 100 ? '#27ae60' : e.pct >= 50 ? '#e67e22' : '#e74c3c'};width:${e.pct}%;height:6px;border-radius:99px"></div>
+                <div class="emp-card-badges">
+                  <div class="badge-ok">✅ ${e.ok} OK</div>
+                  ${e.nao_aplicavel > 0 ? `<div class="badge-ok" style="background:#f0f8ff;border-color:#bee3f8;color:#2b6cb0">N/A ${e.nao_aplicavel}</div>` : ''}
+                  ${e.pendentes > 0 ? `
+                    <div class="badge-pendente" data-empid="${e.empresa.id}">
+                      ⏳ ${e.pendentes} pendentes ▾
+                      <div class="pendente-dropdown" id="pend-drop-${e.empresa.id}">
+                        ${e.pendentes_lista.map(p => `<div class="pendente-dropdown-item">${p.grupo ? `<span style="font-size:0.7rem;color:#a0aec0">${p.grupo} · </span>` : ''}${p.nome}</div>`).join('')}
+                      </div>
+                    </div>` : `<div class="badge-ok" style="background:#f0fff4;border-color:#9ae6b4;color:#22543d">✅ Concluído</div>`}
                 </div>
-                <div style="font-size:0.82rem;font-weight:600;width:40px;text-align:right">${e.pct}%</div>
-              </div>`).join('')}
-          </div>
+              </div>`;
+          }).join('')}
         </div>`;
-    } catch (e) { return `<div class="loading">Erro ao carregar status: ${e.message}</div>`; }
+
+    content.innerHTML = regimeFilter + cards;
+
+    content.querySelectorAll('.btn-regime').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this._statusRegime = btn.dataset.regime;
+        this._renderStatusEmpresas();
+      });
+    });
+
+    content.querySelectorAll('.badge-pendente').forEach(badge => {
+      badge.addEventListener('click', e => {
+        e.stopPropagation();
+        const drop = document.getElementById(`pend-drop-${badge.dataset.empid}`);
+        if (drop) {
+          content.querySelectorAll('.pendente-dropdown.open').forEach(d => { if (d !== drop) d.classList.remove('open'); });
+          drop.classList.toggle('open');
+        }
+      });
+    });
+  }
+
+  _configurarEventosStatus() {
+    document.querySelectorAll('.btn-status-view').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.btn-status-view').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this._statusView = btn.dataset.view;
+        this._statusSearch = '';
+        this._statusRegime = '';
+        const s = document.getElementById('status-search');
+        if (s) s.value = '';
+        if (this._statusData) this._renderStatusContent();
+      });
+    });
+
+    let searchTO;
+    const searchEl = document.getElementById('status-search');
+    if (searchEl) {
+      searchEl.addEventListener('input', () => {
+        clearTimeout(searchTO);
+        searchTO = setTimeout(() => {
+          this._statusSearch = searchEl.value;
+          if (this._statusData) this._renderStatusContent();
+        }, 200);
+      });
+    }
+
+    const refreshBtn = document.getElementById('btn-status-refresh');
+    if (refreshBtn) refreshBtn.addEventListener('click', () => this._carregarStatus());
+
+    document.addEventListener('click', e => {
+      if (!e.target.closest('.badge-pendente')) {
+        document.querySelectorAll('.pendente-dropdown.open').forEach(d => d.classList.remove('open'));
+      }
+    });
   }
 }
+
 
 const App = new GridFlowApp();
 document.addEventListener('DOMContentLoaded', () => App.init());

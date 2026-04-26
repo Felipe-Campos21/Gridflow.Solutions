@@ -479,7 +479,7 @@ const server = http.createServer(async (req, res) => {
         const concluidas = todasIds.size;
         const pct       = total > 0 ? Math.round((concluidas / total) * 100) : 0;
         const pendentes_lista = atvsHab.filter(a => !todasIds.has(a.id)).map(a => ({ id: a.id, nome: a.nome, grupo: a.grupo || 'Geral' }));
-        return { empresa: { id: empresa.id, nome: empresa.nome, codigo_interno: empresa.codigo_interno || '' }, total, ok: feitasIds.size, nao_aplicavel: naIds.size, concluidas, pct, pendentes: total - concluidas, pendentes_lista };
+        return { empresa: { id: empresa.id, nome: empresa.nome, codigo_interno: empresa.codigo_interno || '', regime_tributario: empresa.regime_tributario || '' }, total, ok: feitasIds.size, nao_aplicavel: naIds.size, concluidas, pct, pendentes: total - concluidas, pendentes_lista };
       });
     }
 
