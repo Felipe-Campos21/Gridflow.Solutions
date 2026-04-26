@@ -392,12 +392,31 @@ class GridFlowApp {
     if (!colRight) return;
 
     if (this.filiais.length > 0) {
-      colRight.innerHTML = '<div class="loading">Carregando filiais...</div>';
-      try {
-        this._gruposIntegrados = await this.api(`/api/empresas/${empresa.id}/grupos-integrados`);
-      } catch { this._gruposIntegrados = []; }
-      colRight.innerHTML = await this.renderFiliais(empresa);
-      this.configurarEventosFiliais(empresa.id);
+      try { this._gruposIntegrados = await this.api(`/api/empresas/${empresa.id}/grupos-integrados`); }
+      catch { this._gruposIntegrados = []; }
+
+      // Layout: atividades da matriz em cima + filiais embaixo
+      colRight.innerHTML = `
+        <div class="card" style="margin-bottom:16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <h3 style="margin:0">✅ Atividades</h3>
+            <span style="font-size:0.78rem;font-weight:600;color:#3498db;background:#ebf8ff;padding:3px 10px;border-radius:20px">📅 ${this.periodo}</span>
+          </div>
+          <div id="db-atividades-container"><div class="loading"></div></div>
+        </div>
+        <div id="db-filiais-section"><div class="loading">Carregando filiais...</div></div>`;
+
+      // Carrega atividades da matriz + filiais em paralelo
+      const [filialHtml] = await Promise.all([
+        this.renderFiliais(empresa),
+        this.carregarAtividades()
+      ]);
+
+      const filiaisEl = document.getElementById('db-filiais-section');
+      if (filiaisEl) {
+        filiaisEl.innerHTML = filialHtml;
+        this.configurarEventosFiliais(empresa.id);
+      }
     } else {
       this._gruposIntegrados = [];
       colRight.innerHTML = this._renderColRightNormal();
@@ -451,20 +470,26 @@ class GridFlowApp {
         return;
       }
 
-      container.innerHTML = Object.entries(grupos).map(([grupo, atvsGrupo]) => `
-        <div style="margin-bottom:16px">
-          <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:#718096;margin-bottom:6px;letter-spacing:0.05em">${grupo}</div>
-          <div class="atividades-grid">
-            ${atvsGrupo.map(a => `
-              <button class="atividade-btn ${okIds.has(a.atividade_id) ? 'concluida' : naIds.has(a.atividade_id) ? 'na' : ''}"
-                data-id="${a.atividade_id}"
-                data-nome="${a.nome.replace(/"/g,'&quot;')}"
-                data-grupo="${a.grupo || 'Geral'}"
-                data-status="${okIds.has(a.atividade_id) ? 'OK' : naIds.has(a.atividade_id) ? 'NA' : ''}">
-                <span class="btn-codigo">${a.codigo || ''}</span>${a.nome}
-              </button>`).join('')}
-          </div>
-        </div>`).join('');
+      container.innerHTML = Object.entries(grupos).map(([grupo, atvsGrupo]) => {
+        const integrado = this._gruposIntegrados?.includes(grupo);
+        return `
+          <div style="margin-bottom:16px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+              <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:#718096;letter-spacing:0.05em">${grupo}</div>
+              ${integrado ? '<span style="background:#f0fff4;color:#276749;padding:1px 8px;border-radius:10px;font-size:0.7rem;font-weight:600;border:1px solid #9ae6b4">🔗 Integrado</span>' : ''}
+            </div>
+            <div class="atividades-grid">
+              ${atvsGrupo.map(a => `
+                <button class="atividade-btn ${okIds.has(a.atividade_id) ? 'concluida' : naIds.has(a.atividade_id) ? 'na' : ''}"
+                  data-id="${a.atividade_id}"
+                  data-nome="${a.nome.replace(/"/g,'&quot;')}"
+                  data-grupo="${a.grupo || 'Geral'}"
+                  data-status="${okIds.has(a.atividade_id) ? 'OK' : naIds.has(a.atividade_id) ? 'NA' : ''}">
+                  <span class="btn-codigo">${a.codigo || ''}</span>${a.nome}
+                </button>`).join('')}
+            </div>
+          </div>`;
+      }).join('');
 
       container.querySelectorAll('.atividade-btn').forEach(btn =>
         btn.addEventListener('click', () => this.abrirModalAtividade(btn, empresaId)));
