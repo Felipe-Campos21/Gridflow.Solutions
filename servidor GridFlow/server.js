@@ -1,738 +1,368 @@
-// Servidor Ambar v2 - Sem dependencias externas (so Node.js puro)
+// Servidor GridFlow v3 — Supabase Backend
+// Sem dependencias externas alem do Node.js nativo
 const http  = require('http');
 const https = require('https');
 const fs    = require('fs');
 const path  = require('path');
 const url   = require('url');
 
-const PORT    = process.env.PORT || 5000;
-const DB_FILE = process.env.DB_PATH || path.join(__dirname, 'ambar-central.json');
-const PUBLIC  = path.join(__dirname, 'public');
+const PORT   = process.env.PORT || 5000;
+const PUBLIC = path.join(__dirname, 'public');
 
-// ─── Tipos MIME para arquivos estáticos ───────────────────────────────────────
-const MIME = {
-  '.html': 'text/html; charset=utf-8',
-  '.css':  'text/css',
-  '.js':   'application/javascript',
-  '.png':  'image/png',
-  '.ico':  'image/x-icon',
-  '.svg':  'image/svg+xml',
-  '.json': 'application/json',
-};
+// Supabase config
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
 
-function serveStatic(res, filePath) {
-  const ext = path.extname(filePath).toLowerCase();
-  try {
-    const content = fs.readFileSync(filePath);
-    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
-    res.end(content);
-  } catch {
-    const index = fs.readFileSync(path.join(PUBLIC, 'index.html'));
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end(index);
-  }
-}
-
-// ─── Banco JSON ───────────────────────────────────────────────────────────────
-
-let DB = { empresas:[], atividades:[], empresa_atividades:[], historico:[], colaboradores:[], colaborador_empresas:[], notas:[], config:{ grupos_integrados:[] }, seq:{} };
-
-function carregar() {
-  if (!fs.existsSync(DB_FILE)) return;
-  try { Object.assign(DB, JSON.parse(fs.readFileSync(DB_FILE, 'utf8'))); } catch(e) { console.error('Erro ao ler banco:', e.message); }
-  ['empresas','atividades','empresa_atividades','historico','colaboradores','colaborador_empresas','notas'].forEach(t => { if (!Array.isArray(DB[t])) DB[t] = []; });
-  if (!DB.seq) DB.seq = {};
-  if (!DB.config) DB.config = { grupos_integrados: [] };
-  if (!DB.config.grupos_integrados) DB.config.grupos_integrados = [];
-  if (!DB.config.grupos_por_empresa) DB.config.grupos_por_empresa = {};
-  // Backfill IDs em notas antigas
-  let maxNotaId = DB.seq.notas || 0;
-  for (const n of DB.notas) { if (!n.id) { n.id = ++maxNotaId; } }
-  DB.seq.notas = maxNotaId;
-  // Períodos são gerados dinamicamente pelo ano atual — não armazenar mais
-}
-
-function salvar() { fs.writeFileSync(DB_FILE, JSON.stringify(DB, null, 2)); }
-
-function novoId(t) { DB.seq[t] = (DB.seq[t] || 0) + 1; return DB.seq[t]; }
-
-function agora() {
-  const d = new Date();
-  return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
-}
-
-carregar();
-console.log('✅ Banco de dados carregado');
-
-// ─── Dados Iniciais ───────────────────────────────────────────────────────────
-
-function popularDados() {
-  if (DB.empresas.length) return;
-  console.log('📦 Populando dados iniciais...');
-  const empresas = [
-    { nome:'BRAVO DISTRIBUIDORA LTDA', cnpj:'12.345.678/0001-90', codigo_interno:'BRV001' },
-    { nome:'TOPSPIN COMERCIAL ME',     cnpj:'23.456.789/0001-01', codigo_interno:'TOP001' },
-    { nome:'ALFA SERVIÇOS EIRELI',     cnpj:'34.567.890/0001-12', codigo_interno:'ALF001' },
-    { nome:'BETA TECNOLOGIA SA',       cnpj:'45.678.901/0001-23', codigo_interno:'BET001' },
-    { nome:'GAMA LOGÍSTICA LTDA',      cnpj:'56.789.012/0001-34', codigo_interno:'GAM001' },
-  ];
-  const atividades = [
-    { codigo:'ALU001', nome:'Aluguel',              descricao:'Pagamento de aluguel',         grupo:'Fixo'           },
-    { codigo:'AGU001', nome:'Água',                 descricao:'Conta de água e saneamento',   grupo:'Utilidades'     },
-    { codigo:'ENE001', nome:'Energia Elétrica',     descricao:'Conta de energia elétrica',    grupo:'Utilidades'     },
-    { codigo:'TEL001', nome:'Telefone',             descricao:'Conta de telefone fixo',       grupo:'Comunicação'    },
-    { codigo:'INT001', nome:'Internet',             descricao:'Mensalidade de internet',      grupo:'Comunicação'    },
-    { codigo:'FOL001', nome:'Folha de Pagamento',   descricao:'Processamento da folha',       grupo:'RH'             },
-    { codigo:'IMP001', nome:'Impostos',             descricao:'Impostos e tributos',          grupo:'Fiscal'         },
-    { codigo:'CON001', nome:'Contabilidade',        descricao:'Honorários contábeis',         grupo:'Administrativo' },
-    { codigo:'SEG001', nome:'Seguro',               descricao:'Apólice de seguro',            grupo:'Administrativo' },
-    { codigo:'MAT001', nome:'Material de Escritório', descricao:'Compra de materiais',        grupo:'Administrativo' },
-  ];
-  for (const e of empresas)   DB.empresas.push({ id: novoId('empresas'),   ativo:1, ...e });
-  for (const a of atividades) DB.atividades.push({ id: novoId('atividades'), ativo:1, ...a });
-  for (const e of DB.empresas)
-    for (const a of DB.atividades)
-      DB.empresa_atividades.push({ empresa_id: e.id, atividade_id: a.id, habilitada: 1 });
-  salvar();
-  console.log('✅ Dados iniciais populados');
-}
-
-function popularColaboradores() {
-  if (DB.colaboradores.length) return;
-  DB.colaboradores.push({ id: novoId('colaboradores'), nome:'Felipe Campos', funcao:'Administrador', admin:1, ativo:1 });
-  DB.colaboradores.push({ id: novoId('colaboradores'), nome:'Milena',        funcao:'Administrador', admin:1, ativo:1 });
-  salvar();
-  console.log('✅ Colaboradores iniciais criados');
-}
-
-popularDados();
-popularColaboradores();
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function getEA(eId, aId) { return DB.empresa_atividades.find(x => x.empresa_id===eId && x.atividade_id===aId); }
-function setEA(eId, aId, hab) {
-  const ea = getEA(eId, aId);
-  if (ea) ea.habilitada = hab; else DB.empresa_atividades.push({ empresa_id:eId, atividade_id:aId, habilitada:hab });
-  salvar();
-}
-
-function enrichHistorico(h) {
-  const e = DB.empresas.find(x => x.id===h.empresa_id) || {};
-  const a = DB.atividades.find(x => x.id===h.atividade_id) || {};
-  return { ...h, empresa_nome:e.nome||'', codigo_interno:e.codigo_interno||'', atividade_nome:a.nome||'', atividade_codigo:a.codigo||'' };
-}
-
-// ─── HTTP Server ──────────────────────────────────────────────────────────────
-
-function json(res, data, status=200) {
-  res.writeHead(status, { 'Content-Type':'application/json', 'Access-Control-Allow-Origin':'*', 'Access-Control-Allow-Headers':'Content-Type', 'Access-Control-Allow-Methods':'GET,POST,PUT,DELETE,OPTIONS' });
-  res.end(JSON.stringify(data));
-}
-
-function readBody(req) {
-  return new Promise(resolve => {
-    let body = '';
-    req.on('data', c => body += c);
-    req.on('end', () => { try { resolve(JSON.parse(body || '{}')); } catch { resolve({}); } });
-  });
-}
-
-function match(pattern, pathname) {
-  const pp = pattern.split('/'), rp = pathname.split('/');
-  if (pp.length !== rp.length) return null;
-  const params = {};
-  for (let i=0; i<pp.length; i++) {
-    if (pp[i].startsWith(':')) params[pp[i].slice(1)] = rp[i];
-    else if (pp[i] !== rp[i]) return null;
-  }
-  return params;
-}
-
-const server = http.createServer(async (req, res) => {
-  if (req.method === 'OPTIONS') { json(res, {}); return; }
-
-  const parsed   = url.parse(req.url, true);
-  const pathname = parsed.pathname.replace(/\/$/, '') || '/';
-  const query    = parsed.query;
-  const method   = req.method;
-  let params, body;
-
-  // ── Health ────────────────────────────────────────────────────────────────
-  if (method==='GET' && pathname==='/api/health') {
-    return json(res, { status:'ok', timestamp: new Date().toISOString() });
-  }
-
-  // ── Empresas ──────────────────────────────────────────────────────────────
-
-  // Retorna TODAS as empresas sem limite (para o gerenciador)
-  if (method==='GET' && pathname==='/api/empresas/todas') {
-    const lista = DB.empresas.filter(e => e.ativo).sort((a,b)=>a.nome.localeCompare(b.nome));
-    return json(res, lista);
-  }
-
-  if (method==='GET' && pathname==='/api/empresas') {
-    let lista = DB.empresas.filter(e => e.ativo);
-    if (query.search) {
-      const q = query.search.toLowerCase();
-      lista = lista.filter(e => e.nome.toLowerCase().includes(q) || (e.cnpj||'').includes(q) || (e.codigo_interno||'').toLowerCase().includes(q));
-    }
-    // Sem filtro de search: retorna todas (para busca por colaborador)
-    const limite = query.search ? 20 : lista.length;
-    return json(res, lista.sort((a,b)=>a.nome.localeCompare(b.nome)).slice(0, limite));
-  }
-
-  if (method==='POST' && pathname==='/api/empresas') {
-    body = await readBody(req);
-    if (!body.nome?.trim()) return json(res, { error:'Nome é obrigatório' }, 400);
-    const nomeNorm = body.nome.trim().toUpperCase();
-    if (DB.empresas.find(e => e.ativo && e.nome.toUpperCase() === nomeNorm)) {
-      return json(res, { error:'Empresa já cadastrada' }, 400);
-    }
-    const empresa = {
-      id: novoId('empresas'), ativo: 1,
-      nome:               body.nome?.trim()               || '',
-      codigo_interno:     (body.codigo_interno?.trim()    || '').toUpperCase(),
-      cnpj:               body.cnpj?.trim()               || '',
-      inscricao_estadual: body.inscricao_estadual?.trim() || '',
-      regime_tributario:  body.regime_tributario?.trim()  || '',
-      municipio:          body.municipio?.trim()          || '',
-      segmento:           body.segmento?.trim()           || '',
-      email:              body.email?.trim()              || '',
-      com_movimento:      body.com_movimento ? 1 : 0,
-      matriz_id:          body.matriz_id ? parseInt(body.matriz_id) : null,
+function sbFetch(endpoint, options) {
+  options = options || {};
+  return new Promise(function(resolve, reject) {
+    const fullUrl  = SUPABASE_URL + '/rest/v1/' + endpoint;
+    const parsed   = new URL(fullUrl);
+    const isHttps  = parsed.protocol === 'https:';
+    const lib      = isHttps ? https : http;
+    const reqOpts  = {
+      hostname : parsed.hostname,
+      port     : parsed.port || (isHttps ? 443 : 80),
+      path     : parsed.pathname + parsed.search,
+      method   : options.method || 'GET',
+      headers  : {
+        'apikey'        : SUPABASE_KEY,
+        'Authorization' : 'Bearer ' + SUPABASE_KEY,
+        'Content-Type'  : 'application/json',
+        'Prefer'        : options.prefer || 'return=representation'
+      }
     };
-    DB.empresas.push(empresa);
-    DB.atividades.filter(a=>a.ativo).forEach(a => { if (!getEA(empresa.id,a.id)) DB.empresa_atividades.push({ empresa_id:empresa.id, atividade_id:a.id, habilitada:1 }); });
-    salvar();
-    return json(res, empresa, 201);
-  }
-
-  if ((params = match('/api/empresas/:id', pathname))) {
-    const id = parseInt(params.id);
-    if (method==='GET') {
-      const e = DB.empresas.find(x=>x.id===id);
-      return e ? json(res, e) : json(res, { error:'Não encontrado' }, 404);
-    }
-    if (method==='PUT') {
-      body = await readBody(req);
-      const e = DB.empresas.find(x=>x.id===id);
-      if (!e) return json(res, { error:'Não encontrado' }, 404);
-      const campos = ['nome','codigo_interno','cnpj','inscricao_estadual','regime_tributario','municipio','segmento','email'];
-      for (const c of campos) { if (body[c] !== undefined) e[c] = body[c].trim(); }
-      if (e.codigo_interno) e.codigo_interno = e.codigo_interno.toUpperCase();
-      if (body.com_movimento !== undefined) e.com_movimento = body.com_movimento ? 1 : 0;
-      if (body.matriz_id !== undefined) e.matriz_id = body.matriz_id ? parseInt(body.matriz_id) : null;
-      salvar(); return json(res, e);
-    }
-    if (method==='DELETE') {
-      const e = DB.empresas.find(x=>x.id===id);
-      if (!e) return json(res, { error:'Não encontrado' }, 404);
-      e.ativo = 0; salvar(); return json(res, { success:true });
-    }
-  }
-
-  // ── Filiais de uma Empresa ────────────────────────────────────────────────
-  if ((params = match('/api/empresas/:id/filiais', pathname)) && method === 'GET') {
-    const id = parseInt(params.id);
-    const filiais = DB.empresas.filter(e => e.ativo && e.matriz_id === id)
-      .sort((a, b) => a.nome.localeCompare(b.nome));
-    return json(res, filiais);
-  }
-
-  // ── Atividades ────────────────────────────────────────────────────────────
-  if (method==='GET' && pathname==='/api/atividades') {
-    return json(res, [...DB.atividades].sort((a,b)=>a.grupo.localeCompare(b.grupo)||a.nome.localeCompare(b.nome)));
-  }
-
-  if (method==='POST' && pathname==='/api/atividades') {
-    body = await readBody(req);
-    if (!body.nome?.trim()) return json(res, { error:'Nome é obrigatório' }, 400);
-    const atv = { id:novoId('atividades'), ativo:1, codigo:'', nome:body.nome.trim(), descricao:body.descricao?.trim()||'', grupo:body.grupo?.trim()||'Geral' };
-    DB.atividades.push(atv);
-    DB.empresas.filter(e=>e.ativo).forEach(e => { if (!getEA(e.id,atv.id)) DB.empresa_atividades.push({ empresa_id:e.id, atividade_id:atv.id, habilitada:1 }); });
-    salvar();
-    return json(res, atv, 201);
-  }
-
-  if ((params = match('/api/atividades/:id', pathname))) {
-    const id = parseInt(params.id);
-    if (method==='PUT') {
-      body = await readBody(req);
-      const atv = DB.atividades.find(a=>a.id===id);
-      if (!atv) return json(res, { error:'Não encontrado' }, 404);
-      if (body.nome!==undefined)      atv.nome      = body.nome.trim();
-      if (body.descricao!==undefined) atv.descricao = body.descricao.trim();
-      if (body.grupo!==undefined)     atv.grupo     = body.grupo.trim();
-      if (body.ativo!==undefined)     atv.ativo     = body.ativo ? 1 : 0;
-      salvar(); return json(res, atv);
-    }
-    if (method==='DELETE') {
-      const atv = DB.atividades.find(a=>a.id===id);
-      if (!atv) return json(res, { error:'Não encontrado' }, 404);
-      atv.ativo = 0; salvar(); return json(res, { success:true });
-    }
-  }
-
-  // ── Atividades por Empresa ────────────────────────────────────────────────
-  if ((params = match('/api/empresas/:id/atividades', pathname))) {
-    const eId = parseInt(params.id);
-    if (method==='GET') {
-      const lista = DB.atividades.filter(a=>a.ativo).map(a => {
-        const ea = getEA(eId, a.id);
-        return { atividade_id:a.id, codigo:a.codigo, nome:a.nome, descricao:a.descricao, grupo:a.grupo, ativo:a.ativo, habilitada:ea?ea.habilitada:1 };
-      }).sort((a,b)=>a.grupo.localeCompare(b.grupo)||a.nome.localeCompare(b.nome));
-      return json(res, lista);
-    }
-  }
-
-  if ((params = match('/api/empresas/:id/atividades/:atId', pathname))) {
-    if (method==='PUT') {
-      body = await readBody(req);
-      setEA(parseInt(params.id), parseInt(params.atId), body.habilitada ? 1 : 0);
-      return json(res, { success:true });
-    }
-  }
-
-  // ── Histórico ─────────────────────────────────────────────────────────────
-  if (method==='GET' && pathname==='/api/historico') {
-    let lista = [...DB.historico];
-    if (query.empresa_id) lista = lista.filter(h=>h.empresa_id===parseInt(query.empresa_id));
-    if (query.periodo)    lista = lista.filter(h=>h.periodo===query.periodo);
-    lista.sort((a,b)=>b.id-a.id);
-    lista = lista.slice(0, parseInt(query.limit)||200);
-    return json(res, lista.map(enrichHistorico));
-  }
-
-  if (method==='POST' && pathname==='/api/historico') {
-    body = await readBody(req);
-    if (!body.empresa_id||!body.atividade_id||!body.usuario) return json(res, { error:'Campos obrigatórios faltando' }, 400);
-    const h = { id:novoId('historico'), empresa_id:parseInt(body.empresa_id), atividade_id:parseInt(body.atividade_id), usuario:body.usuario, observacao:body.observacao||'', status:body.status||'OK', periodo:body.periodo||'', data:agora() };
-    DB.historico.push(h); salvar();
-    return json(res, enrichHistorico(h), 201);
-  }
-
-  { const m = pathname.match(/^\/api\/historico\/(\d+)$/);
-    if (method==='DELETE' && m) {
-      const idx = DB.historico.findIndex(h => h.id === parseInt(m[1]));
-      if (idx === -1) return json(res, { error:'Não encontrado' }, 404);
-      DB.historico.splice(idx, 1); salvar();
-      return json(res, { ok: true });
-    }
-  }
-
-  // ── Colaboradores ─────────────────────────────────────────────────────────
-  if (method==='GET' && pathname==='/api/colaboradores/buscar') {
-    const nome = query.nome;
-    if (!nome) return json(res, { error:'Nome obrigatório' }, 400);
-    const col = DB.colaboradores.find(c=>c.ativo && c.nome.trim().toLowerCase()===nome.trim().toLowerCase());
-    if (!col) return json(res, null);
-    const empIds = DB.colaborador_empresas.filter(ce=>ce.colaborador_id===col.id).map(ce=>ce.empresa_id);
-    const empresas = DB.empresas.filter(e=>empIds.includes(e.id)).sort((a,b)=>a.nome.localeCompare(b.nome));
-    return json(res, { ...col, empresas });
-  }
-
-  if (method==='GET' && pathname==='/api/colaboradores') {
-    return json(res, [...DB.colaboradores].sort((a,b)=>b.admin-a.admin||a.nome.localeCompare(b.nome)));
-  }
-
-  if (method==='POST' && pathname==='/api/colaboradores') {
-    body = await readBody(req);
-    if (!body.nome?.trim()) return json(res, { error:'Nome obrigatório' }, 400);
-    const col = { id:novoId('colaboradores'), ativo:1, nome:body.nome.trim(), funcao:body.funcao?.trim()||'', admin:body.admin?1:0, foto:body.foto||null };
-    DB.colaboradores.push(col); salvar();
-    return json(res, col, 201);
-  }
-
-  if ((params = match('/api/colaboradores/:id', pathname)) && !pathname.includes('/empresas')) {
-    const id = parseInt(params.id);
-    if (method==='GET') {
-      const col = DB.colaboradores.find(c => c.id === id);
-      if (!col) return json(res, { error:'Não encontrado' }, 404);
-      const empIds = DB.colaborador_empresas.filter(ce => ce.colaborador_id === id).map(ce => ce.empresa_id);
-      const empresas = DB.empresas.filter(e => empIds.includes(e.id) && e.ativo).sort((a,b)=>a.nome.localeCompare(b.nome));
-      return json(res, { ...col, empresas });
-    }
-    if (method==='PUT') {
-      body = await readBody(req);
-      const col = DB.colaboradores.find(c=>c.id===id);
-      if (!col) return json(res, { error:'Não encontrado' }, 404);
-      if (body.nome!==undefined)   col.nome   = body.nome;
-      if (body.funcao!==undefined) col.funcao = body.funcao;
-      if (body.admin!==undefined)  col.admin  = body.admin?1:0;
-      if (body.ativo!==undefined)  col.ativo  = body.ativo?1:0;
-      if (body.foto!==undefined)   col.foto   = body.foto;
-      salvar(); return json(res, col);
-    }
-    if (method==='DELETE') {
-      const col = DB.colaboradores.find(c=>c.id===id);
-      if (!col) return json(res, { error:'Não encontrado' }, 404);
-      col.ativo = 0; salvar(); return json(res, { success:true });
-    }
-  }
-
-  if ((params = match('/api/colaboradores/:id/empresas', pathname))) {
-    const colId = parseInt(params.id);
-    if (method==='GET') {
-      const empIds = DB.colaborador_empresas.filter(ce=>ce.colaborador_id===colId).map(ce=>ce.empresa_id);
-      return json(res, DB.empresas.filter(e=>empIds.includes(e.id)).sort((a,b)=>a.nome.localeCompare(b.nome)));
-    }
-    if (method==='POST') {
-      body = await readBody(req);
-      const empresaId = parseInt(body.empresa_id);
-      if (!empresaId) return json(res, { error:'empresa_id obrigatório' }, 400);
-      if (!DB.colaborador_empresas.find(ce=>ce.colaborador_id===colId&&ce.empresa_id===empresaId))
-        DB.colaborador_empresas.push({ colaborador_id:colId, empresa_id:empresaId });
-      salvar(); return json(res, { success:true }, 201);
-    }
-  }
-
-  if ((params = match('/api/colaboradores/:id/empresas/:empresaId', pathname))) {
-    if (method==='DELETE') {
-      const colId = parseInt(params.id), empId = parseInt(params.empresaId);
-      DB.colaborador_empresas = DB.colaborador_empresas.filter(ce=>!(ce.colaborador_id===colId&&ce.empresa_id===empId));
-      salvar(); return json(res, { success:true });
-    }
-  }
-
-  // ── Notas por Empresa/Período ─────────────────────────────────────────────
-  if (pathname === '/api/notas') {
-    if (method === 'GET') {
-      // Sem empresa_id → retorna TODAS as notas (para aba Relatório)
-      if (!query.empresa_id) {
-        const todas = DB.notas
-          .filter(n => n.texto && n.texto.trim())
-          .map(n => {
-            const e = DB.empresas.find(x => x.id === n.empresa_id) || {};
-            return { ...n, empresa_nome: e.nome || '', codigo_interno: e.codigo_interno || '' };
-          })
-          .sort((a, b) => (b.atualizado_em || b.criado_em || '').localeCompare(a.atualizado_em || a.criado_em || ''));
-        return json(res, todas);
-      }
-      const eId = parseInt(query.empresa_id);
-      const per  = query.periodo || '';
-      const nota = DB.notas.find(n => n.empresa_id === eId && n.periodo === per);
-      return json(res, nota ? [nota] : []);
-    }
-    if (method === 'POST') {
-      body = await readBody(req);
-      const eId = parseInt(body.empresa_id);
-      const per  = body.periodo || '';
-      const existing = DB.notas.find(n => n.empresa_id === eId && n.periodo === per);
-      if (existing) {
-        existing.texto = body.texto || '';
-        existing.usuario = body.usuario || '';
-        existing.atualizado_em = agora();
-      } else {
-        DB.notas.push({ id: novoId('notas'), empresa_id: eId, periodo: per, texto: body.texto || '', usuario: body.usuario || '', criado_em: agora() });
-      }
-      salvar(); return json(res, { success: true });
-    }
-    if (method === 'PUT') {
-      body = await readBody(req);
-      const nota = DB.notas.find(n => n.id === parseInt(body.id));
-      if (!nota) return json(res, { error: 'Não encontrado' }, 404);
-      nota.texto = body.texto || nota.texto;
-      nota.usuario = body.usuario || nota.usuario;
-      nota.atualizado_em = agora();
-      salvar(); return json(res, { success: true });
-    }
-    if (method === 'DELETE') {
-      const notaId = parseInt(query.id);
-      const idx = DB.notas.findIndex(n => n.id === notaId);
-      if (idx === -1) return json(res, { error: 'Não encontrado' }, 404);
-      DB.notas.splice(idx, 1);
-      salvar(); return json(res, { ok: true });
-    }
-  }
-
-  // Reset do checklist por empresa/período (com opção de filtrar por grupos)
-  if (method === 'DELETE' && pathname === '/api/historico/reset') {
-    body = await readBody(req);
-    const empId  = parseInt(body.empresa_id);
-    const per    = body.periodo || '';
-    const grupos = Array.isArray(body.grupos) && body.grupos.length ? body.grupos : null;
-    if (grupos) {
-      const atvIds = new Set(DB.atividades.filter(a => grupos.includes(a.grupo)).map(a => a.id));
-      DB.historico = DB.historico.filter(h =>
-        !(h.empresa_id === empId && h.periodo === per && atvIds.has(h.atividade_id))
-      );
-    } else {
-      DB.historico = DB.historico.filter(h => !(h.empresa_id === empId && h.periodo === per));
-    }
-    salvar(); return json(res, { ok: true });
-  }
-
-  // ── Status por colaborador/período ────────────────────────────────────────
-  if (method === 'GET' && pathname === '/api/status') {
-    const nomeCol = query.colaborador;
-    const periodo = query.periodo || '';
-    if (!nomeCol) return json(res, []);
-
-    const col = DB.colaboradores.find(c => c.ativo && c.nome.trim().toLowerCase() === nomeCol.trim().toLowerCase());
-    if (!col) return json(res, []);
-
-    const empIds  = DB.colaborador_empresas.filter(ce => ce.colaborador_id === col.id).map(ce => ce.empresa_id);
-    const empresas = DB.empresas.filter(e => empIds.includes(e.id) && e.ativo);
-
-    const resultado = empresas.map(empresa => {
-      const atvsHab = DB.atividades.filter(a => a.ativo).filter(a => {
-        const ea = getEA(empresa.id, a.id);
-        return ea ? ea.habilitada === 1 : true;
+    const req = lib.request(reqOpts, function(res) {
+      let data = '';
+      res.on('data', function(c) { data += c; });
+      res.on('end', function() {
+        try { resolve({ status: res.statusCode, data: data ? JSON.parse(data) : null }); }
+        catch(e) { resolve({ status: res.statusCode, data: data }); }
       });
-      const hist = DB.historico.filter(h => h.empresa_id === empresa.id && h.periodo === periodo);
-      const feitasIds   = new Set(hist.filter(h => h.status === 'OK').map(h => h.atividade_id));
-      const naIds       = new Set(hist.filter(h => h.status === 'Não Aplicável').map(h => h.atividade_id));
-      const todasIds    = new Set([...feitasIds, ...naIds]);
-      const total       = atvsHab.length;
-      const concluidas  = todasIds.size;
-      const pct         = total > 0 ? Math.round((concluidas / total) * 100) : 0;
-      const pendentes_lista = atvsHab
-        .filter(a => !todasIds.has(a.id))
-        .map(a => ({ id: a.id, nome: a.nome, grupo: a.grupo || 'Geral' }));
-      return {
-        empresa:  { id: empresa.id, nome: empresa.nome, codigo_interno: empresa.codigo_interno || '' },
-        total, ok: feitasIds.size, nao_aplicavel: naIds.size, concluidas, pct,
-        pendentes: total - concluidas,
-        pendentes_lista,
-      };
-    });
-
-    return json(res, resultado.sort((a, b) => a.empresa.nome.localeCompare(b.empresa.nome)));
-  }
-
-  // ── Status geral: todos os colaboradores + visão geral de empresas ──────────
-  if (method === 'GET' && pathname === '/api/status/geral') {
-    const periodo = query.periodo || '';
-
-    // Função reutilizável: calcula progresso de uma lista de empresas
-    function calcEmpresas(empresas) {
-      return empresas.map(empresa => {
-        const atvsHab = DB.atividades.filter(a => a.ativo).filter(a => {
-          const ea = getEA(empresa.id, a.id);
-          return ea ? ea.habilitada === 1 : true;
-        });
-        const hist      = DB.historico.filter(h => h.empresa_id === empresa.id && h.periodo === periodo);
-        const feitasIds = new Set(hist.filter(h => h.status === 'OK').map(h => h.atividade_id));
-        const naIds     = new Set(hist.filter(h => h.status === 'Não Aplicável').map(h => h.atividade_id));
-        const todasIds  = new Set([...feitasIds, ...naIds]);
-        const total     = atvsHab.length;
-        const concluidas = todasIds.size;
-        const pct       = total > 0 ? Math.round((concluidas / total) * 100) : 0;
-        const pendentes_lista = atvsHab.filter(a => !todasIds.has(a.id)).map(a => ({ id: a.id, nome: a.nome, grupo: a.grupo || 'Geral' }));
-        return { empresa: { id: empresa.id, nome: empresa.nome, codigo_interno: empresa.codigo_interno || '', regime_tributario: empresa.regime_tributario || '' }, total, ok: feitasIds.size, nao_aplicavel: naIds.size, concluidas, pct, pendentes: total - concluidas, pendentes_lista };
-      });
-    }
-
-    // Bloco por colaborador
-    const colaboradores = DB.colaboradores.filter(c => c.ativo);
-    const porColaborador = colaboradores.map(col => {
-      const empIds  = DB.colaborador_empresas.filter(ce => ce.colaborador_id === col.id).map(ce => ce.empresa_id);
-      const empresas = DB.empresas.filter(e => empIds.includes(e.id) && e.ativo);
-      const empDetalhe = calcEmpresas(empresas).sort((a, b) => a.empresa.nome.localeCompare(b.empresa.nome));
-      const totalAtv    = empDetalhe.reduce((s, e) => s + e.total, 0);
-      const concluidasT = empDetalhe.reduce((s, e) => s + e.concluidas, 0);
-      const pct         = totalAtv > 0 ? Math.round((concluidasT / totalAtv) * 100) : 0;
-      return { colaborador: { id: col.id, nome: col.nome, funcao: col.funcao || '', admin: !!col.admin, foto: col.foto || null }, empresas: empDetalhe, total_empresas: empresas.length, total_atividades: totalAtv, concluidas: concluidasT, pct };
-    }).filter(r => r.total_empresas > 0).sort((a, b) => b.pct - a.pct);
-
-    // Visão geral: todas as empresas ativas
-    const todasEmpresas = DB.empresas.filter(e => e.ativo);
-    const geralEmpresas = calcEmpresas(todasEmpresas).sort((a, b) => a.empresa.nome.localeCompare(b.empresa.nome));
-
-    return json(res, { colaboradores: porColaborador, geral: geralEmpresas });
-  }
-
-  // ── Configurações globais ─────────────────────────────────────────────────
-  if (pathname === '/api/config') {
-    if (method === 'GET') return json(res, DB.config);
-    if (method === 'PUT') {
-      body = await readBody(req);
-      if (Array.isArray(body.grupos_integrados)) DB.config.grupos_integrados = body.grupos_integrados;
-      salvar(); return json(res, DB.config);
-    }
-  }
-
-  // ── Grupos Integrados por Empresa ─────────────────────────────────────────
-  if ((params = match('/api/empresas/:id/grupos-integrados', pathname))) {
-    const empId = String(params.id);
-    if (method === 'GET') {
-      return json(res, (DB.config.grupos_por_empresa || {})[empId] || []);
-    }
-    if (method === 'PUT') {
-      body = await readBody(req);
-      if (!DB.config.grupos_por_empresa) DB.config.grupos_por_empresa = {};
-      DB.config.grupos_por_empresa[empId] = Array.isArray(body.grupos) ? body.grupos : [];
-      salvar();
-      return json(res, DB.config.grupos_por_empresa[empId]);
-    }
-  }
-
-  // ── Sincronizar Filiais ────────────────────────────────────────────────────
-  if ((params = match('/api/empresas/:id/sincronizar', pathname)) && method === 'POST') {
-    body = await readBody(req);
-    const matrizId = parseInt(params.id);
-    const periodo  = body.periodo  || '';
-    const usuario  = body.usuario  || 'Sistema';
-    const filiais  = DB.empresas.filter(e => e.ativo && e.matriz_id === matrizId);
-    const matrizHist = DB.historico.filter(h => h.empresa_id === matrizId && h.periodo === periodo);
-    let count = 0;
-    for (const filial of filiais) {
-      const filialAtvIds = new Set(
-        DB.historico.filter(h => h.empresa_id === filial.id && h.periodo === periodo).map(h => h.atividade_id)
-      );
-      for (const mh of matrizHist) {
-        if (!filialAtvIds.has(mh.atividade_id)) {
-          DB.historico.push({ id: novoId('historico'), empresa_id: filial.id, atividade_id: mh.atividade_id,
-            usuario, observacao: mh.observacao || '', status: mh.status, periodo, data: agora() });
-          count++;
-        }
-      }
-    }
-    salvar();
-    return json(res, { success: true, sincronizados: count });
-  }
-
-  // ── Períodos ──────────────────────────────────────────────────────────────
-  if (pathname === '/api/periodos') {
-    if (method === 'GET') {
-      // Gera os 12 meses do ano corrente automaticamente (mais recente primeiro)
-      const ano = new Date().getFullYear();
-      const ps = [];
-      for (let m = 12; m >= 1; m--) ps.push(String(m).padStart(2,'0') + '/' + ano);
-      return json(res, ps);
-    }
-    // POST/DELETE mantidos mas descartados — períodos são fixos pelo ano
-    return json(res, { success: true });
-  }
-
-  if ((params = match('/api/periodos/:valor', pathname)) && method === 'DELETE') {
-    return json(res, { success: true });
-  }
-
-  // Backup completo do banco de dados
-  if (pathname === '/api/backup' && method === 'GET') {
-    try {
-      const data = fs.readFileSync(DB_FILE);
-      const date = new Date().toISOString().slice(0, 10);
-      res.writeHead(200, {
-        'Content-Type': 'application/json',
-        'Content-Disposition': `attachment; filename="gridflow-backup-${date}.json"`,
-        'Access-Control-Allow-Origin': '*'
-      });
-      res.end(data);
-    } catch (e) {
-      json(res, { error: 'Erro ao gerar backup: ' + e.message }, 500);
-    }
-    return;
-  }
-
-  // Restaurar backup
-  if (pathname === '/api/backup/restaurar' && method === 'POST') {
-    try {
-      body = await readBody(req);
-      if (!body || !body.colaboradores || !body.empresas) {
-        return json(res, { error: 'Arquivo de backup inválido' }, 400);
-      }
-      fs.writeFileSync(DB_FILE, JSON.stringify(body, null, 2));
-      carregar();
-      return json(res, { ok: true, msg: 'Banco restaurado com sucesso' });
-    } catch (e) {
-      return json(res, { error: 'Erro ao restaurar: ' + e.message }, 500);
-    }
-  }
-
-  // Servir arquivos estáticos do frontend
-  if (!pathname.startsWith('/api')) {
-    const filePath = pathname === '/'
-      ? path.join(PUBLIC, 'index.html')
-      : path.join(PUBLIC, pathname);
-    return serveStatic(res, filePath);
-  }
-
-  json(res, { error:'Rota não encontrada' }, 404);
-});
-
-server.listen(PORT, '0.0.0.0', () => {
-  console.log('\n🚀 SERVIDOR CENTRALIZADO RODANDO');
-  console.log('📍 Endereço: http://localhost:' + PORT);
-  console.log('📡 API:      http://localhost:' + PORT + '/api');
-  console.log('\nAguardando conexões dos apps desktop...\n');
-  agendarBackupAutomatico();
-});
-
-server.on('error', e => {
-  if (e.code === 'EADDRINUSE') console.error('\n❌ Porta ' + PORT + ' já está em uso. Feche o outro servidor e tente novamente.');
-  else console.error('\n❌ Erro:', e.message);
-});
-
-// ── Backup automático para GitHub ─────────────────────────────────────────────
-const GH_OWNER  = 'Felipe-Campos21';
-const GH_REPO   = 'Reposit-rio-Teste';
-const GH_BRANCH = 'backup';
-const GH_FILE   = 'ambar-central.json';
-
-function githubRequest(method, apiPath, body, token) {
-  return new Promise((resolve, reject) => {
-    const data = body ? JSON.stringify(body) : null;
-    const req = https.request({
-      hostname: 'api.github.com',
-      path: apiPath,
-      method,
-      headers: {
-        'Authorization': `token ${token}`,
-        'User-Agent': 'GridFlow-Backup/1.0',
-        'Content-Type': 'application/json',
-        ...(data ? { 'Content-Length': Buffer.byteLength(data) } : {})
-      }
-    }, res => {
-      let d = '';
-      res.on('data', c => d += c);
-      res.on('end', () => { try { resolve(JSON.parse(d)); } catch { resolve({}); } });
     });
     req.on('error', reject);
-    if (data) req.write(data);
+    if (options.body) req.write(JSON.stringify(options.body));
     req.end();
   });
 }
 
-async function fazerBackupGitHub() {
-  const token = process.env.GITHUB_TOKEN;
-  if (!token) return; // Sem token configurado, pula silenciosamente
+const MIME = {
+  '.html': 'text/html; charset=utf-8',
+  '.js'  : 'application/javascript',
+  '.css' : 'text/css',
+  '.json': 'application/json',
+  '.png' : 'image/png',
+  '.jpg' : 'image/jpeg',
+  '.svg' : 'image/svg+xml',
+  '.ico' : 'image/x-icon'
+};
 
-  try {
-    const conteudo = fs.readFileSync(DB_FILE);
-    const base64   = Buffer.from(conteudo).toString('base64');
-    const agora    = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+function send(res, status, data) {
+  const body = typeof data === 'string' ? data : JSON.stringify(data);
+  res.writeHead(status, {
+    'Content-Type'                 : 'application/json; charset=utf-8',
+    'Access-Control-Allow-Origin'  : '*',
+    'Access-Control-Allow-Methods' : 'GET,POST,PUT,DELETE,PATCH,OPTIONS',
+    'Access-Control-Allow-Headers' : 'Content-Type, Authorization'
+  });
+  res.end(body);
+}
 
-    // Busca SHA atual do arquivo (necessário para atualizar)
-    let sha;
-    try {
-      const atual = await githubRequest('GET',
-        `/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_FILE}?ref=${GH_BRANCH}`,
-        null, token);
-      sha = atual.sha;
-    } catch { /* arquivo ainda não existe no branch, cria novo */ }
+function sendFile(res, filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  fs.readFile(filePath, function(err, data) {
+    if (err) { res.writeHead(404); res.end('Not found'); return; }
+    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
+    res.end(data);
+  });
+}
 
-    await githubRequest('PUT',
-      `/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_FILE}`,
-      { message: `backup automático — ${agora}`, content: base64, branch: GH_BRANCH, ...(sha ? { sha } : {}) },
-      token);
+function readBody(req) {
+  return new Promise(function(resolve) {
+    let body = '';
+    req.on('data', function(c) { body += c; });
+    req.on('end', function() {
+      try { resolve(JSON.parse(body)); }
+      catch(e) { resolve({}); }
+    });
+  });
+}
 
-    console.log(`✅ Backup GitHub realizado — ${agora}`);
-  } catch (e) {
-    console.error('❌ Erro no backup GitHub:', e.message);
+const server = http.createServer(async function(req, res) {
+  const parsed   = url.parse(req.url, true);
+  const pathname = parsed.pathname;
+  const method   = req.method.toUpperCase();
+
+  if (method === 'OPTIONS') { send(res, 204, {}); return; }
+
+  // GET /api/health
+  if (pathname === '/api/health' && method === 'GET') {
+    send(res, 200, { ok: true, backend: 'supabase', ts: Date.now() });
+    return;
   }
-}
 
-// Horários de backup (Seg–Sex): 07:25 | 11:10 | 13:25 | 17:25
-function agendarBackupAutomatico() {
-  const HORARIOS = [{ h:7,m:25 }, { h:11,m:10 }, { h:13,m:25 }, { h:17,m:25 }];
-  setInterval(() => {
-    const agora = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
-    if (agora.getDay() === 0 || agora.getDay() === 6) return; // Sem backup fim de semana
-    const h = agora.getHours(), m = agora.getMinutes();
-    if (HORARIOS.some(t => t.h === h && t.m === m)) fazerBackupGitHub();
-  }, 60 * 1000);
-  console.log('📅 Backup automático agendado: 07:25 | 11:10 | 13:25 | 17:25 (Seg–Sex)');
-}
+  // GET /api/empresas/todas
+  if (pathname === '/api/empresas/todas' && method === 'GET') {
+    const r = await sbFetch('empresas?select=*&order=nome.asc');
+    send(res, 200, r.data || []);
+    return;
+  }
+
+  // /api/empresas
+  if (pathname === '/api/empresas') {
+    if (method === 'GET') {
+      const comMov = parsed.query.com_movimento;
+      let q = 'empresas?select=*&order=nome.asc';
+      if (comMov !== undefined) q += '&com_movimento=eq.' + comMov;
+      const r = await sbFetch(q);
+      send(res, 200, r.data || []);
+      return;
+    }
+    if (method === 'POST') {
+      const body = await readBody(req);
+      const r = await sbFetch('empresas', { method: 'POST', body: body });
+      send(res, 201, r.data);
+      return;
+    }
+    if (method === 'PUT' || method === 'PATCH') {
+      const body = await readBody(req);
+      const id = body.id || parsed.query.id;
+      const r = await sbFetch('empresas?id=eq.' + id, { method: 'PATCH', body: body });
+      send(res, 200, r.data);
+      return;
+    }
+    if (method === 'DELETE') {
+      const id = parsed.query.id;
+      await sbFetch('empresas?id=eq.' + id, { method: 'DELETE', prefer: 'return=minimal' });
+      send(res, 200, { ok: true });
+      return;
+    }
+  }
+
+  // /api/atividades
+  if (pathname === '/api/atividades') {
+    if (method === 'GET') {
+      const empresaId = parsed.query.empresa_id;
+      let q = 'atividades?select=*&order=nome.asc';
+      if (empresaId) {
+        const ea = await sbFetch('empresa_atividades?select=atividade_id&empresa_id=eq.' + empresaId);
+        const ids = (ea.data || []).map(function(x) { return x.atividade_id; });
+        if (ids.length === 0) { send(res, 200, []); return; }
+        q = 'atividades?select=*&id=in.(' + ids.join(',') + ')&order=nome.asc';
+      }
+      const r = await sbFetch(q);
+      send(res, 200, r.data || []);
+      return;
+    }
+    if (method === 'POST') {
+      const body = await readBody(req);
+      const r = await sbFetch('atividades', { method: 'POST', body: body });
+      send(res, 201, r.data);
+      return;
+    }
+    if (method === 'PUT' || method === 'PATCH') {
+      const body = await readBody(req);
+      const id = body.id || parsed.query.id;
+      const r = await sbFetch('atividades?id=eq.' + id, { method: 'PATCH', body: body });
+      send(res, 200, r.data);
+      return;
+    }
+    if (method === 'DELETE') {
+      const id = parsed.query.id;
+      await sbFetch('empresa_atividades?atividade_id=eq.' + id, { method: 'DELETE', prefer: 'return=minimal' });
+      await sbFetch('atividades?id=eq.' + id, { method: 'DELETE', prefer: 'return=minimal' });
+      send(res, 200, { ok: true });
+      return;
+    }
+  }
+
+  // GET /api/colaboradores/buscar
+  if (pathname === '/api/colaboradores/buscar' && method === 'GET') {
+    const q = (parsed.query.q || '').toLowerCase();
+    const r = await sbFetch('colaboradores?select=*&nome=ilike.*' + encodeURIComponent(q) + '*&order=nome.asc');
+    send(res, 200, r.data || []);
+    return;
+  }
+
+  // /api/colaboradores
+  if (pathname === '/api/colaboradores') {
+    if (method === 'GET') {
+      const r = await sbFetch('colaboradores?select=*&order=nome.asc');
+      send(res, 200, r.data || []);
+      return;
+    }
+    if (method === 'POST') {
+      const body = await readBody(req);
+      const r = await sbFetch('colaboradores', { method: 'POST', body: body });
+      send(res, 201, r.data);
+      return;
+    }
+    if (method === 'PUT' || method === 'PATCH') {
+      const body = await readBody(req);
+      const id = body.id || parsed.query.id;
+      const r = await sbFetch('colaboradores?id=eq.' + id, { method: 'PATCH', body: body });
+      send(res, 200, r.data);
+      return;
+    }
+    if (method === 'DELETE') {
+      const id = parsed.query.id;
+      await sbFetch('colaborador_empresas?colaborador_id=eq.' + id, { method: 'DELETE', prefer: 'return=minimal' });
+      await sbFetch('colaboradores?id=eq.' + id, { method: 'DELETE', prefer: 'return=minimal' });
+      send(res, 200, { ok: true });
+      return;
+    }
+  }
+
+  // /api/notas
+  if (pathname === '/api/notas') {
+    if (method === 'GET') {
+      const empresaId = parsed.query.empresa_id;
+      let q = 'notas?select=*&order=criado_em.desc';
+      if (empresaId) q += '&empresa_id=eq.' + empresaId;
+      const r = await sbFetch(q);
+      send(res, 200, r.data || []);
+      return;
+    }
+    if (method === 'POST') {
+      const body = await readBody(req);
+      body.criado_em = body.criado_em || new Date().toISOString();
+      const r = await sbFetch('notas', { method: 'POST', body: body });
+      send(res, 201, r.data);
+      return;
+    }
+    if (method === 'PUT' || method === 'PATCH') {
+      const body = await readBody(req);
+      const id = body.id || parsed.query.id;
+      const r = await sbFetch('notas?id=eq.' + id, { method: 'PATCH', body: body });
+      send(res, 200, r.data);
+      return;
+    }
+    if (method === 'DELETE') {
+      const id = parsed.query.id;
+      await sbFetch('notas?id=eq.' + id, { method: 'DELETE', prefer: 'return=minimal' });
+      send(res, 200, { ok: true });
+      return;
+    }
+  }
+
+  // /api/historico
+  if (pathname === '/api/historico') {
+    if (method === 'GET') {
+      const empresaId = parsed.query.empresa_id;
+      let q = 'historico?select=*&order=criado_em.desc&limit=200';
+      if (empresaId) q += '&empresa_id=eq.' + empresaId;
+      const r = await sbFetch(q);
+      send(res, 200, r.data || []);
+      return;
+    }
+    if (method === 'POST') {
+      const body = await readBody(req);
+      body.criado_em = body.criado_em || new Date().toISOString();
+      const r = await sbFetch('historico', { method: 'POST', body: body });
+      send(res, 201, r.data);
+      return;
+    }
+  }
+
+  // DELETE /api/historico/reset
+  if (pathname === '/api/historico/reset' && method === 'DELETE') {
+    const empresaId = parsed.query.empresa_id;
+    let q = 'historico?id=gt.0';
+    if (empresaId) q = 'historico?empresa_id=eq.' + empresaId;
+    await sbFetch(q, { method: 'DELETE', prefer: 'return=minimal' });
+    send(res, 200, { ok: true });
+    return;
+  }
+
+  // GET /api/status
+  if (pathname === '/api/status' && method === 'GET') {
+    const empresaId = parsed.query.empresa_id;
+    if (!empresaId) { send(res, 400, { error: 'empresa_id required' }); return; }
+    const results = await Promise.all([
+      sbFetch('empresa_atividades?select=*&empresa_id=eq.' + empresaId),
+      sbFetch('historico?select=*&empresa_id=eq.' + empresaId + '&order=criado_em.desc&limit=100')
+    ]);
+    send(res, 200, { atividades: results[0].data || [], historico: results[1].data || [] });
+    return;
+  }
+
+  // GET /api/status/geral
+  if (pathname === '/api/status/geral' && method === 'GET') {
+    const results = await Promise.all([
+      sbFetch('empresas?select=id,nome,com_movimento&order=nome.asc'),
+      sbFetch('historico?select=empresa_id,criado_em&order=criado_em.desc&limit=1000')
+    ]);
+    send(res, 200, { empresas: results[0].data || [], historico: results[1].data || [] });
+    return;
+  }
+
+  // /api/config
+  if (pathname === '/api/config') {
+    if (method === 'GET') {
+      const r = await sbFetch('configuracao?select=*&limit=1');
+      send(res, 200, (r.data && r.data[0]) || {});
+      return;
+    }
+    if (method === 'PUT' || method === 'PATCH') {
+      const body = await readBody(req);
+      body.id = body.id || 1;
+      const r = await sbFetch('configuracao?id=eq.' + body.id, { method: 'PATCH', body: body });
+      send(res, 200, r.data);
+      return;
+    }
+  }
+
+  // GET /api/periodos
+  if (pathname === '/api/periodos' && method === 'GET') {
+    const year   = new Date().getFullYear();
+    const months = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    const periodos = months.map(function(m, i) {
+      return { id: i + 1, nome: m + '/' + year, mes: i + 1, ano: year };
+    });
+    send(res, 200, periodos);
+    return;
+  }
+
+  // GET /api/backup
+  if (pathname === '/api/backup' && method === 'GET') {
+    const tables = ['empresas','atividades','empresa_atividades','colaboradores','colaborador_empresas','notas','historico','configuracao'];
+    const results = await Promise.all(tables.map(function(t) { return sbFetch(t + '?select=*'); }));
+    const backup = { exportado_em: new Date().toISOString(), versao: '3.0' };
+    tables.forEach(function(t, i) { backup[t] = results[i].data || []; });
+    res.writeHead(200, {
+      'Content-Type'        : 'application/json; charset=utf-8',
+      'Content-Disposition' : 'attachment; filename="gridflow-backup-' + new Date().toISOString().split('T')[0] + '.json"',
+      'Access-Control-Allow-Origin': '*'
+    });
+    res.end(JSON.stringify(backup, null, 2));
+    return;
+  }
+
+  // POST /api/backup/restaurar — desabilitado
+  if (pathname === '/api/backup/restaurar' && method === 'POST') {
+    send(res, 403, { error: 'Restauracao desabilitada. Use o painel do Supabase.' });
+    return;
+  }
+
+  // Static files
+  if (!pathname.startsWith('/api')) {
+    const filePath = path.join(PUBLIC, pathname === '/' ? 'index.html' : pathname);
+    if (fs.existsSync(filePath)) {
+      sendFile(res, filePath);
+    } else {
+      sendFile(res, path.join(PUBLIC, 'index.html'));
+    }
+    return;
+  }
+
+  send(res, 404, { error: 'Not found' });
+});
+
+server.listen(PORT, function() {
+  console.log('GridFlow servidor rodando na porta ' + PORT);
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    console.error('ATENCAO: SUPABASE_URL e SUPABASE_KEY nao configurados!');
+  } else {
+    console.log('Supabase: ' + SUPABASE_URL.substring(0, 40) + '...');
+  }
+});
