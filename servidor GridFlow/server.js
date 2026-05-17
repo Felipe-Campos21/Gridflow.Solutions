@@ -164,8 +164,8 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 400, { erro: 'Senha deve ter pelo menos 6 caracteres' });
 
     const emailLower = email.toLowerCase().trim();
-  const email_info = classificarEmail(emailLower);
-  const {tipo, dominio, empresa_id, dominio_empresa} = email_info;
+    const email_info = classificarEmail(emailLower);
+    const {tipo, dominio, empresa_id, dominio_empresa} = email_info;
     if (!tipo) return sendJson(res, 400, { erro: 'Email inválido' });
 
     const emailCheck = await sbFetch('colaboradores?email=eq.' + encodeURIComponent(emailLower) + '&select=id');
@@ -175,34 +175,34 @@ const server = http.createServer(async (req, res) => {
     let contaIdNova;
 
     if (tipo === 'corporativo' || tipo === 'corporativo_username') {
-    // Chave de agrupamento: dominio proprio OU empresa_id@provedor para emails pessoais com padrao
-    const chaveAgrupamento = tipo === 'corporativo_username' ? dominio_empresa : dominio;
+      // Chave de agrupamento: dominio proprio OU empresa_id@provedor para emails pessoais com padrao
+      const chaveAgrupamento = tipo === 'corporativo_username' ? dominio_empresa : dominio;
 
-    const dominioCheck = await sbFetch('contas?dominio=eq.' + encodeURIComponent(chaveAgrupamento) + '&select=id');
-    if (dominioCheck.corpo && dominioCheck.corpo.length > 0) {
-      contaIdNova = dominioCheck.corpo[0].id;
+      const dominioCheck = await sbFetch('contas?dominio=eq.' + encodeURIComponent(chaveAgrupamento) + '&select=id');
+      if (dominioCheck.body && dominioCheck.body.length > 0) {
+        contaIdNova = dominioCheck.body[0].id;
+      } else {
+        const nomeEmpresaFinal = (nome_empresa && nome_empresa.trim()) ? nome_empresa : (empresa_id || dominio);
+        const novaConta = await sbFetch('contas', {
+          method:'POST',
+          body:{ tipo:'corporativo', dominio:chaveAgrupamento, nome_empresa:nomeEmpresaFinal, plano:'gratuito' },
+          prefer:'return=representation'
+        });
+        if (!novaConta.body || !novaConta.body[0])
+          return sendJson(res, 500, { erro:'Erro ao criar conta corporativa' });
+        contaIdNova = novaConta.body[0].id;
+      }
     } else {
-      const nomeEmpresaFinal = (nome_empresa && nome_empresa.trim()) ? nome_empresa : (empresa_id || dominio);
+      // Email pessoal puro: cria conta propria, usuario eh o dono/assinante
       const novaConta = await sbFetch('contas', {
         method:'POST',
-        body:{ tipo:'corporativo', dominio:chaveAgrupamento, nome_empresa:nomeEmpresaFinal, plano:'gratuito' },
+        body:{ tipo:'pessoal', email_dono:emailLower, nome_empresa, plano:'gratuito' },
         prefer:'return=representation'
       });
-      if (!novaConta.corpo || !novaConta.corpo[0])
-        return sendJson(res, 500, { erro:'Erro ao criar conta corporativa' });
-      contaIdNova = novaConta.corpo[0].id;
+      if (!novaConta.body || !novaConta.body[0])
+        return sendJson(res, 500, { erro:'Erro ao criar conta' });
+      contaIdNova = novaConta.body[0].id;
     }
-  } else {
-    // Email pessoal puro: cria conta propria, usuario eh o dono/assinante
-    const novaConta = await sbFetch('contas', {
-      method:'POST',
-      body:{ tipo:'pessoal', email_dono:emailLower, nome_empresa, plano:'gratuito' },
-      prefer:'return=representation'
-    });
-    if (!novaConta.corpo || !novaConta.corpo[0])
-      return sendJson(res, 500, { erro:'Erro ao criar conta' });
-    contaIdNova = novaConta.corpo[0].id;
-  }
 
     const novoColab = await sbFetch('colaboradores', {
       method: 'POST',
@@ -255,8 +255,23 @@ const server = http.createServer(async (req, res) => {
     const contaResult = await sbFetch('contas?id=eq.' + colab.conta_id + '&select=id,tipo,nome_empresa,plano,dominio');
     const conta = contaResult.body && contaResult.body[0];
 
+    let empresas = [];
+    let atividades = [];
+    let historico = [];
     let colaboradoresDaConta = [];
-    if (conta && conta.tipo === 'pessoal') {
+
+    if (conta && conta.tipo === 'corporativo') {
+      // Para conta corporativa, carrega empresas, atividades e histórico
+      const empresasResult = await sbFetch('empresas?conta_id=eq.' + colab.conta_id + '&order=razao_social.asc&select=id,razao_social');
+      empresas = empresasResult.body || [];
+
+      const atividadesResult = await sbFetch('atividades?conta_id=eq.' + colab.conta_id + '&order=nome.asc&select=id,nome');
+      atividades = atividadesResult.body || [];
+
+      const historicoResult = await sbFetch('historico?conta_id=eq.' + colab.conta_id + '&order=data.desc&limit=50&select=id,data,evento');
+      historico = historicoResult.body || [];
+    } else if (conta && conta.tipo === 'pessoal') {
+      // Para conta pessoal, lista colaboradores
       const colabsResult = await sbFetch(
         'colaboradores?conta_id=eq.' + colab.conta_id + '&ativo=eq.1&select=id,nome,funcao,foto'
       );
@@ -267,6 +282,9 @@ const server = http.createServer(async (req, res) => {
       ok: true,
       colaborador: { id: colab.id, nome: colab.nome, email: colab.email, funcao: colab.funcao, foto: colab.foto, admin: colab.admin_conta },
       conta: { id: conta.id, tipo: conta.tipo, nome_empresa: conta.nome_empresa, plano: conta.plano },
+      empresas: empresas,
+      atividades: atividades,
+      historico: historico,
       colaboradores_conta: colaboradoresDaConta
     });
   }
@@ -290,8 +308,8 @@ const server = http.createServer(async (req, res) => {
   // O dono da conta pessoal adiciona colaboradores pelo email pessoal deles
   // ================================================================
   if (pathname === '/api/auth/convidar-colaborador' && method === 'POST') {
-    const corpo = await readBody(req);
-    const {email, nome, senha, funcao} = corpo;
+    const body = await readBody(req);
+    const {email, nome, senha, funcao} = body;
 
     if (!email || !nome || !senha) return sendJson(res, 400, { erro:'email, nome e senha sao obrigatorios' });
     if (senha.length < 6) return sendJson(res, 400, { erro:'Senha deve ter pelo menos 6 caracteres' });
@@ -299,12 +317,12 @@ const server = http.createServer(async (req, res) => {
     // Verificar que contaId pertence a uma conta pessoal
     if (!contaId) return sendJson(res, 400, { erro:'X-Conta-ID necessario' });
     const contaCheck = await sbFetch('contas?id=eq.' + contaId + "&tipo=eq.pessoal&select=id,email_dono,nome_empresa");
-    if (!contaCheck.corpo || contaCheck.corpo.length === 0) return sendJson(res, 403, { erro:'Apenas contas pessoais podem convidar colaboradores por aqui' });
+    if (!contaCheck.body || contaCheck.body.length === 0) return sendJson(res, 403, { erro:'Apenas contas pessoais podem convidar colaboradores por aqui' });
 
     const emailLower = email.toLowerCase().trim();
     // Check if email already in use
     const emailCheck = await sbFetch('colaboradores?email=eq.' + encodeURIComponent(emailLower) + '&conta_id=eq.' + contaId);
-    if (emailCheck.corpo && emailCheck.corpo.length > 0) return sendJson(res, 409, { erro:'Este colaborador ja esta na sua conta' });
+    if (emailCheck.body && emailCheck.body.length > 0) return sendJson(res, 409, { erro:'Este colaborador ja esta na sua conta' });
 
     // Create colaborador linked to this personal account
     const senhaHash = hashSenha(senha);
@@ -313,8 +331,8 @@ const server = http.createServer(async (req, res) => {
       body:{ nome, email:emailLower, senha_hash:senhaHash, conta_id:contaId, admin_conta:0, ativo:1, funcao:funcao||'Colaborador' },
       prefer:'return=representation'
     });
-    if (!novoColab.corpo || !novoColab.corpo[0]) return sendJson(res, 500, { erro:'Erro ao criar colaborador' });
-    return sendJson(res, 201, { ok:true, colaborador:{ id:novoColab.corpo[0].id, nome, email:emailLower, funcao:funcao||'Colaborador' } });
+    if (!novoColab.body || !novoColab.body[0]) return sendJson(res, 500, { erro:'Erro ao criar colaborador' });
+    return sendJson(res, 201, { ok:true, colaborador:{ id:novoColab.body[0].id, nome, email:emailLower, funcao:funcao||'Colaborador' } });
   }
 
   // ================================================================
@@ -466,107 +484,14 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ================================================================
-  // NOTAS
+  // Arquivo estático / 404
   // ================================================================
-  if (pathname === '/api/notas' && method === 'GET') {
-    const { empresa_id } = parsed.query;
-    const q = empresa_id
-      ? 'notas?empresa_id=eq.' + empresa_id + '&order=data.desc'
-      : (contaId ? 'notas?conta_id=eq.' + contaId + '&order=data.desc' : 'notas?order=data.desc');
-    const r = await sbFetch(q);
-    return sendJson(res, 200, r.body || []);
-  }
-
-  if (pathname === '/api/notas' && method === 'POST') {
-    const body = await readBody(req);
-    if (contaId) body.conta_id = contaId;
-    const r = await sbFetch('notas', { method: 'POST', body, prefer: 'return=representation' });
-    return sendJson(res, 201, r.body && r.body[0] ? r.body[0] : {});
-  }
-
-  const notaMatch = pathname.match(/^\/api\/notas\/(\d+)$/);
-  if (notaMatch) {
-    const id = notaMatch[1];
-    if (method === 'PUT' || method === 'PATCH') {
-      const body = await readBody(req);
-      await sbFetch('notas?id=eq.' + id, { method: 'PATCH', body });
-      return sendJson(res, 200, { ok: true });
-    }
-    if (method === 'DELETE') {
-      await sbFetch('notas?id=eq.' + id, { method: 'DELETE' });
-      return sendJson(res, 200, { ok: true });
-    }
-  }
-
-  // ================================================================
-  // COLABORADOR-EMPRESAS
-  // ================================================================
-  if (pathname === '/api/colaborador-empresas' && method === 'GET') {
-    const { colaborador_id } = parsed.query;
-    const q = colaborador_id
-      ? 'colaborador_empresas?colaborador_id=eq.' + colaborador_id
-      : 'colaborador_empresas';
-    const r = await sbFetch(q);
-    return sendJson(res, 200, r.body || []);
-  }
-
-  if (pathname === '/api/colaborador-empresas' && method === 'POST') {
-    const body = await readBody(req);
-    const r = await sbFetch('colaborador_empresas', { method: 'POST', body, prefer: 'return=representation' });
-    return sendJson(res, 201, r.body && r.body[0] ? r.body[0] : {});
-  }
-
-  const colabEmpMatch = pathname.match(/^\/api\/colaborador-empresas\/(\d+)$/);
-  if (colabEmpMatch && method === 'DELETE') {
-    await sbFetch('colaborador_empresas?id=eq.' + colabEmpMatch[1], { method: 'DELETE' });
-    return sendJson(res, 200, { ok: true });
-  }
-
-  // ================================================================
-  // CONFIGURACAO
-  // ================================================================
-  if (pathname === '/api/configuracao' && method === 'GET') {
-    const q = contaId ? 'configuracao?conta_id=eq.' + contaId + '&limit=1' : 'configuracao?limit=1';
-    const r = await sbFetch(q);
-    return sendJson(res, 200, r.body && r.body[0] ? r.body[0] : {});
-  }
-
-  if (pathname === '/api/configuracao' && method === 'POST') {
-    const body = await readBody(req);
-    if (contaId) body.conta_id = contaId;
-    const r = await sbFetch('configuracao', { method: 'POST', body, prefer: 'return=representation' });
-    return sendJson(res, 201, r.body && r.body[0] ? r.body[0] : {});
-  }
-
-  if (pathname === '/api/configuracao' && (method === 'PUT' || method === 'PATCH')) {
-    const body = await readBody(req);
-    const q = contaId ? 'configuracao?conta_id=eq.' + contaId : 'configuracao';
-    await sbFetch(q, { method: 'PATCH', body });
-    return sendJson(res, 200, { ok: true });
-  }
-
-  // ================================================================
-  // HEALTH CHECK
-  // ================================================================
-  if (pathname === '/api/health') {
-    return sendJson(res, 200, { ok: true, backend: 'supabase', versao: 'v4-multitenant' });
-  }
-
-  // ================================================================
-  // ARQUIVOS ESTÁTICOS
-  // ================================================================
-  let filePath = path.join(PUBLIC, pathname === '/' ? 'index.html' : pathname);
-  if (!filePath.startsWith(PUBLIC)) { res.writeHead(403); res.end(); return; }
-  if (fs.existsSync(filePath) && fs.statSync(filePath).isDirectory()) {
-    filePath = path.join(filePath, 'index.html');
-  }
-  if (fs.existsSync(filePath)) {
-    serveFile(res, filePath);
-  } else {
-    const indexPath = path.join(PUBLIC, 'index.html');
-    if (fs.existsSync(indexPath)) serveFile(res, indexPath);
-    else { res.writeHead(404); res.end('Not found'); }
-  }
+  const arquivo = path.join(PUBLIC, pathname === '/' ? 'index.html' : pathname);
+  if (fs.existsSync(arquivo)) return serveFile(res, arquivo);
+  return sendJson(res, 404, { erro: 'Endpoint não encontrado' });
 });
 
-server.listen(PORT, () => console.log('GridFlow v4 Multi-Tenant rodando na porta ' + PORT));
+const PORT_FINAL = process.env.PORT || PORT;
+server.listen(PORT_FINAL, () => {
+  console.log(`✅ Servidor GridFlow rodando em porta ${PORT_FINAL}`);
+});
