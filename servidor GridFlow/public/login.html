@@ -22,28 +22,35 @@
       <h1 class="login-title">Bem-vindo!</h1>
       <p class="login-subtitle">Acesse sua conta para continuar.</p>
 
+      <!-- Formulário de Login (Email + Senha) -->
       <div class="login-form" id="form-login">
-        <div class="login-input-wrap" style="position:relative">
-          <span class="login-input-icon">👤</span>
-          <input type="text" id="login-input" class="login-input"
-            placeholder="Nome do usuário" autocomplete="off">
-          <div id="login-dropdown" class="login-dropdown"></div>
+        <div class="login-input-wrap">
+          <span class="login-input-icon">✉️</span>
+          <input type="email" id="login-email" class="login-input"
+            placeholder="Email" autocomplete="off" required>
+        </div>
+        <div class="login-input-wrap">
+          <span class="login-input-icon">🔒</span>
+          <input type="password" id="login-senha" class="login-input"
+            placeholder="Senha" autocomplete="off" required>
         </div>
         <div id="login-error" class="login-error"></div>
         <div class="login-btns">
           <button class="btn-entrar" id="btn-entrar">Entrar</button>
-          <button class="btn-criar" id="btn-criar-toggle">Criar usuário</button>
+          <button class="btn-criar" id="btn-criar-toggle">Criar conta</button>
         </div>
       </div>
 
-      <!-- Formulário de criar usuário (oculto por padrão) -->
+      <!-- Formulário de Registro (Email + Senha + Nome + Nome Empresa) -->
       <div class="login-form" id="form-criar" style="display:none">
-        <div class="criar-titulo">Novo usuário</div>
-        <input type="text" id="criar-nome" class="login-input" placeholder="Nome completo" style="margin-bottom:10px">
-        <input type="text" id="criar-cargo" class="login-input" placeholder="Cargo (ex: Auxiliar Contábil)" style="margin-bottom:10px">
+        <div class="criar-titulo">Nova conta</div>
+        <input type="email" id="criar-email" class="login-input" placeholder="Email" style="margin-bottom:10px" required>
+        <input type="password" id="criar-senha" class="login-input" placeholder="Senha (mín. 6 caracteres)" style="margin-bottom:10px" required>
+        <input type="text" id="criar-nome" class="login-input" placeholder="Nome completo" style="margin-bottom:10px" required>
+        <input type="text" id="criar-nome-empresa" class="login-input" placeholder="Nome da empresa" style="margin-bottom:10px" required>
         <div id="criar-error" class="login-error"></div>
         <div class="login-btns">
-          <button class="btn-entrar" id="btn-criar-salvar">Criar e Entrar</button>
+          <button class="btn-entrar" id="btn-criar-salvar">Criar conta</button>
           <button class="btn-criar" id="btn-criar-cancelar">Cancelar</button>
         </div>
       </div>
