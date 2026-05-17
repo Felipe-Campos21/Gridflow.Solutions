@@ -189,7 +189,7 @@ const server = http.createServer(async (req, res) => {
         prefer:'return=representation'
       });
       if (!novaConta.corpo || !novaConta.corpo[0])
-        return enviarJson(res, 500, { erro:'Erro ao criar conta corporativa' });
+        return sendJson(res, 500, { erro:'Erro ao criar conta corporativa' });
       contaIdNova = novaConta.corpo[0].id;
     }
   } else {
@@ -200,7 +200,7 @@ const server = http.createServer(async (req, res) => {
       prefer:'return=representation'
     });
     if (!novaConta.corpo || !novaConta.corpo[0])
-      return enviarJson(res, 500, { erro:'Erro ao criar conta' });
+      return sendJson(res, 500, { erro:'Erro ao criar conta' });
     contaIdNova = novaConta.corpo[0].id;
   }
 
@@ -290,21 +290,21 @@ const server = http.createServer(async (req, res) => {
   // O dono da conta pessoal adiciona colaboradores pelo email pessoal deles
   // ================================================================
   if (pathname === '/api/auth/convidar-colaborador' && method === 'POST') {
-    const corpo = await lerCorpo(req);
+    const corpo = await readBody(req);
     const {email, nome, senha, funcao} = corpo;
 
-    if (!email || !nome || !senha) return enviarJson(res, 400, { erro:'email, nome e senha sao obrigatorios' });
-    if (senha.length < 6) return enviarJson(res, 400, { erro:'Senha deve ter pelo menos 6 caracteres' });
+    if (!email || !nome || !senha) return sendJson(res, 400, { erro:'email, nome e senha sao obrigatorios' });
+    if (senha.length < 6) return sendJson(res, 400, { erro:'Senha deve ter pelo menos 6 caracteres' });
 
     // Verificar que contaId pertence a uma conta pessoal
-    if (!contaId) return enviarJson(res, 400, { erro:'X-Conta-ID necessario' });
+    if (!contaId) return sendJson(res, 400, { erro:'X-Conta-ID necessario' });
     const contaCheck = await sbFetch('contas?id=eq.' + contaId + "&tipo=eq.pessoal&select=id,email_dono,nome_empresa");
-    if (!contaCheck.corpo || contaCheck.corpo.length === 0) return enviarJson(res, 403, { erro:'Apenas contas pessoais podem convidar colaboradores por aqui' });
+    if (!contaCheck.corpo || contaCheck.corpo.length === 0) return sendJson(res, 403, { erro:'Apenas contas pessoais podem convidar colaboradores por aqui' });
 
     const emailLower = email.toLowerCase().trim();
     // Check if email already in use
     const emailCheck = await sbFetch('colaboradores?email=eq.' + encodeURIComponent(emailLower) + '&conta_id=eq.' + contaId);
-    if (emailCheck.corpo && emailCheck.corpo.length > 0) return enviarJson(res, 409, { erro:'Este colaborador ja esta na sua conta' });
+    if (emailCheck.corpo && emailCheck.corpo.length > 0) return sendJson(res, 409, { erro:'Este colaborador ja esta na sua conta' });
 
     // Create colaborador linked to this personal account
     const senhaHash = hashSenha(senha);
@@ -313,8 +313,8 @@ const server = http.createServer(async (req, res) => {
       body:{ nome, email:emailLower, senha_hash:senhaHash, conta_id:contaId, admin_conta:0, ativo:1, funcao:funcao||'Colaborador' },
       prefer:'return=representation'
     });
-    if (!novoColab.corpo || !novoColab.corpo[0]) return enviarJson(res, 500, { erro:'Erro ao criar colaborador' });
-    return enviarJson(res, 201, { ok:true, colaborador:{ id:novoColab.corpo[0].id, nome, email:emailLower, funcao:funcao||'Colaborador' } });
+    if (!novoColab.corpo || !novoColab.corpo[0]) return sendJson(res, 500, { erro:'Erro ao criar colaborador' });
+    return sendJson(res, 201, { ok:true, colaborador:{ id:novoColab.corpo[0].id, nome, email:emailLower, funcao:funcao||'Colaborador' } });
   }
 
   // ================================================================
