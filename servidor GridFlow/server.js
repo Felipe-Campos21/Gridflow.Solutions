@@ -1,4 +1,5 @@
-// Servidor GridFlow v4 - Sistema de Autenticação Multi-Tenant
+// Servidor GridFlow v5 - Sistema de Autenticação Multi-Tenant
+// Suporte: emails corporativos (dominio proprio), pseudo-corporativos (nome.empresa@gmail.com) e pessoais
 // Sem dependencias externas alem do Node.js nativo
 const http   = require('http');
 const https  = require('https');
@@ -54,7 +55,7 @@ function hashSenha(senha) {
 }
 
 // ------------------------------------------------------------------
-// Dominios genericos (nao podem ser conta corporativa)
+// Dominios genericos (nao podem ser conta corporativa por dominio)
 // ------------------------------------------------------------------
 const DOMINIOS_GENERICOS = new Set([
   'gmail.com','googlemail.com','hotmail.com','hotmail.com.br',
@@ -65,11 +66,31 @@ const DOMINIOS_GENERICOS = new Set([
   'yandex.com','aol.com','msn.com'
 ]);
 
+// Detecta padrao "nome.empresa@gmail.com" (corporativo via username)
+// Ex: luiz.alfacontabilidade@gmail.com  → empresa_id = "alfacontabilidade"
+// Ex: meu.nome@gmail.com               → pessoal (empresa_id < 3 chars ignora)
+// Ex: luiz@alfacontabilidade.com.br    → corporativo pelo dominio proprio
 function classificarEmail(email) {
   const dominio = (email.split('@')[1] || '').toLowerCase();
-  if (!dominio) return { tipo: null, dominio: null };
-  if (DOMINIOS_GENERICOS.has(dominio)) return { tipo: 'pessoal', dominio };
-  return { tipo: 'corporativo', dominio };
+  const username = (email.split('@')[0] || '').toLowerCase();
+  if (!dominio) return { tipo: null, dominio: null, empresa_id: null };
+
+  if (!DOMINIOS_GENERICOS.has(dominio)) {
+    // Dominio proprio → corporativo pelo dominio
+    return { tipo: 'corporativo', dominio, empresa_id: null };
+  }
+
+  // Dominio generico (gmail etc.) — verificar padrao nome.empresa@gmail.com
+  const dotIdx = username.lastIndexOf('.');
+  if (dotIdx > 0) {
+    const empresaId = username.substring(dotIdx + 1);
+    if (empresaId.length >= 3) {
+      // Ex: alfacontabilidade@gmail.com e sera usado como chave de agrupamento
+      return { tipo: 'corporativo_username', dominio, empresa_id: empresaId, dominio_empresa: empresaId + '@' + dominio };
+    }
+  }
+
+  return { tipo: 'pessoal', dominio, empresa_id: null };
 }
 
 // ------------------------------------------------------------------
@@ -143,7 +164,8 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 400, { erro: 'Senha deve ter pelo menos 6 caracteres' });
 
     const emailLower = email.toLowerCase().trim();
-    const { tipo, dominio } = classificarEmail(emailLower);
+  const email_info = classificarEmail(emailLower);
+  const {tipo, dominio, empresa_id, dominio_empresa} = email_info;
     if (!tipo) return sendJson(res, 400, { erro: 'Email inválido' });
 
     const emailCheck = await sbFetch('colaboradores?email=eq.' + encodeURIComponent(emailLower) + '&select=id');
@@ -152,30 +174,35 @@ const server = http.createServer(async (req, res) => {
 
     let contaIdNova;
 
-    if (tipo === 'corporativo') {
-      const dominioCheck = await sbFetch('contas?dominio=eq.' + encodeURIComponent(dominio) + '&select=id');
-      if (dominioCheck.body && dominioCheck.body.length > 0) {
-        contaIdNova = dominioCheck.body[0].id;
-      } else {
-        const novaConta = await sbFetch('contas', {
-          method: 'POST',
-          body: { tipo: 'corporativo', dominio, nome_empresa, plano: 'gratuito' },
-          prefer: 'return=representation'
-        });
-        if (!novaConta.body || !novaConta.body[0])
-          return sendJson(res, 500, { erro: 'Erro ao criar conta corporativa' });
-        contaIdNova = novaConta.body[0].id;
-      }
+    if (tipo === 'corporativo' || tipo === 'corporativo_username') {
+    // Chave de agrupamento: dominio proprio OU empresa_id@provedor para emails pessoais com padrao
+    const chaveAgrupamento = tipo === 'corporativo_username' ? dominio_empresa : dominio;
+
+    const dominioCheck = await sbFetch('contas?dominio=eq.' + encodeURIComponent(chaveAgrupamento) + '&select=id');
+    if (dominioCheck.corpo && dominioCheck.corpo.length > 0) {
+      contaIdNova = dominioCheck.corpo[0].id;
     } else {
+      const nomeEmpresaFinal = (nome_empresa && nome_empresa.trim()) ? nome_empresa : (empresa_id || dominio);
       const novaConta = await sbFetch('contas', {
-        method: 'POST',
-        body: { tipo: 'pessoal', email_dono: emailLower, nome_empresa, plano: 'gratuito' },
-        prefer: 'return=representation'
+        method:'POST',
+        body:{ tipo:'corporativo', dominio:chaveAgrupamento, nome_empresa:nomeEmpresaFinal, plano:'gratuito' },
+        prefer:'return=representation'
       });
-      if (!novaConta.body || !novaConta.body[0])
-        return sendJson(res, 500, { erro: 'Erro ao criar conta pessoal' });
-      contaIdNova = novaConta.body[0].id;
+      if (!novaConta.corpo || !novaConta.corpo[0])
+        return enviarJson(res, 500, { erro:'Erro ao criar conta corporativa' });
+      contaIdNova = novaConta.corpo[0].id;
     }
+  } else {
+    // Email pessoal puro: cria conta propria, usuario eh o dono/assinante
+    const novaConta = await sbFetch('contas', {
+      method:'POST',
+      body:{ tipo:'pessoal', email_dono:emailLower, nome_empresa, plano:'gratuito' },
+      prefer:'return=representation'
+    });
+    if (!novaConta.corpo || !novaConta.corpo[0])
+      return enviarJson(res, 500, { erro:'Erro ao criar conta' });
+    contaIdNova = novaConta.corpo[0].id;
+  }
 
     const novoColab = await sbFetch('colaboradores', {
       method: 'POST',
@@ -256,6 +283,38 @@ const server = http.createServer(async (req, res) => {
     if (!result.body || result.body.length === 0)
       return sendJson(res, 404, { erro: 'Colaborador não encontrado' });
     return sendJson(res, 200, { ok: true, colaborador: result.body[0] });
+  }
+
+  // ================================================================
+  // AUTH: Convidar colaborador para conta pessoal
+  // O dono da conta pessoal adiciona colaboradores pelo email pessoal deles
+  // ================================================================
+  if (caminho === '/api/auth/convidar-colaborador' && metodo === 'POST') {
+    const corpo = await lerCorpo(req);
+    const {email, nome, senha, funcao} = corpo;
+
+    if (!email || !nome || !senha) return enviarJson(res, 400, { erro:'email, nome e senha sao obrigatorios' });
+    if (senha.length < 6) return enviarJson(res, 400, { erro:'Senha deve ter pelo menos 6 caracteres' });
+
+    // Verificar que contaId pertence a uma conta pessoal
+    if (!contaId) return enviarJson(res, 400, { erro:'X-Conta-ID necessario' });
+    const contaCheck = await sbFetch('contas?id=eq.' + contaId + "&tipo=eq.pessoal&select=id,email_dono,nome_empresa");
+    if (!contaCheck.corpo || contaCheck.corpo.length === 0) return enviarJson(res, 403, { erro:'Apenas contas pessoais podem convidar colaboradores por aqui' });
+
+    const emailLower = email.toLowerCase().trim();
+    // Check if email already in use
+    const emailCheck = await sbFetch('colaboradores?email=eq.' + encodeURIComponent(emailLower) + '&conta_id=eq.' + contaId);
+    if (emailCheck.corpo && emailCheck.corpo.length > 0) return enviarJson(res, 409, { erro:'Este colaborador ja esta na sua conta' });
+
+    // Create colaborador linked to this personal account
+    const senhaHash = hashSenha(senha);
+    const novoColab = await sbFetch('colaboradores', {
+      method:'POST',
+      body:{ nome, email:emailLower, senha_hash:senhaHash, conta_id:contaId, admin_conta:0, ativo:1, funcao:funcao||'Colaborador' },
+      prefer:'return=representation'
+    });
+    if (!novoColab.corpo || !novoColab.corpo[0]) return enviarJson(res, 500, { erro:'Erro ao criar colaborador' });
+    return enviarJson(res, 201, { ok:true, colaborador:{ id:novoColab.corpo[0].id, nome, email:emailLower, funcao:funcao||'Colaborador' } });
   }
 
   // ================================================================
