@@ -5,39 +5,6 @@ if (saved) {
 }
 
 const API = CONFIG.API_URL;
-let _colaboradores = [];
-
-async function fetchColaboradores() {
-  try {
-    const r = await fetch(API + '/api/colaboradores');
-    _colaboradores = (await r.json()).filter(c => c.ativo);
-  } catch { _colaboradores = []; }
-}
-
-function renderDropdown(lista) {
-  const drop = document.getElementById('login-dropdown');
-  if (!lista.length) { drop.classList.remove('show'); return; }
-  drop.innerHTML = lista.map(c => {
-    const ini = c.nome.split(' ').filter(Boolean).map(p => p[0]).slice(0, 2).join('').toUpperCase();
-    return `<div class="login-dropdown-item" data-id="${c.id}" data-nome="${c.nome}">
-      <div class="login-drop-avatar">${ini}</div>
-      <div class="login-drop-info">
-        <span class="login-drop-nome">${c.nome}</span>
-        <span class="login-drop-cargo">${c.funcao || 'Usuário'}</span>
-      </div>
-    </div>`;
-  }).join('');
-  drop.classList.add('show');
-
-  drop.querySelectorAll('.login-dropdown-item').forEach(item => {
-    item.addEventListener('click', () => fazerLogin(parseInt(item.dataset.id), item.dataset.nome));
-  });
-}
-
-function fazerLogin(id, nome) {
-  localStorage.setItem('gridflow_user', JSON.stringify({ id, nome }));
-  window.location.replace('index.html');
-}
 
 function showError(msg, elId = 'login-error') {
   document.getElementById(elId).textContent = msg;
@@ -46,75 +13,139 @@ function clearError(elId = 'login-error') {
   document.getElementById(elId).textContent = '';
 }
 
-// ── Busca enquanto digita ────────────────────────────────────────────────────
-const input = document.getElementById('login-input');
-input.addEventListener('input', () => {
+// ── Login com Email + Senha ────────────────────────────────────────────────────
+document.getElementById('btn-entrar').addEventListener('click', async () => {
   clearError();
-  const q = input.value.trim().toLowerCase();
-  if (!q) { document.getElementById('login-dropdown').classList.remove('show'); return; }
-  const found = _colaboradores.filter(c => c.nome.toLowerCase().includes(q));
-  renderDropdown(found);
-});
-
-// ── Fechar dropdown ao clicar fora ──────────────────────────────────────────
-document.addEventListener('click', e => {
-  if (!e.target.closest('.login-input-wrap'))
-    document.getElementById('login-dropdown').classList.remove('show');
-});
-
-// ── Botão Entrar ────────────────────────────────────────────────────────────
-document.getElementById('btn-entrar').addEventListener('click', () => {
-  clearError();
-  const q = input.value.trim().toLowerCase();
-  if (!q) { showError('Digite seu nome de usuário'); return; }
-  const found = _colaboradores.filter(c => c.nome.toLowerCase().includes(q));
-  if (found.length === 1) {
-    fazerLogin(found[0].id, found[0].nome);
-  } else if (found.length > 1) {
-    renderDropdown(found);
-    showError('Selecione um usuário da lista');
-  } else {
-    showError('Usuário não encontrado');
+  const email = document.getElementById('login-email').value.trim();
+  const senha = document.getElementById('login-senha').value.trim();
+  
+  if (!email) { showError('Informe seu email'); return; }
+  if (!senha) { showError('Informe sua senha'); return; }
+  
+  try {
+    const r = await fetch(API + '/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, senha })
+    });
+    
+    if (!r.ok) {
+      const err = await r.json();
+      showError(err.erro || 'Erro ao fazer login');
+      return;
+    }
+    
+    const data = await r.json();
+    if (data.ok && data.colaborador && data.conta) {
+      // Salvar dados do usuário e conta
+      localStorage.setItem('gridflow_user', JSON.stringify({
+        id: data.colaborador.id,
+        nome: data.colaborador.nome,
+        email: data.colaborador.email,
+        funcao: data.colaborador.funcao,
+        admin: data.colaborador.admin,
+        conta_id: data.conta.id,
+        conta_tipo: data.conta.tipo,
+        nome_empresa: data.conta.nome_empresa
+      }));
+      
+      // Se é conta pessoal, salvar colaboradores da conta
+      if (data.conta.tipo === 'pessoal' && data.colaboradores_conta) {
+        localStorage.setItem('gridflow_colaboradores_conta', JSON.stringify(data.colaboradores_conta));
+      }
+      
+      // Se é conta corporativa, salvar empresas e atividades
+      if (data.conta.tipo === 'corporativo') {
+        if (data.empresas) localStorage.setItem('gridflow_empresas', JSON.stringify(data.empresas));
+        if (data.atividades) localStorage.setItem('gridflow_atividades', JSON.stringify(data.atividades));
+        if (data.historico) localStorage.setItem('gridflow_historico', JSON.stringify(data.historico));
+      }
+      
+      window.location.replace('index.html');
+    }
+  } catch {
+    showError('Erro ao conectar ao servidor');
   }
 });
 
-input.addEventListener('keydown', e => {
+document.getElementById('login-email').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('login-senha').focus();
+});
+
+document.getElementById('login-senha').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('btn-entrar').click();
 });
 
-// ── Criar usuário ────────────────────────────────────────────────────────────
+// ── Criar nova conta (Email + Senha + Nome + Nome Empresa) ────────────────────
 document.getElementById('btn-criar-toggle').addEventListener('click', () => {
   document.getElementById('form-login').style.display = 'none';
-  document.getElementById('form-criar').style.display  = 'flex';
-  document.getElementById('criar-nome').focus();
+  document.getElementById('form-criar').style.display = 'flex';
+  document.getElementById('criar-email').focus();
 });
 
 document.getElementById('btn-criar-cancelar').addEventListener('click', () => {
   document.getElementById('form-criar').style.display = 'none';
   document.getElementById('form-login').style.display = 'flex';
-  document.getElementById('criar-error').textContent  = '';
+  clearError('criar-error');
+  document.getElementById('login-email').value = '';
+  document.getElementById('login-senha').value = '';
 });
 
 document.getElementById('btn-criar-salvar').addEventListener('click', async () => {
   clearError('criar-error');
-  const nome  = document.getElementById('criar-nome').value.trim();
-  const cargo = document.getElementById('criar-cargo').value.trim();
-  if (!nome) { showError('Informe o nome', 'criar-error'); return; }
+  const email = document.getElementById('criar-email').value.trim();
+  const senha = document.getElementById('criar-senha').value.trim();
+  const nome = document.getElementById('criar-nome').value.trim();
+  const nome_empresa = document.getElementById('criar-nome-empresa').value.trim();
+  
+  if (!email) { showError('Informe seu email', 'criar-error'); return; }
+  if (!senha) { showError('Informe uma senha', 'criar-error'); return; }
+  if (senha.length < 6) { showError('Senha deve ter pelo menos 6 caracteres', 'criar-error'); return; }
+  if (!nome) { showError('Informe seu nome', 'criar-error'); return; }
+  if (!nome_empresa) { showError('Informe o nome da empresa', 'criar-error'); return; }
+  
   try {
-    const r = await fetch(API + '/api/colaboradores', {
+    const r = await fetch(API + '/api/auth/registrar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nome, funcao: cargo })
+      body: JSON.stringify({ email, senha, nome, nome_empresa })
     });
-    if (!r.ok) throw new Error();
-    const col = await r.json();
-    fazerLogin(col.id, col.nome);
+    
+    if (!r.ok) {
+      const err = await r.json();
+      showError(err.erro || 'Erro ao criar conta', 'criar-error');
+      return;
+    }
+    
+    const data = await r.json();
+    if (data.ok && data.colaborador && data.conta_id) {
+      // Mostrar mensagem de sucesso
+      showError('Conta criada com sucesso! Fazendo login...', 'criar-error');
+      
+      // Chamar login automaticamente
+      setTimeout(() => {
+        document.getElementById('login-email').value = email;
+        document.getElementById('login-senha').value = senha;
+        document.getElementById('btn-entrar').click();
+      }, 1000);
+    }
   } catch {
-    showError('Erro ao criar usuário', 'criar-error');
+    showError('Erro ao conectar ao servidor', 'criar-error');
   }
 });
 
-// ── Iniciar ──────────────────────────────────────────────────────────────────
-fetchColaboradores().then(() => {
-  if (_colaboradores.length > 0) input.focus();
+document.getElementById('criar-email').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('criar-senha').focus();
+});
+
+document.getElementById('criar-senha').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('criar-nome').focus();
+});
+
+document.getElementById('criar-nome').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('criar-nome-empresa').focus();
+});
+
+document.getElementById('criar-nome-empresa').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('btn-criar-salvar').click();
 });
