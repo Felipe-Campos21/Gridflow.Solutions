@@ -1753,6 +1753,7 @@ class GridFlowApp {
                   <div>
                     <div style="font-weight:600;font-size:0.9rem">${c.nome}</div>
                     <div style="font-size:0.75rem;color:#718096">${c.funcao || 'Sem função'}</div>
+                    <div style="font-size:0.72rem;color:#94a3b8">${c.email || ''}</div>
                   </div>
                 </div>
                 <div>

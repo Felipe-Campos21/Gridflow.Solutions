@@ -83,6 +83,40 @@ function classificarEmail(email) {
           }
     }
 
+          // ================================================================
+          // COLABORADOR-EMPRESAS (vincular / listar / remover)
+          // ================================================================
+          const colaboradorEmpresasMatch = pathname.match(/^\/api\/colaboradores\/(\d+)\/empresas$/);
+          if (colaboradorEmpresasMatch) {
+                const colId = colaboradorEmpresasMatch[1];
+                if (method === 'GET') {
+                        const ceR = await sbFetch('colaborador_empresas?colaborador_id=eq.' + colId + '&select=empresa_id');
+                        const empIds = (ceR.body || []).map(ce => ce.empresa_id);
+                        if (!empIds.length) return sendJson(res, 200, []);
+                        const empR = await sbFetch('empresas?id=in.(' + empIds.join(',') + ')&ativo=eq.1&order=nome.asc');
+                        return sendJson(res, 200, empR.body || []);
+                }
+                if (method === 'POST') {
+                        const body = await readBody(req);
+                        const empresa_id = body && (body.empresa_id || body.empresaId || body.empresa);
+                        if (!empresa_id) return sendJson(res, 400, { erro: 'empresa_id obrigatorio' });
+                        const empR = await sbFetch('empresas?id=eq.' + empresa_id + (contaId ? '&conta_id=eq.' + contaId : ''));
+                        if (!empR.body || !empR.body[0]) return sendJson(res, 404, { erro: 'Empresa nao encontrada' });
+                        const exists = await sbFetch('colaborador_empresas?colaborador_id=eq.' + colId + '&empresa_id=eq.' + empresa_id + '&select=id');
+                        if (exists.body && exists.body.length > 0) return sendJson(res, 409, { erro: 'Empresa ja vinculada' });
+                        const r = await sbFetch('colaborador_empresas', { method: 'POST', body: { colaborador_id: parseInt(colId), empresa_id: parseInt(empresa_id) }, prefer: 'return=representation' });
+                        return sendJson(res, 201, r.body && r.body[0] ? r.body[0] : {});
+                }
+          }
+
+          const colaboradorEmpresasDeleteMatch = pathname.match(/^\/api\/colaboradores\/(\d+)\/empresas\/(\d+)$/);
+          if (colaboradorEmpresasDeleteMatch && method === 'DELETE') {
+                const colId = colaboradorEmpresasDeleteMatch[1];
+                const empId = colaboradorEmpresasDeleteMatch[2];
+                await sbFetch('colaborador_empresas?colaborador_id=eq.' + colId + '&empresa_id=eq.' + empId, { method: 'DELETE' });
+                return sendJson(res, 200, { ok: true });
+          }
+
   return { tipo: 'pessoal', dominio, empresa_id: null };
 }
 
@@ -339,7 +373,7 @@ const server = http.createServer(async (req, res) => {
                                    if (pathname === '/api/colaboradores' && method === 'GET') {
                                          const q = contaId
                                            ? 'colaboradores?conta_id=eq.' + contaId + '&select=id,nome,funcao,foto,ativo,email,admin_conta&order=nome.asc'
-                                                 : 'colaboradores?select=id,nome,funcao,foto,ativo&order=nome.asc';
+                                                 : 'colaboradores?select=id,nome,funcao,foto,ativo,email,admin_conta&order=nome.asc';
                                          const r = await sbFetch(q);
                                          return sendJson(res, 200, r.body || []);
                                    }
