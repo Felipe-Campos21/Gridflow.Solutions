@@ -236,6 +236,7 @@ class GridFlowApp {
     dropdown.querySelectorAll('.ano-header').forEach(header => {
       header.addEventListener('click', e => {
         if (e.target.closest('.btn-del-ano')) return;
+        e.stopPropagation();
         const ano = parseInt(header.dataset.ano);
         this._anoAtivo = this._anoAtivo === ano ? null : ano;
         this.renderPeriodoDropdown();
