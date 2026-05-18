@@ -33,7 +33,8 @@ class GridFlowApp {
     }
     const user = JSON.parse(savedUser);
     this.usuario    = user.nome;
-    this.colaborador = { id: user.id, nome: user.nome };
+    this.contaId    = user.conta_id || null;
+    this.colaborador = { id: user.id, nome: user.nome, admin: user.admin };
     document.getElementById('current-user').textContent = user.nome;
     // Avatar provisório com inicial — será substituído com foto ao carregar colaboradores
     document.getElementById('user-avatar').textContent = user.nome.charAt(0).toUpperCase();
@@ -60,7 +61,9 @@ class GridFlowApp {
 
   async api(endpoint, options = {}) {
     const url = CONFIG.API_URL + endpoint;
-    const res = await fetch(url, { ...options, headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } });
+    const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+    if (this.contaId) headers['X-Conta-ID'] = this.contaId;
+    const res = await fetch(url, { ...options, headers });
     if (!res.ok) throw new Error(`Erro ${res.status}`);
     return res.json();
   }
