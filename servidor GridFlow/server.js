@@ -360,9 +360,14 @@ const server = http.createServer(async (req, res) => {
                   const r = await sbFetch('colaboradores?id=eq.' + id + '&select=id,nome,email,funcao,foto,admin_conta,conta_id,ativo');
                   if (!r.body || !r.body[0]) return sendJson(res, 404, { erro: 'Não encontrado' });
                   const col = r.body[0];
-                  const cid = col.conta_id || contaId;
-                  const empR = cid ? await sbFetch('empresas?conta_id=eq.' + cid + '&ativo=eq.1&order=nome.asc') : { body: [] };
-                  return sendJson(res, 200, { ...col, admin: col.admin_conta, empresas: empR.body || [] });
+                  const ceR = await sbFetch('colaborador_empresas?colaborador_id=eq.' + id + '&select=empresa_id');
+                  const empIds = (ceR.body || []).map(ce => ce.empresa_id);
+                  let empresas = [];
+                  if (empIds.length) {
+                        const empR = await sbFetch('empresas?id=in.(' + empIds.join(',') + ')&ativo=eq.1&order=nome.asc');
+                        empresas = empR.body || [];
+                  }
+                  return sendJson(res, 200, { ...col, admin: col.admin_conta, empresas });
           }
           if (method === 'PUT' || method === 'PATCH') {
                   const body = await readBody(req);

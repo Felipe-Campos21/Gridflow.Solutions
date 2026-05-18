@@ -103,6 +103,7 @@ class GridFlowApp {
         <div>
           <div style="font-weight:600">${col.nome}</div>
           <div style="font-size:0.75rem;color:#718096">${col.funcao || 'Usuário'}</div>
+          ${col.email ? `<div style="font-size:0.7rem;color:#a0aec0">${col.email}</div>` : ''}
         </div>
       </div>`).join('');
     container.querySelectorAll('.user-list-item').forEach(item =>
