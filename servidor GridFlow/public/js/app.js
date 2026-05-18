@@ -135,29 +135,49 @@ class GridFlowApp {
   }
 
   // ── Períodos ──────────────────────────────────────────────────────────────
-  async carregarPeriodos() {
+  _getAnos() {
     try {
-      const periodos = await this.api('/api/periodos');
-      this._periodos = periodos.length ? periodos : this._gerarPeriodosLocais();
-    } catch {
-      this._periodos = this._gerarPeriodosLocais();
-    }
-    // Restaurar último período usado (se ainda válido) ou usar mês atual
+      const saved = localStorage.getItem('gridflow_anos');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [new Date().getFullYear()];
+  }
+
+  _saveAnos(anos) {
+    localStorage.setItem('gridflow_anos', JSON.stringify(anos));
+  }
+
+  _periodosPorAno(ano) {
+    const ps = [];
+    for (let m = 12; m >= 1; m--) ps.push(String(m).padStart(2, '0') + '/' + ano);
+    return ps;
+  }
+
+  async carregarPeriodos() {
+    this._anos = this._getAnos();
+    this._anoAtivo = this._anos[0];
+
     const savedPeriodo = localStorage.getItem('gridflow_periodo');
-    if (savedPeriodo && this._periodos.includes(savedPeriodo)) {
-      this.periodo = savedPeriodo;
+    if (savedPeriodo) {
+      const anoSalvo = parseInt(savedPeriodo.split('/')[1]);
+      if (!isNaN(anoSalvo)) {
+        if (!this._anos.includes(anoSalvo)) {
+          this._anos = [...this._anos, anoSalvo].sort((a, b) => b - a);
+          this._saveAnos(this._anos);
+        }
+        this.periodo = savedPeriodo;
+        this._anoAtivo = anoSalvo;
+      } else {
+        this.periodo = this.obterPeriodoAtual();
+        localStorage.setItem('gridflow_periodo', this.periodo);
+      }
     } else {
       this.periodo = this.obterPeriodoAtual();
       localStorage.setItem('gridflow_periodo', this.periodo);
     }
-    this.renderPeriodoDropdown(this._periodos);
-  }
 
-  _gerarPeriodosLocais() {
-    const ano = new Date().getFullYear();
-    const ps = [];
-    for (let m = 12; m >= 1; m--) ps.push(String(m).padStart(2, '0') + '/' + ano);
-    return ps;
+    this._periodos = this._anos.flatMap(a => this._periodosPorAno(a));
+    this.renderPeriodoDropdown();
   }
 
   obterPeriodoAtual() {
@@ -165,21 +185,40 @@ class GridFlowApp {
     return `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
   }
 
-  renderPeriodoDropdown(periodos) {
+  renderPeriodoDropdown() {
     const dropdown = document.getElementById('periodo-dropdown');
-    const anoAtual = new Date().getFullYear();
+    const anos = [...this._anos].sort((a, b) => b - a);
+
     dropdown.innerHTML = `
-      <div style="padding:6px 12px 4px;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#a0aec0">
-        ${anoAtual}
+      <div style="padding:7px 12px 6px;border-bottom:1px solid #edf2f7;display:flex;align-items:center;justify-content:space-between">
+        <span style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#a0aec0">Exercício</span>
+        <button id="btn-add-ano" title="Adicionar ano"
+          style="background:#ebf8ff;border:1px solid #bee3f8;color:#2b6cb0;border-radius:6px;padding:1px 9px;font-size:0.76rem;font-weight:700;cursor:pointer;line-height:1.6">+ Ano</button>
       </div>
-      <div style="max-height:280px;overflow-y:auto">
-        ${periodos.map(p => `
-          <div class="dropdown-item ${p === this.periodo ? 'active' : ''}"
-               style="display:flex;align-items:center;gap:8px;cursor:pointer"
-               data-value="${p}">
-            <span style="flex:1">${p}</span>
-            ${p === this.periodo ? '<span style="width:7px;height:7px;border-radius:50%;background:#3498db;flex-shrink:0"></span>' : ''}
-          </div>`).join('')}
+      <div style="max-height:340px;overflow-y:auto">
+        ${anos.map(ano => {
+          const ativo = this._anoAtivo === ano;
+          return `
+          <div class="ano-bloco" data-ano="${ano}">
+            <div class="ano-header" data-ano="${ano}"
+              style="display:flex;align-items:center;padding:7px 12px;cursor:pointer;background:#f8fafc;border-bottom:1px solid #edf2f7;user-select:none">
+              <span style="font-size:0.8rem;font-weight:700;color:#2d3748;flex:1">${ano}</span>
+              <span style="font-size:0.6rem;color:#a0aec0;margin-right:8px">${ativo ? '▼' : '▶'}</span>
+              <button class="btn-del-ano" data-ano="${ano}" title="Remover ${ano}"
+                style="background:none;border:none;color:#fc8181;font-size:1rem;cursor:pointer;padding:0 2px;line-height:1;font-weight:700">×</button>
+            </div>
+            ${ativo ? `
+            <div>
+              ${this._periodosPorAno(ano).map(p => `
+                <div class="dropdown-item ${p === this.periodo ? 'active' : ''}"
+                  style="display:flex;align-items:center;gap:8px;cursor:pointer;padding-left:22px"
+                  data-value="${p}">
+                  <span style="flex:1">${p}</span>
+                  ${p === this.periodo ? '<span style="width:7px;height:7px;border-radius:50%;background:#3498db;flex-shrink:0"></span>' : ''}
+                </div>`).join('')}
+            </div>` : ''}
+          </div>`;
+        }).join('')}
       </div>`;
 
     document.getElementById('periodo-display').textContent = this.periodo;
@@ -190,9 +229,53 @@ class GridFlowApp {
         localStorage.setItem('gridflow_periodo', this.periodo);
         document.getElementById('periodo-display').textContent = this.periodo;
         dropdown.classList.remove('show');
-        this.renderPeriodoDropdown(this._periodos);
         this.atualizarConteudo();
       });
+    });
+
+    dropdown.querySelectorAll('.ano-header').forEach(header => {
+      header.addEventListener('click', e => {
+        if (e.target.closest('.btn-del-ano')) return;
+        const ano = parseInt(header.dataset.ano);
+        this._anoAtivo = this._anoAtivo === ano ? null : ano;
+        this.renderPeriodoDropdown();
+      });
+    });
+
+    dropdown.querySelectorAll('.btn-del-ano').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const ano = parseInt(btn.dataset.ano);
+        if (this._anos.length === 1) { alert('É necessário manter ao menos um ano.'); return; }
+        if (!confirm(`Remover o ano ${ano} da lista de períodos?`)) return;
+        this._anos = this._anos.filter(a => a !== ano);
+        this._saveAnos(this._anos);
+        this._periodos = this._anos.flatMap(a => this._periodosPorAno(a));
+        if (this._anoAtivo === ano) this._anoAtivo = this._anos[0];
+        if (this.periodo && this.periodo.endsWith('/' + ano)) {
+          this.periodo = this.obterPeriodoAtual();
+          if (!this._periodos.includes(this.periodo)) this.periodo = this._periodosPorAno(this._anos[0])[0];
+          localStorage.setItem('gridflow_periodo', this.periodo);
+          document.getElementById('periodo-display').textContent = this.periodo;
+          dropdown.classList.remove('show');
+          this.atualizarConteudo();
+        }
+        this.renderPeriodoDropdown();
+      });
+    });
+
+    document.getElementById('btn-add-ano')?.addEventListener('click', e => {
+      e.stopPropagation();
+      const anoStr = prompt('Digite o ano que deseja adicionar (ex: 2025):');
+      if (!anoStr) return;
+      const ano = parseInt(anoStr.trim());
+      if (isNaN(ano) || ano < 2000 || ano > 2099) { alert('Ano inválido. Use um valor entre 2000 e 2099.'); return; }
+      if (this._anos.includes(ano)) { alert(`O ano ${ano} já está na lista.`); return; }
+      this._anos = [...this._anos, ano].sort((a, b) => b - a);
+      this._saveAnos(this._anos);
+      this._periodos = this._anos.flatMap(a => this._periodosPorAno(a));
+      this._anoAtivo = ano;
+      this.renderPeriodoDropdown();
     });
   }
 
