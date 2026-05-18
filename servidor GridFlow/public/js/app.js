@@ -1899,11 +1899,22 @@ class GridFlowApp {
       if (file.size > 10 * 1024 * 1024) { alert('Foto muito grande (máx 10MB)'); return; }
       const reader = new FileReader();
       reader.onload = ev => {
-        this._colsFotoBase64 = ev.target.result;
-        this._removerFoto = false;
-        document.getElementById('col-foto-preview').innerHTML = `<img src="${ev.target.result}" style="width:100%;height:100%;object-fit:cover">`;
-        document.getElementById('col-foto-nome').textContent = file.name;
-        document.getElementById('btn-foto-remover').style.display = 'inline-flex';
+        const img = new Image();
+        img.onload = () => {
+          const MAX = 256;
+          const scale = Math.min(MAX / img.width, MAX / img.height, 1);
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.round(img.width * scale);
+          canvas.height = Math.round(img.height * scale);
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          const base64 = canvas.toDataURL('image/jpeg', 0.85);
+          this._colsFotoBase64 = base64;
+          this._removerFoto = false;
+          document.getElementById('col-foto-preview').innerHTML = `<img src="${base64}" style="width:100%;height:100%;object-fit:cover">`;
+          document.getElementById('col-foto-nome').textContent = file.name;
+          document.getElementById('btn-foto-remover').style.display = 'inline-flex';
+        };
+        img.src = ev.target.result;
       };
       reader.readAsDataURL(file);
     });
