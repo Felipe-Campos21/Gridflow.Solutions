@@ -1398,6 +1398,18 @@ class GridFlowApp {
               <input type="hidden" id="emp-matriz-id">
             </div>
 
+            <div id="emp-filiais-section" style="display:none;margin-bottom:14px">
+              <label style="font-size:0.8rem;font-weight:600;color:#4a5568;display:block;margin-bottom:6px">
+                Filiais desta Empresa <span style="color:#718096;font-weight:400">(empresas vinculadas a ela como filial)</span>
+              </label>
+              <div id="emp-filiais-lista" style="margin-bottom:8px"></div>
+              <div style="position:relative">
+                <input id="emp-filiais-search" type="text" placeholder="Buscar empresa para adicionar como filial..."
+                  style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.9rem">
+                <div id="emp-filiais-results" class="search-results" style="position:absolute;top:100%;left:0;right:0;z-index:100"></div>
+              </div>
+            </div>
+
             <div style="margin-bottom:20px;display:flex;align-items:center;gap:10px">
               <label class="toggle-ativo">
                 <input id="emp-com-movimento" type="checkbox">
@@ -1540,6 +1552,55 @@ class GridFlowApp {
       matrizSel.style.display = 'none';
       document.getElementById('emp-matriz-search').value = '';
     }
+
+    document.getElementById('emp-filiais-section').style.display = 'block';
+    this._carregarFiliaisForm(emp.id);
+  }
+
+  async _carregarFiliaisForm(matrizId) {
+    const lista = document.getElementById('emp-filiais-lista');
+    if (!lista) return;
+    lista.innerHTML = '<div style="color:#a0aec0;font-size:0.8rem;padding:4px 0">Carregando...</div>';
+    try {
+      const filiais = await this.api(`/api/empresas/${matrizId}/filiais`);
+      if (!filiais.length) {
+        lista.innerHTML = '<div style="color:#a0aec0;font-size:0.8rem;padding:4px 0">Nenhuma filial vinculada — use o campo abaixo para adicionar.</div>';
+        return;
+      }
+      lista.innerHTML = filiais.map(f => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f0f0f0">
+          <div>
+            <span style="font-size:0.85rem;font-weight:600">${f.nome}</span>
+            ${f.codigo_interno ? `<span style="margin-left:6px;font-size:0.75rem;color:#718096">${f.codigo_interno}</span>` : ''}
+          </div>
+          <button class="btn-desv-filial" data-id="${f.id}"
+            style="background:#fff5f5;border:1px solid #fed7d7;color:#c53030;border-radius:6px;padding:2px 8px;font-size:0.75rem;cursor:pointer">
+            Remover
+          </button>
+        </div>`).join('');
+      lista.querySelectorAll('.btn-desv-filial').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Remover vínculo desta filial com a matriz?')) return;
+          try {
+            await this.api(`/api/empresas/${btn.dataset.id}`, { method: 'PUT', body: JSON.stringify({ matriz_id: null }) });
+            const idx = this._todasEmpresas.findIndex(e => e.id == btn.dataset.id);
+            if (idx >= 0) this._todasEmpresas[idx].matriz_id = null;
+            await this._carregarFiliaisForm(matrizId);
+          } catch (e) { alert('Erro ao remover: ' + e.message); }
+        });
+      });
+    } catch (e) {
+      lista.innerHTML = '<div style="color:#e53e3e;font-size:0.8rem">Erro ao carregar filiais.</div>';
+    }
+  }
+
+  async _vincularFilial(filialId, matrizId, filialNome) {
+    try {
+      await this.api(`/api/empresas/${filialId}`, { method: 'PUT', body: JSON.stringify({ matriz_id: matrizId }) });
+      const idx = this._todasEmpresas.findIndex(e => e.id == filialId);
+      if (idx >= 0) this._todasEmpresas[idx].matriz_id = matrizId;
+      await this._carregarFiliaisForm(matrizId);
+    } catch (e) { alert('Erro ao vincular: ' + e.message); }
   }
 
   _limparFormEmpresa() {
@@ -1556,6 +1617,8 @@ class GridFlowApp {
     document.getElementById('emp-matriz-id').value = '';
     document.getElementById('emp-matriz-search').value = '';
     document.getElementById('emp-matriz-sel').style.display = 'none';
+    document.getElementById('emp-filiais-section').style.display = 'none';
+    document.getElementById('emp-filiais-lista').innerHTML = '';
     document.getElementById('emp-form-titulo').textContent = 'Nova Empresa';
     document.getElementById('btn-emp-txt').textContent = 'Criar Empresa';
   }
@@ -1679,6 +1742,35 @@ class GridFlowApp {
       document.getElementById('emp-matriz-id').value = '';
       document.getElementById('emp-matriz-sel').style.display = 'none';
       document.getElementById('emp-matriz-search').value = '';
+    });
+
+    // Busca de filiais para vincular
+    let tFiliais;
+    document.getElementById('emp-filiais-search')?.addEventListener('input', e => {
+      clearTimeout(tFiliais);
+      const q = e.target.value.trim();
+      if (q.length < 2) { document.getElementById('emp-filiais-results').classList.remove('show'); return; }
+      tFiliais = setTimeout(async () => {
+        const matrizId = parseInt(document.getElementById('emp-id').value);
+        if (!matrizId) return;
+        const lista = await this.api(`/api/empresas?search=${encodeURIComponent(q)}`);
+        const results = document.getElementById('emp-filiais-results');
+        results.innerHTML = lista
+          .filter(e => e.id !== matrizId)
+          .map(e => `
+            <div class="search-result-item" data-id="${e.id}" data-nome="${e.nome.replace(/"/g,'')}">
+              <div class="result-nome">${e.nome}</div>
+              <div class="result-info">${e.codigo_interno || ''}</div>
+            </div>`).join('') || '<div class="search-result-item">Nenhuma encontrada</div>';
+        results.querySelectorAll('.search-result-item[data-id]').forEach(item => {
+          item.addEventListener('click', async () => {
+            results.classList.remove('show');
+            document.getElementById('emp-filiais-search').value = '';
+            await this._vincularFilial(parseInt(item.dataset.id), matrizId, item.dataset.nome);
+          });
+        });
+        results.classList.add('show');
+      }, 300);
     });
 
     // Salvar empresa
