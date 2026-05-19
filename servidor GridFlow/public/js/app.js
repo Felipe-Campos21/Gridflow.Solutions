@@ -401,7 +401,7 @@ class GridFlowApp {
             <h3 style="margin:0 0 10px">🔍 Buscar Empresa</h3>
             <div class="search-box" style="position:relative">
               <span class="search-icon">🔍</span>
-              <input type="text" id="db-search-input" placeholder="Nome, CNPJ ou código...">
+              <input type="text" id="db-search-input" placeholder="Nome, CNPJ ou código..." autocomplete="off">
               <div class="search-results" id="db-search-results"></div>
             </div>
           </div>
@@ -1269,7 +1269,7 @@ class GridFlowApp {
             <div style="flex:1;position:relative">
               <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#a0aec0">🔍</span>
               <input id="emp-search" type="text" placeholder="Filtrar por nome, código, CNPJ, município..."
-                style="width:100%;padding:9px 12px 9px 36px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem">
+                style="width:100%;padding:9px 12px 9px 36px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem" autocomplete="off">
             </div>
             <button class="btn btn-primary" id="btn-nova-empresa" style="white-space:nowrap;padding:9px 18px">+ Nova Empresa</button>
           </div>
@@ -1387,7 +1387,7 @@ class GridFlowApp {
                 Empresa Matriz <span style="color:#718096;font-weight:400">(opcional — preencha se esta empresa é uma filial)</span>
               </label>
               <div style="position:relative">
-                <input id="emp-matriz-search" type="text" placeholder="Buscar empresa matriz..."
+                <input id="emp-matriz-search" type="text" placeholder="Buscar empresa matriz..." autocomplete="off"
                   style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.9rem">
                 <div id="emp-matriz-results" class="search-results" style="position:absolute;top:100%;left:0;right:0;z-index:100"></div>
               </div>
@@ -1405,7 +1405,7 @@ class GridFlowApp {
               <div id="emp-filiais-lista" style="margin-bottom:8px"></div>
               <div style="position:relative">
                 <input id="emp-filiais-search" type="text" placeholder="Buscar empresa para adicionar como filial..."
-                  style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.9rem">
+                  style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.9rem" autocomplete="off">
                 <div id="emp-filiais-results" class="search-results" style="position:absolute;top:100%;left:0;right:0;z-index:100"></div>
               </div>
             </div>
@@ -1875,7 +1875,7 @@ class GridFlowApp {
             </div>
             <p style="font-size:0.8rem;color:#718096;margin-bottom:12px">Adiciona uma empresa para todos os colaboradores ativos de uma vez.</p>
             <div style="position:relative">
-              <input type="text" id="vincular-search" placeholder="🔍 Buscar empresa..."
+              <input type="text" id="vincular-search" placeholder="🔍 Buscar empresa..." autocomplete="off"
                 style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem">
               <div id="vincular-results" class="search-results" style="position:absolute;top:100%;left:0;right:0;z-index:100"></div>
             </div>
@@ -1963,7 +1963,7 @@ class GridFlowApp {
             <div class="modal-body">
               <div style="position:relative;margin-bottom:16px">
                 <input type="text" id="empresa-col-search" placeholder="🔍 Buscar empresa para adicionar..."
-                  style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem">
+                  style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem" autocomplete="off">
                 <div id="empresa-col-results" class="search-results" style="position:absolute;top:100%;left:0;right:0;z-index:200"></div>
               </div>
               <div id="empresa-col-lista" style="max-height:300px;overflow-y:auto"></div>
@@ -2803,7 +2803,7 @@ class GridFlowApp {
           </div>
           <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
             <input id="rel-search" type="text" placeholder="🔍 Buscar empresa ou anotação..."
-              style="flex:1;min-width:180px;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem">
+              style="flex:1;min-width:180px;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem" autocomplete="off">
             <select id="rel-periodo" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;color:#4a5568;background:#fff">
               <option value="">Todos os períodos</option>
               ${(this._periodos || []).map(p => `<option value="${p}">${p}</option>`).join('')}
