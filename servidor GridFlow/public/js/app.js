@@ -1858,7 +1858,7 @@ class GridFlowApp {
                     data-id="${c.id}" data-nome="${c.nome}"
                     style="padding:5px 8px;background:#ebf8ff;border-color:#bee3f8;color:#2b6cb0">🏢</button>
                   <button class="btn btn-sm btn-editar-col" title="Editar"
-                    data-id="${c.id}" data-nome="${c.nome}" data-funcao="${c.funcao||''}" data-admin="${c.admin}" data-foto="${c.foto||''}" data-email="${c.email||''}"
+                    data-id="${c.id}" data-nome="${c.nome}" data-funcao="${c.funcao||''}" data-admin="${c.admin_conta ?? c.admin ?? 0}" data-foto="${c.foto||''}" data-email="${c.email||''}"
                     style="padding:5px 8px;background:#fefcbf;border-color:#f6e05e;color:#744210">✏️</button>
                   <button class="btn btn-sm btn-excluir-col" title="${c.ativo ? 'Desativar' : 'Ativar'}"
                     data-id="${c.id}" data-ativo="${c.ativo}"
@@ -2057,7 +2057,8 @@ class GridFlowApp {
       try {
         const foto = this._removerFoto ? null : (this._colsFotoBase64 || undefined);
         const payload = {
-          nome, funcao, admin,
+          nome, funcao,
+          admin_conta: admin ? 1 : 0,
           ...(email ? { email } : {}),
           ...(senha ? { senha } : {}),
           ...(foto !== undefined ? { foto } : {}),

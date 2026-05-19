@@ -406,7 +406,11 @@ const server = http.createServer(async (req, res) => {
           if (method === 'PUT' || method === 'PATCH') {
                   const body = await readBody(req);
                   if (body.senha) { body.senha_hash = hashSenha(body.senha); delete body.senha; }
-                  await sbFetch('colaboradores?id=eq.' + id, { method: 'PATCH', body });
+                  if (body.admin !== undefined && body.admin_conta === undefined) {
+                        body.admin_conta = body.admin ? 1 : 0; delete body.admin;
+                  }
+                  const r = await sbFetch('colaboradores?id=eq.' + id, { method: 'PATCH', body, prefer: 'return=minimal' });
+                  if (r.status >= 400) return sendJson(res, 400, { erro: (r.body && r.body.message) || 'Erro ao salvar colaborador' });
                   return sendJson(res, 200, { ok: true });
           }
           if (method === 'DELETE') {
