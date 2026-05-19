@@ -176,11 +176,11 @@
 <!-- Clara IA Widget -->
 <style>
   #clara-widget { position:fixed;bottom:24px;right:24px;z-index:9999;font-family:inherit }
-  #clara-fab { width:64px;height:64px;border-radius:50%;border:none;cursor:pointer;background:linear-gradient(135deg,#2563eb,#06b6d4);box-shadow:0 4px 20px rgba(37,99,235,0.45);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;transition:transform 0.2s,box-shadow 0.2s;padding:0 }
-  #clara-fab:hover { transform:scale(1.08);box-shadow:0 6px 28px rgba(37,99,235,0.55) }
-  #clara-fab-avatar { width:38px;height:38px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:1.3rem;overflow:hidden }
+  #clara-fab { width:68px;height:68px;border-radius:50%;border:none;cursor:pointer;background:transparent;box-shadow:0 4px 16px rgba(0,0,0,0.22);display:flex;align-items:center;justify-content:center;transition:transform 0.2s,box-shadow 0.2s;padding:0;overflow:hidden }
+  #clara-fab:hover { transform:scale(1.08);box-shadow:0 6px 24px rgba(0,0,0,0.3) }
+  #clara-fab-avatar { width:68px;height:68px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:2rem;overflow:hidden }
   #clara-fab-avatar img { width:100%;height:100%;object-fit:cover;border-radius:50% }
-  #clara-fab-label { font-size:0.6rem;color:#fff;font-weight:700;letter-spacing:0.05em }
+  #clara-fab-label { display:none }
   #clara-panel { position:fixed;bottom:100px;right:24px;width:360px;max-width:calc(100vw - 48px);height:480px;max-height:calc(100vh - 140px);background:#fff;border-radius:20px;box-shadow:0 8px 40px rgba(0,0,0,0.18);display:flex;flex-direction:column;overflow:hidden;transform:scale(0.92) translateY(20px);opacity:0;pointer-events:none;transition:transform 0.22s cubic-bezier(.34,1.56,.64,1),opacity 0.18s }
   #clara-panel.open { transform:scale(1) translateY(0);opacity:1;pointer-events:auto }
   #clara-header { background:linear-gradient(135deg,#2563eb,#06b6d4);padding:14px 16px;display:flex;align-items:center;justify-content:space-between }
