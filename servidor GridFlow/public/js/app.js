@@ -1091,11 +1091,14 @@ class GridFlowApp {
                       </button>
                     </div>
                     ${atvsGrupo.map(a => `
-                      <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 20px;border-bottom:1px solid #f7f7f7">
-                        <span style="font-size:0.88rem;color:#2d3748">${a.nome}</span>
-                        <div style="display:flex;gap:5px">
+                      <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 20px;border-bottom:1px solid #f7f7f7;gap:12px">
+                        <div style="min-width:0">
+                          <div style="font-size:0.88rem;color:#2d3748">${a.nome}</div>
+                          ${a.descricao ? `<div style="font-size:0.76rem;color:#a0aec0;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px">${a.descricao}</div>` : ''}
+                        </div>
+                        <div style="display:flex;gap:5px;flex-shrink:0">
                           <button class="btn btn-sm btn-editar-atv"
-                            data-id="${a.id}" data-nome="${a.nome.replace(/"/g,'&quot;')}" data-grupo="${grupo}"
+                            data-id="${a.id}" data-nome="${a.nome.replace(/"/g,'&quot;')}" data-grupo="${grupo}" data-descricao="${(a.descricao||'').replace(/"/g,'&quot;')}"
                             style="padding:4px 8px;background:#fefcbf;border-color:#f6e05e;color:#744210">✏️</button>
                           <button class="btn btn-sm btn-excluir-atv"
                             data-id="${a.id}" data-nome="${a.nome.replace(/"/g,'&quot;')}"
@@ -1122,13 +1125,21 @@ class GridFlowApp {
                 style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.9rem">
             </div>
 
-            <div style="margin-bottom:20px">
+            <div style="margin-bottom:14px">
               <label style="font-size:0.8rem;font-weight:600;color:#4a5568;display:block;margin-bottom:4px">Grupo</label>
               <input id="atv-grupo" type="text" placeholder="Ex: Conciliação" list="atv-grupos-list"
                 style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.9rem">
               <datalist id="atv-grupos-list">
                 ${grupos.map(g => `<option value="${g}">`).join('')}
               </datalist>
+            </div>
+
+            <div style="margin-bottom:20px">
+              <label style="font-size:0.8rem;font-weight:600;color:#4a5568;display:block;margin-bottom:4px">
+                Descrição <span style="color:#a0aec0;font-weight:400">(opcional)</span>
+              </label>
+              <textarea id="atv-descricao" rows="3" placeholder="Ex: Conciliar os extratos bancários com o razão contábil do mês..."
+                style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;resize:vertical;font-family:inherit;box-sizing:border-box"></textarea>
             </div>
 
             <div style="display:flex;gap:8px">
@@ -1145,6 +1156,7 @@ class GridFlowApp {
       document.getElementById('atv-id').value = '';
       document.getElementById('atv-nome').value = '';
       document.getElementById('atv-grupo').value = '';
+      document.getElementById('atv-descricao').value = '';
       document.getElementById('atv-form-titulo').textContent = 'Nova Atividade';
       document.getElementById('atv-nome').focus();
     };
@@ -1157,12 +1169,13 @@ class GridFlowApp {
       const id = document.getElementById('atv-id').value;
       const nome = document.getElementById('atv-nome').value.trim();
       const grupo = document.getElementById('atv-grupo').value.trim() || 'Geral';
+      const descricao = document.getElementById('atv-descricao').value.trim() || null;
       if (!nome) { alert('Nome da atividade é obrigatório'); return; }
       try {
         if (id) {
-          await this.api(`/api/atividades/${id}`, { method: 'PUT', body: JSON.stringify({ nome, grupo }) });
+          await this.api(`/api/atividades/${id}`, { method: 'PUT', body: JSON.stringify({ nome, grupo, descricao }) });
         } else {
-          await this.api('/api/atividades', { method: 'POST', body: JSON.stringify({ nome, grupo }) });
+          await this.api('/api/atividades', { method: 'POST', body: JSON.stringify({ nome, grupo, descricao }) });
         }
         await this.mudarTab('atividades');
       } catch (e) { alert('Erro ao salvar: ' + e.message); }
@@ -1174,6 +1187,7 @@ class GridFlowApp {
         document.getElementById('atv-id').value = btn.dataset.id;
         document.getElementById('atv-nome').value = btn.dataset.nome;
         document.getElementById('atv-grupo').value = btn.dataset.grupo;
+        document.getElementById('atv-descricao').value = btn.dataset.descricao || '';
         document.getElementById('atv-form-titulo').textContent = 'Editar Atividade';
         document.getElementById('atv-nome').focus();
       });
