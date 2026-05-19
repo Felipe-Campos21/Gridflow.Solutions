@@ -297,50 +297,6 @@ class GridFlowApp {
     document.querySelectorAll('.nav-item').forEach(item =>
       item.addEventListener('click', () => { if (item.dataset.tab) this.mudarTab(item.dataset.tab); }));
 
-    document.getElementById('btn-backup')?.addEventListener('click', () => this._fazerBackup());
-    document.getElementById('btn-restaurar')?.addEventListener('click', () =>
-      document.getElementById('input-restaurar').click());
-    document.getElementById('input-restaurar')?.addEventListener('change', e => this._restaurarBackup(e));
-  }
-
-  async _restaurarBackup(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    e.target.value = '';
-    if (!confirm(`Restaurar backup "${file.name}"?\n\nTodos os dados atuais serão substituídos pelo conteúdo do arquivo.`)) return;
-    try {
-      const text = await file.text();
-      const dados = JSON.parse(text);
-      if (!dados.colaboradores || !dados.empresas) {
-        alert('❌ Arquivo inválido. Selecione um backup gerado pelo GridFlow.');
-        return;
-      }
-      const res = await fetch(CONFIG.API_URL + '/api/backup/restaurar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: text
-      });
-      const resultado = await res.json();
-      if (resultado.ok) {
-        alert('✅ Backup restaurado com sucesso! A página será recarregada.');
-        window.location.reload();
-      } else {
-        alert('❌ Erro ao restaurar: ' + (resultado.error || 'desconhecido'));
-      }
-    } catch (err) {
-      alert('❌ Erro ao ler o arquivo: ' + err.message);
-    }
-  }
-
-  _fazerBackup() {
-    const url = CONFIG.API_URL + '/api/backup';
-    const a = document.createElement('a');
-    a.href = url;
-    const data = new Date().toISOString().slice(0, 10);
-    a.download = `gridflow-backup-${data}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
   }
 
   mudarTab(tab) {

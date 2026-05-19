@@ -654,8 +654,9 @@ const server = http.createServer(async (req, res) => {
                                                      return sendJson(res, 200, r.body || []);
                                                }
                                                const cidQ = contaId ? '&conta_id=eq.' + contaId : '';
-                                               const r = await sbFetch('notas?texto=neq.' + encodeURIComponent('') + cidQ + '&order=atualizado_em.desc');
-                                               return sendJson(res, 200, r.body || []);
+                                               const r = await sbFetch('notas?select=*,empresas(nome)&texto=neq.' + encodeURIComponent('') + cidQ + '&order=atualizado_em.desc');
+                                               const notas = (r.body || []).map(n => { const { empresas, ...rest } = n; return { ...rest, empresa_nome: empresas?.nome || null }; });
+                                               return sendJson(res, 200, notas);
                                          }
                                          if (method === 'POST') {
                                                const body = await readBody(req);
