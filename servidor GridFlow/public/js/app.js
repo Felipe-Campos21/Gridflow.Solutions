@@ -1858,7 +1858,7 @@ class GridFlowApp {
                     data-id="${c.id}" data-nome="${c.nome}"
                     style="padding:5px 8px;background:#ebf8ff;border-color:#bee3f8;color:#2b6cb0">🏢</button>
                   <button class="btn btn-sm btn-editar-col" title="Editar"
-                    data-id="${c.id}" data-nome="${c.nome}" data-funcao="${c.funcao||''}" data-admin="${c.admin}" data-foto="${c.foto||''}"
+                    data-id="${c.id}" data-nome="${c.nome}" data-funcao="${c.funcao||''}" data-admin="${c.admin}" data-foto="${c.foto||''}" data-email="${c.email||''}"
                     style="padding:5px 8px;background:#fefcbf;border-color:#f6e05e;color:#744210">✏️</button>
                   <button class="btn btn-sm btn-excluir-col" title="${c.ativo ? 'Desativar' : 'Ativar'}"
                     data-id="${c.id}" data-ativo="${c.ativo}"
@@ -1902,6 +1902,21 @@ class GridFlowApp {
           <div style="margin-bottom:12px">
             <label style="font-size:0.8rem;font-weight:600;color:#4a5568;display:block;margin-bottom:4px">Função / Cargo</label>
             <input id="col-funcao" type="text" placeholder="Ex: Assistente Financeiro"
+              style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem;box-sizing:border-box">
+          </div>
+
+          <div style="margin-bottom:12px">
+            <label style="font-size:0.8rem;font-weight:600;color:#4a5568;display:block;margin-bottom:4px">E-mail <span style="color:#e53e3e">*</span></label>
+            <input id="col-email" type="email" placeholder="colaborador@empresa.com.br"
+              style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem;box-sizing:border-box">
+          </div>
+
+          <div style="margin-bottom:14px">
+            <label style="font-size:0.8rem;font-weight:600;color:#4a5568;display:block;margin-bottom:4px">
+              <span id="col-senha-label">Senha</span>
+              <span style="color:#718096;font-weight:400" id="col-senha-dica"> (mínimo 6 caracteres)</span>
+            </label>
+            <input id="col-senha" type="password" placeholder="••••••••"
               style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem;box-sizing:border-box">
           </div>
 
@@ -1968,6 +1983,10 @@ class GridFlowApp {
       document.getElementById('col-id').value = '';
       document.getElementById('col-nome').value = '';
       document.getElementById('col-funcao').value = '';
+      document.getElementById('col-email').value = '';
+      document.getElementById('col-senha').value = '';
+      document.getElementById('col-senha-label').textContent = 'Senha';
+      document.getElementById('col-senha-dica').textContent = ' (mínimo 6 caracteres)';
       document.getElementById('col-admin').checked = false;
       document.getElementById('col-foto-preview').innerHTML = '?';
       document.getElementById('col-foto-preview').style.background = '#e2e8f0';
@@ -2027,11 +2046,22 @@ class GridFlowApp {
       const id = document.getElementById('col-id').value;
       const nome = document.getElementById('col-nome').value.trim();
       const funcao = document.getElementById('col-funcao').value.trim();
+      const email = document.getElementById('col-email').value.trim();
+      const senha = document.getElementById('col-senha').value;
       const admin = document.getElementById('col-admin').checked;
       if (!nome) { alert('Nome é obrigatório'); return; }
+      if (!id && !email) { alert('E-mail é obrigatório para novo colaborador'); return; }
+      if (!id && !senha) { alert('Senha é obrigatória para novo colaborador'); return; }
+      if (!id && senha.length < 6) { alert('Senha deve ter no mínimo 6 caracteres'); return; }
+      if (id && senha && senha.length < 6) { alert('Nova senha deve ter no mínimo 6 caracteres'); return; }
       try {
         const foto = this._removerFoto ? null : (this._colsFotoBase64 || undefined);
-        const payload = { nome, funcao, admin, ...(foto !== undefined ? { foto } : {}) };
+        const payload = {
+          nome, funcao, admin,
+          ...(email ? { email } : {}),
+          ...(senha ? { senha } : {}),
+          ...(foto !== undefined ? { foto } : {}),
+        };
         if (id) {
           await this.api(`/api/colaboradores/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
           // Se editou o próprio perfil, atualiza avatar da sidebar imediatamente
@@ -2073,6 +2103,10 @@ class GridFlowApp {
           document.getElementById('col-foto-nome').textContent = 'Sem foto';
         }
         preview.style.background = this.avatarColor(btn.dataset.nome);
+        document.getElementById('col-email').value = btn.dataset.email || '';
+        document.getElementById('col-senha').value = '';
+        document.getElementById('col-senha-label').textContent = 'Nova Senha';
+        document.getElementById('col-senha-dica').textContent = ' (deixe em branco para não alterar)';
         abrirPanel();
         document.getElementById('col-nome').focus();
       });
