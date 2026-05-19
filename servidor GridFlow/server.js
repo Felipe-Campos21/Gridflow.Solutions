@@ -387,6 +387,40 @@ const server = http.createServer(async (req, res) => {
                                          return sendJson(res, 201, r.body && r.body[0] ? r.body[0] : {});
                                    }
 
+                                   const colEmpresasMatch = pathname.match(/^\/api\/colaboradores\/(\d+)\/empresas$/);
+    if (colEmpresasMatch) {
+          const colId = colEmpresasMatch[1];
+          if (method === 'GET') {
+                  const ceR = await sbFetch('colaborador_empresas?colaborador_id=eq.' + colId + '&select=empresa_id');
+                  const empIds = (ceR.body || []).map(ce => ce.empresa_id);
+                  if (!empIds.length) return sendJson(res, 200, []);
+                  const q = contaId
+                        ? 'empresas?id=in.(' + empIds.join(',') + ')&conta_id=eq.' + contaId + '&ativo=eq.1&order=nome.asc&select=id,nome,codigo_interno,cnpj'
+                        : 'empresas?id=in.(' + empIds.join(',') + ')&ativo=eq.1&order=nome.asc&select=id,nome,codigo_interno,cnpj';
+                  const empR = await sbFetch(q);
+                  return sendJson(res, 200, empR.body || []);
+          }
+          if (method === 'POST') {
+                  const body = await readBody(req);
+                  const { empresa_id } = body;
+                  if (!empresa_id) return sendJson(res, 400, { erro: 'empresa_id obrigatório' });
+                  const existing = await sbFetch('colaborador_empresas?colaborador_id=eq.' + colId + '&empresa_id=eq.' + empresa_id);
+                  if (existing.body && existing.body.length > 0) return sendJson(res, 200, { ok: true });
+                  await sbFetch('colaborador_empresas', { method: 'POST', body: { colaborador_id: parseInt(colId), empresa_id: parseInt(empresa_id) }, prefer: 'return=representation' });
+                  return sendJson(res, 201, { ok: true });
+          }
+    }
+
+    const colEmpresaItemMatch = pathname.match(/^\/api\/colaboradores\/(\d+)\/empresas\/(\d+)$/);
+    if (colEmpresaItemMatch) {
+          const colId = colEmpresaItemMatch[1];
+          const empId = colEmpresaItemMatch[2];
+          if (method === 'DELETE') {
+                  await sbFetch('colaborador_empresas?colaborador_id=eq.' + colId + '&empresa_id=eq.' + empId, { method: 'DELETE' });
+                  return sendJson(res, 200, { ok: true });
+          }
+    }
+
                                    const colaboradorMatch = pathname.match(/^\/api\/colaboradores\/(\d+)$/);
     if (colaboradorMatch) {
           const id = colaboradorMatch[1];
