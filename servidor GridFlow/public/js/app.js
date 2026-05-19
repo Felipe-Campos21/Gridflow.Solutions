@@ -1696,13 +1696,13 @@ class GridFlowApp {
         segmento: document.getElementById('emp-segmento').value.trim(),
         email: document.getElementById('emp-email').value.trim(),
         com_movimento: document.getElementById('emp-com-movimento').checked,
-        matriz_id: document.getElementById('emp-matriz-id').value || null,
+        matriz_id: parseInt(document.getElementById('emp-matriz-id').value) || null,
       };
       try {
         if (id) {
-          const updated = await this.api(`/api/empresas/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+          await this.api(`/api/empresas/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
           const idx = this._todasEmpresas.findIndex(e => e.id == id);
-          if (idx >= 0) this._todasEmpresas[idx] = { ...this._todasEmpresas[idx], ...updated };
+          if (idx >= 0) this._todasEmpresas[idx] = { ...this._todasEmpresas[idx], ...payload, id: parseInt(id) };
         } else {
           const nova = await this.api('/api/empresas', { method: 'POST', body: JSON.stringify(payload) });
           this._todasEmpresas.unshift(nova);
