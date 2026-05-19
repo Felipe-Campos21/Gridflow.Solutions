@@ -2907,3 +2907,91 @@ class GridFlowApp {
 const App = new GridFlowApp();
 document.addEventListener('DOMContentLoaded', () => App.init());
 window.App = App;
+
+// ── Clara IA Widget ───────────────────────────────────────────────────────────
+(function () {
+  const history = [];
+
+  function $(id) { return document.getElementById(id); }
+
+  function addMessage(role, text) {
+    history.push({ role, content: text });
+    const wrap = $('clara-messages');
+    const div = document.createElement('div');
+    div.className = 'clara-msg ' + (role === 'user' ? 'clara-msg-user' : 'clara-msg-bot');
+    const bubble = document.createElement('div');
+    bubble.className = 'clara-bubble';
+    bubble.textContent = text;
+    div.appendChild(bubble);
+    wrap.appendChild(div);
+    wrap.scrollTop = wrap.scrollHeight;
+  }
+
+  function showTyping() {
+    const wrap = $('clara-messages');
+    const div = document.createElement('div');
+    div.className = 'clara-msg clara-msg-bot';
+    div.id = 'clara-typing';
+    div.innerHTML = '<div class="clara-typing"><div class="clara-dot"></div><div class="clara-dot"></div><div class="clara-dot"></div></div>';
+    wrap.appendChild(div);
+    wrap.scrollTop = wrap.scrollHeight;
+  }
+
+  function hideTyping() { const t = $('clara-typing'); if (t) t.remove(); }
+
+  function highlight(selector) {
+    if (!selector) return;
+    const el = document.querySelector(selector);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('clara-highlight');
+    setTimeout(() => el.classList.remove('clara-highlight'), 3500);
+  }
+
+  async function send() {
+    const input = $('clara-input');
+    const text = (input.value || '').trim();
+    if (!text) return;
+    input.value = '';
+    $('clara-send').disabled = true;
+
+    addMessage('user', text);
+    showTyping();
+
+    try {
+      const resp = await fetch(CONFIG.API_URL + '/api/clara', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Conta-ID': App.contaId || '' },
+        body: JSON.stringify({ messages: history })
+      });
+      const data = await resp.json();
+      hideTyping();
+
+      const resposta = data.resposta || 'Não consegui processar. Tente novamente.';
+      addMessage('assistant', resposta);
+
+      if (data.tab && window.App) App.mudarTab(data.tab);
+      if (data.highlight) setTimeout(() => highlight(data.highlight), data.tab ? 400 : 0);
+    } catch {
+      hideTyping();
+      addMessage('assistant', 'Ocorreu um erro de conexão. Verifique sua internet e tente novamente.');
+    }
+
+    $('clara-send').disabled = false;
+    $('clara-input').focus();
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const fab   = $('clara-fab');
+    const panel = $('clara-panel');
+    const close = $('clara-close');
+    const input = $('clara-input');
+    const btn   = $('clara-send');
+    if (!fab) return;
+
+    fab.addEventListener('click', () => panel.classList.toggle('open'));
+    close.addEventListener('click', () => panel.classList.remove('open'));
+    btn.addEventListener('click', send);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
+  });
+})();

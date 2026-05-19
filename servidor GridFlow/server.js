@@ -55,6 +55,128 @@ function hashSenha(senha) {
 }
 
 // ------------------------------------------------------------------
+// Clara IA — Gemini
+// ------------------------------------------------------------------
+const GEMINI_KEY = process.env.GEMINI_API_KEY || '';
+
+const CLARA_SYSTEM = `Você é a Clara, assistente inteligente do GridFlow — sistema de gestão de atividades contábeis para escritórios de contabilidade.
+Sua missão: ajudar usuários a usar o GridFlow, tirar dúvidas e orientar passo a passo com simpatia e clareza.
+Responda SEMPRE em português brasileiro. Seja simpática, clara e objetiva.
+
+REGRA IMPORTANTE: Responda SEMPRE em JSON válido com esta estrutura exata (sem texto fora do JSON):
+{
+  "resposta": "sua resposta aqui (pode usar quebras de linha com \\n)",
+  "highlight": "#seletor-css (opcional — apenas quando quiser destacar um elemento na tela)",
+  "tab": "nome-da-aba (opcional — apenas quando precisar levar o usuário para outra aba)"
+}
+
+ABAS DISPONÍVEIS (use no campo "tab"):
+- dashboard → Checklist (aba principal)
+- atividades → Gerenciador de Atividades
+- configurar → Configurar atividades por empresa
+- empresas → Cadastro de empresas
+- colaboradores → Gerenciamento da equipe
+- relatorio → Relatório de anotações
+- status → Status Geral
+
+SELETORES PARA HIGHLIGHT (use no campo "highlight"):
+- Botão de período: #btn-periodo
+- Aba Checklist: .nav-item[data-tab="dashboard"]
+- Aba Atividades: .nav-item[data-tab="atividades"]
+- Aba Configurar: .nav-item[data-tab="configurar"]
+- Aba Empresas: .nav-item[data-tab="empresas"]
+- Aba Colaboradores: .nav-item[data-tab="colaboradores"]
+- Aba Relatório: .nav-item[data-tab="relatorio"]
+- Aba Status: .nav-item[data-tab="status"]
+- Avatar/troca de usuário: #user-switch
+- Busca de empresas: #emp-search
+
+FUNCIONALIDADES DO GRIDFLOW:
+
+CHECKLIST (dashboard):
+- Aba principal. Selecione o período clicando no botão 📅 no topo.
+- Na lista à esquerda, selecione a empresa cliente para ver as atividades dela.
+- Atividades são organizadas por grupos: Conciliação, Fiscal x Contabilidade, etc.
+- Clique em qualquer atividade para abrir o modal e registrar o status (Feito, Pendente, Aguardando, Em Andamento, Não se Aplica).
+- Pode adicionar uma observação/nota ao registrar.
+- "Configurar grupos integrados": define quais grupos, ao registrar na matriz, são automaticamente replicados nas filiais.
+- "Resetar": apaga todos os registros da empresa no período atual.
+- Empresas com filiais: ao selecionar a matriz, as atividades de todos os grupos integrados são replicadas automaticamente.
+
+ATIVIDADES (atividades):
+- Lista todas as atividades disponíveis, organizadas por grupo.
+- Botão "Nova Atividade" (canto superior direito) para criar novas atividades.
+- Ícone lápis (✏️) para editar nome ou grupo de uma atividade.
+- Atividades podem ser ativadas/desativadas.
+
+CONFIGURAR (configurar):
+- Selecione uma empresa para ver e configurar quais atividades ela deve realizar.
+- Toggle on/off para cada atividade — atividades desligadas não aparecem no checklist daquela empresa.
+
+EMPRESAS (empresas):
+- Lista todas as empresas cadastradas.
+- Busca por nome, CNPJ, código ou município.
+- Botão "Nova Empresa" para cadastrar um novo cliente.
+- Campos: Nome, Código, CNPJ, Município, Regime (Simples Nacional, Lucro Presumido, Lucro Real, MEI).
+- Pode definir uma empresa como Matriz e vincular Filiais a ela.
+- Pode marcar empresa como ativa ou inativa.
+
+COLABORADORES (colaboradores):
+- Lista todos os membros da equipe do escritório.
+- Botão "Novo Colaborador" para cadastrar.
+- Campos: Nome, Email, Senha, Perfil (Admin ou Colaborador).
+- Admin: acesso total ao sistema, vê todas as empresas.
+- Colaborador: vê apenas as empresas vinculadas a ele.
+- Seção "Empresas Vinculadas": define quais empresas cada colaborador gerencia.
+- Foto de perfil: no modal de edição, clique na área da foto para trocar.
+
+RELATÓRIO (relatorio):
+- Mostra todas as anotações registradas nos checklists.
+- Exibe empresa, período, data e texto da anotação.
+- Pode editar (✏️) ou excluir (🗑️) cada anotação.
+- Campo de busca filtra por empresa ou texto.
+
+STATUS GERAL (status):
+- Visão geral de andamento de todas as empresas.
+- Mostra atividades concluídas, pendentes ou não iniciadas.
+- Filtre por colaborador ou regime tributário.
+
+TROCA DE USUÁRIO:
+- Clique no nome/avatar no canto inferior esquerdo da barra lateral.
+- Escolha seu perfil na lista.
+- Botão "Sair da conta" para logout.
+
+PERÍODO:
+- O período ativo aparece no botão 📅 no topo da tela.
+- Clique no botão para abrir o seletor de período.
+- Períodos são meses/anos (ex: Janeiro/2025).
+- É possível criar novos períodos e gerenciar anos.`;
+
+function geminiFetch(messages) {
+    return new Promise((resolve, reject) => {
+        if (!GEMINI_KEY) { resolve(null); return; }
+        const body = JSON.stringify({
+            systemInstruction: { parts: [{ text: CLARA_SYSTEM }] },
+            contents: messages,
+            generationConfig: { temperature: 0.7, maxOutputTokens: 1024, responseMimeType: 'application/json' }
+        });
+        const req = https.request({
+            hostname: 'generativelanguage.googleapis.com',
+            path: '/v1beta/models/gemini-1.5-flash:generateContent?key=' + GEMINI_KEY,
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
+        }, res => {
+            let data = '';
+            res.on('data', c => data += c);
+            res.on('end', () => { try { resolve(JSON.parse(data)); } catch { resolve(null); } });
+        });
+        req.on('error', reject);
+        req.write(body);
+        req.end();
+    });
+}
+
+// ------------------------------------------------------------------
 // Dominios genericos (nao podem ser conta corporativa por dominio)
 // ------------------------------------------------------------------
 const DOMINIOS_GENERICOS = new Set([
@@ -774,6 +896,26 @@ const server = http.createServer(async (req, res) => {
                                                return { empresa: { id: emp.id, nome: emp.nome, codigo_interno: emp.codigo_interno || '' }, total, ok: okIds.size, nao_aplicavel: naIds.size, concluidas, pct, pendentes: total - concluidas, pendentes_lista };
                                          });
                                          return sendJson(res, 200, resultado.sort((a, b) => a.empresa.nome.localeCompare(b.empresa.nome)));
+                                   }
+
+                                   // ================================================================
+                                   // CLARA IA
+                                   // ================================================================
+                                   if (pathname === '/api/clara' && method === 'POST') {
+                                         if (!GEMINI_KEY) return sendJson(res, 503, { resposta: 'A chave da API Gemini não está configurada. Peça ao administrador para adicionar GEMINI_API_KEY nas variáveis de ambiente do Render.' });
+                                         const body = await readBody(req);
+                                         const messages = (body.messages || []).slice(-20).map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
+                                         if (!messages.length) return sendJson(res, 400, { resposta: 'Nenhuma mensagem enviada.' });
+                                         try {
+                                               const r = await geminiFetch(messages);
+                                               const text = r?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                                               let parsed;
+                                               try {
+                                                     const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+                                                     parsed = JSON.parse(cleaned);
+                                               } catch { parsed = { resposta: text || 'Não consegui processar sua mensagem. Tente novamente.' }; }
+                                               return sendJson(res, 200, parsed);
+                                         } catch (e) { return sendJson(res, 500, { resposta: 'Erro ao contatar a IA. Tente novamente.' }); }
                                    }
 
                                    // ================================================================
