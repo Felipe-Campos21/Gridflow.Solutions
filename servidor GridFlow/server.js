@@ -178,6 +178,7 @@ CHECKLIST (dashboard):
 - Atividades são organizadas por grupos: Conciliação, Fiscal x Contabilidade, etc.
 - Clique em qualquer atividade para abrir o modal e registrar o status (Feito, Pendente, Aguardando, Em Andamento, Não se Aplica).
 - Pode adicionar uma observação/nota ao registrar.
+- No painel de Anotações (lado esquerdo): pode preencher um Assunto (opcional) para nomear/classificar a anotação da empresa naquele período. O assunto aparece no relatório e pode ser filtrado.
 - "Configurar grupos integrados": define quais grupos, ao registrar na matriz, são automaticamente replicados nas filiais.
 - "Resetar": apaga todos os registros da empresa no período atual.
 - Empresas com filiais: ao selecionar a matriz, as atividades de todos os grupos integrados são replicadas automaticamente.
@@ -211,9 +212,13 @@ COLABORADORES (colaboradores):
 
 RELATÓRIO (relatorio):
 - Mostra todas as anotações registradas nos checklists.
-- Exibe empresa, período, data e texto da anotação.
+- Exibe empresa, código, período, assunto (se preenchido), usuário, data e texto da anotação.
 - Pode editar (✏️) ou excluir (🗑️) cada anotação.
-- Campo de busca filtra por empresa ou texto.
+- Campo de busca filtra por empresa, código da empresa, texto ou usuário.
+- Filtro de período mostra apenas períodos que têm anotações (não todos os períodos).
+- Filtro de usuário para ver anotações de um colaborador específico.
+- Filtro de assunto para filtrar por tema.
+- Contador: mostra quantas anotações por empresa no topo dos resultados.
 
 STATUS GERAL (status):
 - Visão geral de andamento de todas as empresas.
@@ -646,7 +651,10 @@ const server = http.createServer(async (req, res) => {
                                    if (pathname === '/api/empresas' && method === 'POST') {
                                          const body = await readBody(req);
                                          if (contaId) body.conta_id = contaId;
+                                         body.ativo = 1;
+                                         if (body.com_movimento !== undefined) body.com_movimento = body.com_movimento ? 1 : 0;
                                          const r = await sbFetch('empresas', { method: 'POST', body, prefer: 'return=representation' });
+                                         if (r.status >= 400) return sendJson(res, 400, { erro: (r.body && (r.body.message || r.body.details)) || 'Erro ao salvar empresa' });
                                          return sendJson(res, 201, r.body && r.body[0] ? r.body[0] : {});
                                    }
 
@@ -735,10 +743,15 @@ const server = http.createServer(async (req, res) => {
                                    // HISTÓRICO
                                    // ================================================================
                                    if (pathname === '/api/historico' && method === 'GET') {
-                                         const { empresa_id } = parsed.query;
-                                         const q = empresa_id
-                                           ? 'historico?empresa_id=eq.' + empresa_id + '&order=data.desc&limit=100'
-                                                 : (contaId ? 'historico?conta_id=eq.' + contaId + '&order=data.desc&limit=100' : 'historico?order=data.desc&limit=100');
+                                         const { empresa_id, periodo } = parsed.query;
+                                         let q;
+                                         if (empresa_id) {
+                                               q = 'historico?empresa_id=eq.' + empresa_id;
+                                               if (periodo) q += '&periodo=eq.' + encodeURIComponent(periodo);
+                                               q += '&order=data.desc&limit=100';
+                                         } else {
+                                               q = contaId ? 'historico?conta_id=eq.' + contaId + '&order=data.desc&limit=100' : 'historico?order=data.desc&limit=100';
+                                         }
                                          const r = await sbFetch(q);
                                          return sendJson(res, 200, r.body || []);
                                    }
@@ -855,8 +868,8 @@ const server = http.createServer(async (req, res) => {
                                                      return sendJson(res, 200, r.body || []);
                                                }
                                                const cidQ = contaId ? '&conta_id=eq.' + contaId : '';
-                                               const r = await sbFetch('notas?select=*,empresas(nome)&texto=neq.' + encodeURIComponent('') + cidQ + '&order=atualizado_em.desc');
-                                               const notas = (r.body || []).map(n => { const { empresas, ...rest } = n; return { ...rest, empresa_nome: empresas?.nome || null }; });
+                                               const r = await sbFetch('notas?select=*,empresas(nome,codigo_interno)&or=(texto.neq.,anexos.neq.%5B%5D)' + cidQ + '&order=atualizado_em.desc');
+                                               const notas = (r.body || []).map(n => { const { empresas, ...rest } = n; return { ...rest, empresa_nome: empresas?.nome || null, empresa_codigo: empresas?.codigo_interno || null }; });
                                                return sendJson(res, 200, notas);
                                          }
                                          if (method === 'POST') {
@@ -866,9 +879,11 @@ const server = http.createServer(async (req, res) => {
                                                if (chk.body && chk.body[0]) {
                                                      const patch = { texto: body.texto || '', usuario: body.usuario || '', atualizado_em: agora() };
                                                      if (body.anexos !== undefined) patch.anexos = body.anexos;
+                                                     if (body.assunto !== undefined) patch.assunto = body.assunto;
                                                      await sbFetch('notas?id=eq.' + chk.body[0].id, { method: 'PATCH', body: patch });
                                                } else {
                                                      const nb = { empresa_id: eId, periodo: per, texto: body.texto || '', usuario: body.usuario || '', anexos: body.anexos || [], criado_em: agora() };
+                                                     if (body.assunto !== undefined) nb.assunto = body.assunto;
                                                      if (contaId) nb.conta_id = contaId;
                                                      await sbFetch('notas', { method: 'POST', body: nb, prefer: 'return=minimal' });
                                                }

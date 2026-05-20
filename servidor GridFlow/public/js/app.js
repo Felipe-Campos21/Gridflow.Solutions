@@ -393,6 +393,8 @@ class GridFlowApp {
           </div>
           <div class="card" id="db-notas-card" style="display:none">
             <h3 style="margin:0 0 10px">Anotações — <span style="color:var(--brand);font-weight:700">${this.periodo}</span></h3>
+            <input id="db-nota-assunto" type="text" placeholder="Assunto (opcional, ex: Pendência SPED, Revisão DRE...)"
+              style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;margin-bottom:8px;box-sizing:border-box">
             <textarea id="db-nota-texto" rows="4" placeholder="Registre aqui pendências, observações ou lembretes..."></textarea>
             <div id="db-nota-anexos-preview" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;min-height:0"></div>
             <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
@@ -1079,6 +1081,8 @@ class GridFlowApp {
     try {
       const notas = await this.api(`/api/notas?empresa_id=${this.empresaSelecionada.id}&periodo=${encodeURIComponent(this.periodo)}`);
       const nota = notas && notas.length ? notas[0] : null;
+      const assuntoEl = document.getElementById('db-nota-assunto');
+      if (assuntoEl) assuntoEl.value = nota?.assunto || '';
       document.getElementById('db-nota-texto').value = nota?.texto || '';
       this._notaAnexosSaved = nota?.anexos || [];
       this._notaAnexosPending = [];
@@ -1095,7 +1099,9 @@ class GridFlowApp {
       const anexos = [...(this._notaAnexosSaved || []), ...novosAnexos];
       await this.api('/api/notas', { method: 'POST', body: JSON.stringify({
         empresa_id: this.empresaSelecionada.id, periodo: this.periodo,
-        usuario: this.usuario, texto: document.getElementById('db-nota-texto').value, anexos
+        usuario: this.usuario,
+        assunto: document.getElementById('db-nota-assunto')?.value.trim() || '',
+        texto: document.getElementById('db-nota-texto').value, anexos
       })});
       this._notaAnexosSaved = anexos;
       this._notaAnexosPending = [];
@@ -2940,13 +2946,19 @@ class GridFlowApp {
             <button id="btn-rel-refresh" style="padding:6px 14px;background:#ebf8ff;border:1px solid #bee3f8;border-radius:8px;color:#2b6cb0;font-weight:600;cursor:pointer;font-size:0.82rem">🔄 Atualizar</button>
           </div>
           <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
-            <input id="rel-search" type="text" placeholder="🔍 Buscar empresa ou anotação..."
+            <input id="rel-search" type="text" placeholder="🔍 Buscar por empresa, código, texto..."
               style="flex:1;min-width:180px;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem" autocomplete="off">
             <select id="rel-periodo" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;color:#4a5568;background:#fff">
               <option value="">Todos os períodos</option>
-              ${(this._periodos || []).map(p => `<option value="${p}">${p}</option>`).join('')}
+            </select>
+            <select id="rel-usuario" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;color:#4a5568;background:#fff">
+              <option value="">Todos os usuários</option>
+            </select>
+            <select id="rel-assunto" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;color:#4a5568;background:#fff">
+              <option value="">Todos os assuntos</option>
             </select>
           </div>
+          <div id="rel-summary" style="margin-top:10px;font-size:0.8rem;color:#718096"></div>
         </div>
         <div id="rel-lista" style="display:flex;flex-direction:column;gap:10px">
           <div class="loading"></div>
@@ -2964,19 +2976,26 @@ class GridFlowApp {
     });
 
     document.getElementById('rel-periodo')?.addEventListener('change', () => this._filtrarRelatorio());
+    document.getElementById('rel-usuario')?.addEventListener('change', () => this._filtrarRelatorio());
+    document.getElementById('rel-assunto')?.addEventListener('change', () => this._filtrarRelatorio());
   }
 
   _filtrarRelatorio() {
     if (!this._relatorioNotas) return;
     const q = (document.getElementById('rel-search')?.value || '').toLowerCase();
     const per = document.getElementById('rel-periodo')?.value || '';
+    const usuario = document.getElementById('rel-usuario')?.value || '';
+    const assunto = document.getElementById('rel-assunto')?.value || '';
     let lista = this._relatorioNotas;
     if (q) lista = lista.filter(n =>
       (n.empresa_nome || '').toLowerCase().includes(q) ||
+      (n.empresa_codigo || '').toLowerCase().includes(q) ||
       (n.texto || '').toLowerCase().includes(q) ||
       (n.usuario || '').toLowerCase().includes(q)
     );
     if (per) lista = lista.filter(n => n.periodo === per);
+    if (usuario) lista = lista.filter(n => n.usuario === usuario);
+    if (assunto) lista = lista.filter(n => n.assunto === assunto);
     this._renderRelatorioLista(lista);
   }
 
@@ -2986,6 +3005,32 @@ class GridFlowApp {
     el.innerHTML = '<div class="loading"></div>';
     try {
       this._relatorioNotas = await this.api('/api/notas');
+
+      const periodoSel = document.getElementById('rel-periodo');
+      if (periodoSel) {
+        const periodos = [...new Set(this._relatorioNotas.map(n => n.periodo).filter(Boolean))].sort((a, b) => {
+          const [ma, aa] = a.split('/').map(Number);
+          const [mb, ab] = b.split('/').map(Number);
+          return (ab - aa) || (mb - ma);
+        });
+        periodoSel.innerHTML = '<option value="">Todos os períodos</option>' +
+          periodos.map(p => `<option value="${p}">${p}</option>`).join('');
+      }
+
+      const usuarioSel = document.getElementById('rel-usuario');
+      if (usuarioSel) {
+        const usuarios = [...new Set(this._relatorioNotas.map(n => n.usuario).filter(Boolean))].sort();
+        usuarioSel.innerHTML = '<option value="">Todos os usuários</option>' +
+          usuarios.map(u => `<option value="${u}">${u}</option>`).join('');
+      }
+
+      const assuntoSel = document.getElementById('rel-assunto');
+      if (assuntoSel) {
+        const assuntos = [...new Set(this._relatorioNotas.map(n => n.assunto).filter(Boolean))].sort();
+        assuntoSel.innerHTML = '<option value="">Todos os assuntos</option>' +
+          assuntos.map(a => `<option value="${a}">${a}</option>`).join('');
+      }
+
       this._filtrarRelatorio();
     } catch (e) {
       el.innerHTML = `<div style="color:#c53030;padding:20px;text-align:center">Erro ao carregar anotações: ${e.message}</div>`;
@@ -2995,6 +3040,24 @@ class GridFlowApp {
   _renderRelatorioLista(lista) {
     const el = document.getElementById('rel-lista');
     if (!el) return;
+
+    const summaryEl = document.getElementById('rel-summary');
+    if (summaryEl) {
+      if (lista.length) {
+        const totalEmpresas = new Set(lista.map(n => n.empresa_id)).size;
+        const contPorEmpresa = {};
+        lista.forEach(n => { contPorEmpresa[n.empresa_nome || '—'] = (contPorEmpresa[n.empresa_nome || '—'] || 0) + 1; });
+        const topEmpresas = Object.entries(contPorEmpresa).sort((a, b) => b[1] - a[1]).slice(0, 5);
+        summaryEl.innerHTML = `
+          <span style="font-weight:600;color:#4a5568">${lista.length} anotação${lista.length !== 1 ? 'ões' : ''}</span>
+          em <span style="font-weight:600;color:#4a5568">${totalEmpresas} empresa${totalEmpresas !== 1 ? 's' : ''}</span>
+          &nbsp;·&nbsp;
+          ${topEmpresas.map(([nome, cnt]) => `<span style="background:#edf2f7;border-radius:10px;padding:1px 8px;font-size:0.75rem;margin-right:4px">${nome}: <strong>${cnt}</strong></span>`).join('')}`;
+      } else {
+        summaryEl.innerHTML = '';
+      }
+    }
+
     if (!lista.length) {
       el.innerHTML = '<div style="text-align:center;color:#a0aec0;padding:40px;font-size:0.9rem">Nenhuma anotação encontrada</div>';
       return;
@@ -3007,7 +3070,10 @@ class GridFlowApp {
           <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
             <div style="flex:1;min-width:0">
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
-                <span style="font-size:0.8rem;font-weight:700;color:#2b6cb0;background:#ebf8ff;padding:2px 10px;border-radius:12px">${n.empresa_nome || '—'}</span>
+                <span style="font-size:0.8rem;font-weight:700;color:#2b6cb0;background:#ebf8ff;padding:2px 10px;border-radius:12px">
+                  ${n.empresa_nome || '—'}${n.empresa_codigo ? ` <span style="font-weight:400;color:#63b3ed">#${n.empresa_codigo}</span>` : ''}
+                </span>
+                ${n.assunto ? `<span style="font-size:0.75rem;font-weight:700;color:#744210;background:#fefcbf;border:1px solid #f6e05e;padding:2px 8px;border-radius:12px">📌 ${n.assunto}</span>` : ''}
                 ${n.periodo ? `<span style="font-size:0.75rem;color:#718096;background:#f7fafc;border:1px solid #e2e8f0;padding:2px 8px;border-radius:12px">📅 ${n.periodo}</span>` : ''}
                 ${n.usuario ? `<span style="font-size:0.75rem;color:#718096">por <strong>${n.usuario}</strong></span>` : ''}
                 <span style="font-size:0.72rem;color:#a0aec0;margin-left:auto">${dataFmt}</span>
