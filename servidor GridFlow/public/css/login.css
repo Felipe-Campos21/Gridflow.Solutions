@@ -43,9 +43,6 @@ body {
   margin-bottom: 32px;
 }
 .login-logo-icon {
-  background: #f0f4ff;
-  border-radius: 16px;
-  padding: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
