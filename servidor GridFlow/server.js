@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const url = require('url');
 const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 
 const PORT = process.env.PORT || 5000;
 const PUBLIC = path.join(__dirname, 'public');
@@ -48,6 +49,82 @@ function sbFetch(endpoint, options = {}) {
 }
 
 // ------------------------------------------------------------------
+// Email: Nodemailer (Outlook SMTP)
+// ------------------------------------------------------------------
+const emailTransporter = nodemailer.createTransport({
+    host: 'smtp-mail.outlook.com',
+    port: 587,
+    secure: false,
+    auth: {
+        user: process.env.OUTLOOK_EMAIL,
+        pass: process.env.OUTLOOK_SENHA
+    }
+});
+
+function processarTemplate(bodyHtml, variaveis) {
+    let resultado = bodyHtml;
+    for (const [chave, valor] of Object.entries(variaveis || {})) {
+        const regex = new RegExp(`\\{${chave}\\}`, 'g');
+        resultado = resultado.replace(regex, valor || '');
+    }
+    return resultado;
+}
+
+async function enviarEmailSmtp(emailObj) {
+    try {
+        const info = await emailTransporter.sendMail({
+            from: process.env.OUTLOOK_EMAIL,
+            to: emailObj.email_destino,
+            subject: emailObj.assunto,
+            html: emailObj.corpo_processado
+        });
+        return { ok: true, messageId: info.messageId };
+    } catch (error) {
+        return { ok: false, erro: error.message };
+    }
+}
+
+// Cron: processa emails pendentes a cada CRON_INTERVAL ms (padrão: 5 min)
+setInterval(async () => {
+    if (!process.env.OUTLOOK_EMAIL) return;
+    try {
+        const now = new Date().toISOString();
+        const pendentes = await sbFetch(
+            'emails_agendados?status=eq.pendente&data_agendada=lte.' + encodeURIComponent(now) + '&order=data_agendada.asc&limit=10'
+        );
+        if (!pendentes.body || pendentes.body.length === 0) return;
+        console.log(`[Email Cron] Processando ${pendentes.body.length} email(s) pendente(s)...`);
+
+        for (const emailAgendado of pendentes.body) {
+            const { id, tentativas, max_tentativas } = emailAgendado;
+            if (tentativas >= (max_tentativas || 3)) {
+                await sbFetch(`emails_agendados?id=eq.${id}`, {
+                    method: 'PATCH',
+                    body: { status: 'falha', atualizado_em: new Date().toISOString() }
+                });
+                continue;
+            }
+            const resultado = await enviarEmailSmtp(emailAgendado);
+            if (resultado.ok) {
+                await sbFetch(`emails_agendados?id=eq.${id}`, {
+                    method: 'PATCH',
+                    body: { status: 'enviado', data_envio_real: new Date().toISOString(), tentativas: tentativas + 1, atualizado_em: new Date().toISOString() }
+                });
+                console.log(`[Email Cron] Email ${id} enviado para ${emailAgendado.email_destino}`);
+            } else {
+                await sbFetch(`emails_agendados?id=eq.${id}`, {
+                    method: 'PATCH',
+                    body: { tentativas: tentativas + 1, mensagem_erro: resultado.erro, atualizado_em: new Date().toISOString() }
+                });
+                console.error(`[Email Cron] Falha no email ${id}: ${resultado.erro}`);
+            }
+        }
+    } catch (error) {
+        console.error('[Email Cron] Erro:', error.message);
+    }
+}, parseInt(process.env.CRON_INTERVAL) || 300000);
+
+// ------------------------------------------------------------------
 // Helper: hash de senha (SHA-256)
 // ------------------------------------------------------------------
 function hashSenha(senha) {
@@ -78,6 +155,7 @@ ABAS DISPONÍVEIS (use no campo "tab"):
 - colaboradores → Gerenciamento da equipe
 - relatorio → Relatório de anotações
 - status → Status Geral
+- mensagens → Mensagens & Emails (templates, agendamento e histórico de envios)
 
 SELETORES PARA HIGHLIGHT (use no campo "highlight"):
 - Botão de período: #btn-periodo
@@ -87,6 +165,7 @@ SELETORES PARA HIGHLIGHT (use no campo "highlight"):
 - Aba Empresas: .nav-item[data-tab="empresas"]
 - Aba Colaboradores: .nav-item[data-tab="colaboradores"]
 - Aba Relatório: .nav-item[data-tab="relatorio"]
+- Aba Mensagens: .nav-item[data-tab="mensagens"]
 - Aba Status: .nav-item[data-tab="status"]
 - Avatar/troca de usuário: #user-switch
 - Busca de empresas: #emp-search
@@ -899,6 +978,81 @@ const server = http.createServer(async (req, res) => {
                                    }
 
                                    // ================================================================
+                                   // EMAILS: Templates
+                                   // ================================================================
+                                   if (pathname === '/api/templates-email' && method === 'GET') {
+                                         if (!contaId) return sendJson(res, 401, { erro: 'Não autenticado' });
+                                         const r = await sbFetch(`templates_email?conta_id=eq.${contaId}&order=nome_template.asc`);
+                                         return sendJson(res, 200, r.body || []);
+                                   }
+
+                                   if (pathname === '/api/templates-email' && method === 'POST') {
+                                         if (!contaId) return sendJson(res, 401, { erro: 'Não autenticado' });
+                                         const body = await readBody(req);
+                                         const { nome_template, assunto, corpo_html, variaveis_disponiveis } = body;
+                                         if (!nome_template || !assunto || !corpo_html)
+                                               return sendJson(res, 400, { erro: 'Campos obrigatórios: nome_template, assunto, corpo_html' });
+                                         const r = await sbFetch('templates_email', {
+                                               method: 'POST',
+                                               body: { conta_id: contaId, nome_template, assunto, corpo_html, variaveis_disponiveis: variaveis_disponiveis || [] }
+                                         });
+                                         return sendJson(res, 201, r.body?.[0] || {});
+                                   }
+
+                                   if (pathname.startsWith('/api/templates-email/') && method === 'PATCH') {
+                                         if (!contaId) return sendJson(res, 401, { erro: 'Não autenticado' });
+                                         const tid = pathname.split('/').pop();
+                                         const body = await readBody(req);
+                                         const r = await sbFetch(`templates_email?id=eq.${tid}&conta_id=eq.${contaId}`, {
+                                               method: 'PATCH',
+                                               body: { ...body, atualizado_em: new Date().toISOString() }
+                                         });
+                                         return sendJson(res, 200, { ok: true });
+                                   }
+
+                                   if (pathname.startsWith('/api/templates-email/') && method === 'DELETE') {
+                                         if (!contaId) return sendJson(res, 401, { erro: 'Não autenticado' });
+                                         const tid = pathname.split('/').pop();
+                                         await sbFetch(`templates_email?id=eq.${tid}&conta_id=eq.${contaId}`, { method: 'DELETE' });
+                                         return sendJson(res, 200, { ok: true });
+                                   }
+
+                                   // ================================================================
+                                   // EMAILS: Agendar e Histórico
+                                   // ================================================================
+                                   if (pathname === '/api/agendar-email' && method === 'POST') {
+                                         if (!contaId) return sendJson(res, 401, { erro: 'Não autenticado' });
+                                         const body = await readBody(req);
+                                         const { empresa_id, template_id, email_destino, variaveis, data_agendada } = body;
+                                         if (!empresa_id || !template_id || !email_destino || !data_agendada)
+                                               return sendJson(res, 400, { erro: 'Campos obrigatórios: empresa_id, template_id, email_destino, data_agendada' });
+                                         const templateR = await sbFetch(`templates_email?id=eq.${template_id}&conta_id=eq.${contaId}`);
+                                         if (!templateR.body || !templateR.body[0])
+                                               return sendJson(res, 404, { erro: 'Template não encontrado' });
+                                         const template = templateR.body[0];
+                                         const assuntoProcessado = processarTemplate(template.assunto, variaveis || {});
+                                         const corpoProcessado = processarTemplate(template.corpo_html, variaveis || {});
+                                         const r = await sbFetch('emails_agendados', {
+                                               method: 'POST',
+                                               body: { conta_id: contaId, empresa_id, template_id, email_destino, assunto: assuntoProcessado, corpo_processado: corpoProcessado, variaveis_utilizadas: variaveis || {}, data_agendada, status: 'pendente' }
+                                         });
+                                         return sendJson(res, 201, r.body?.[0] || {});
+                                   }
+
+                                   if (pathname === '/api/historico-emails' && method === 'GET') {
+                                         if (!contaId) return sendJson(res, 401, { erro: 'Não autenticado' });
+                                         const r = await sbFetch(`emails_agendados?conta_id=eq.${contaId}&order=criado_em.desc&limit=50&select=*,empresas(nome),templates_email(nome_template)`);
+                                         return sendJson(res, 200, r.body || []);
+                                   }
+
+                                   if (pathname.startsWith('/api/emails-agendados/') && method === 'DELETE') {
+                                         if (!contaId) return sendJson(res, 401, { erro: 'Não autenticado' });
+                                         const eid = pathname.split('/').pop();
+                                         await sbFetch(`emails_agendados?id=eq.${eid}&conta_id=eq.${contaId}`, { method: 'DELETE' });
+                                         return sendJson(res, 200, { ok: true });
+                                   }
+
+                                   // ================================================================
                                    // CLARA IA
                                    // ================================================================
                                    if (pathname === '/api/clara' && method === 'POST') {
@@ -921,7 +1075,7 @@ const server = http.createServer(async (req, res) => {
                                    // ================================================================
                                    // Arquivo estático / 404
                                    // ================================================================
-                                   const arquivo = path.join(PUBLIC, pathname === '/' ? 'index.html' : pathname);
+                                   const arquivo = path.join(PUBLIC, pathname === '/' ? 'login.html' : pathname);
     if (fs.existsSync(arquivo)) return serveFile(res, arquivo);
     return sendJson(res, 404, { erro: 'Endpoint não encontrado' });
 });
