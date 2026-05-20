@@ -56,16 +56,36 @@ body {
   padding: 20px 16px 22px;
   border-bottom: 1px solid var(--sidebar-border);
 }
+.sidebar-logo-img {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.app-sidebar.collapsed .sidebar-logo-img { width: 38px; height: 38px; }
+
 .logo-text {
   color: white;
-  font-size: 1.35rem;
+  font-size: 1.3rem;
   font-weight: 400;
   letter-spacing: -0.3px;
   white-space: nowrap;
   overflow: hidden;
+  line-height: 1.1;
 }
 .logo-text strong { font-weight: 800; }
+.logo-solutions {
+  font-size: 0.58rem;
+  font-weight: 700;
+  color: rgba(255,255,255,0.4);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  margin-top: 1px;
+  white-space: nowrap;
+}
 .app-sidebar.collapsed .logo-text { display: none; }
+.app-sidebar.collapsed .logo-solutions { display: none; }
 
 /* Nav */
 .sidebar-nav {
