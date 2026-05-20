@@ -58,9 +58,9 @@ body {
 }
 .logo-text {
   color: white;
-  font-size: 1.05rem;
+  font-size: 1.35rem;
   font-weight: 400;
-  letter-spacing: -0.2px;
+  letter-spacing: -0.3px;
   white-space: nowrap;
   overflow: hidden;
 }
