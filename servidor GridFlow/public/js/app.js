@@ -304,7 +304,8 @@ class GridFlowApp {
     document.querySelectorAll('.nav-item').forEach(i => i.classList.toggle('active', i.dataset.tab === tab));
     const titles = { dashboard:'Checklist', atividades:'Gerenciador de Atividades',
       configurar:'Configurar Empresa', empresas:'Gerenciador de Empresas',
-      colaboradores:'Colaboradores', status:'Status Geral', relatorio:'Relatório de Anotações' };
+      colaboradores:'Colaboradores', status:'Status Geral', relatorio:'Relatório de Anotações',
+      mensagens:'Mensagens & Emails' };
     document.getElementById('topbar-title').textContent = titles[tab] || tab;
     this.renderizarConteudo();
   }
@@ -343,6 +344,12 @@ class GridFlowApp {
         this._configurarEventosRelatorio();
         await this._carregarRelatorio();
         break;
+      case 'mensagens':
+        content.innerHTML = this._renderMensagensShell();
+        this._configurarEventosMensagens();
+        await this._carregarTemplates();
+        await this._carregarHistoricoEmails();
+        break;
     }
   }
 
@@ -354,32 +361,38 @@ class GridFlowApp {
       <div class="dashboard-grid">
         <div class="col-left">
           <div class="card">
-            <h3 style="margin:0 0 10px">🔍 Buscar Empresa</h3>
+            <h3 style="margin:0 0 10px">Buscar Empresa</h3>
             <div class="search-box" style="position:relative">
-              <span class="search-icon">🔍</span>
+              <span class="search-icon" style="display:flex;align-items:center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
               <input type="text" id="db-search-input" placeholder="Nome, CNPJ ou código..." autocomplete="off">
               <div class="search-results" id="db-search-results"></div>
             </div>
           </div>
           ${this.minhasEmpresas.length ? `
           <div class="card">
-            <h3>⭐ Minhas Empresas</h3>
+            <h3>Minhas Empresas</h3>
             <div id="db-minhas-empresas">
               ${this.minhasEmpresas.map(e => `
                 <div class="minha-empresa-item" data-id="${e.id}">
-                  <div class="minha-empresa-nome">${e.nome}</div>
-                  <div class="minha-empresa-cod">${e.codigo_interno || e.cnpj || ''}</div>
+                  <div class="minha-empresa-item-icon">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                  </div>
+                  <div class="minha-empresa-info">
+                    <div class="minha-empresa-nome">${e.nome}</div>
+                    ${e.codigo_interno || e.cnpj ? `<div class="minha-empresa-cod">${e.codigo_interno || e.cnpj}</div>` : ''}
+                  </div>
+                  ${e.codigo_interno ? `<span class="minha-empresa-badge">${e.codigo_interno}</span>` : ''}
                 </div>`).join('')}
             </div>
           </div>` : ''}
           <div class="card" id="db-empresa-card">
-            <h3>🏢 Empresa Selecionada</h3>
+            <h3>Empresa Selecionada</h3>
             <div id="db-empresa-info">
               <div class="empresa-info-empty">${this.minhasEmpresas.length ? 'Clique em uma das suas empresas' : 'Busque e selecione uma empresa'}</div>
             </div>
           </div>
           <div class="card" id="db-notas-card" style="display:none">
-            <h3 style="margin:0 0 10px;font-size:0.92rem">📝 Anotações — <span style="color:#3498db">${this.periodo}</span></h3>
+            <h3 style="margin:0 0 10px">Anotações — <span style="color:var(--brand);font-weight:700">${this.periodo}</span></h3>
             <textarea id="db-nota-texto" rows="4" placeholder="Registre aqui pendências, observações ou lembretes..."></textarea>
             <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
               <button class="btn btn-primary btn-sm" id="db-nota-salvar">💾 Salvar</button>
@@ -582,19 +595,19 @@ class GridFlowApp {
   _renderColRightNormal() {
     return `
       <div class="card">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-          <h3 style="margin:0">✅ Atividades</h3>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <h3 style="margin:0">Atividades</h3>
           <div style="display:flex;align-items:center;gap:8px">
-            <span style="font-size:0.78rem;font-weight:600;color:#3498db;background:#ebf8ff;padding:3px 10px;border-radius:20px">📅 ${this.periodo}</span>
-            <button id="btn-resetar-checklist" style="font-size:0.75rem;padding:3px 10px;background:#fff5f5;border:1px solid #fed7d7;border-radius:20px;color:#c53030;cursor:pointer;font-weight:600">🔄 Resetar</button>
+            <span style="font-size:0.76rem;font-weight:600;color:var(--brand);background:var(--brand-light);padding:3px 10px;border-radius:20px;border:1px solid #bfdbfe">${this.periodo}</span>
+            <button id="btn-resetar-checklist" style="font-size:0.75rem;padding:3px 10px;background:#fef2f2;border:1px solid #fecaca;border-radius:20px;color:#b91c1c;cursor:pointer;font-weight:600;font-family:inherit">Resetar</button>
           </div>
         </div>
         <div id="db-atividades-container"><div class="loading"></div></div>
       </div>
       <div class="card">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-          <h3 style="margin:0">📋 Histórico — <span style="color:#3498db">${this.periodo}</span></h3>
-          <span class="sync-info">Auto-atualiza a cada 5s</span>
+          <h3 style="margin:0">Histórico — <span style="color:var(--brand);font-weight:700">${this.periodo}</span></h3>
+          <span class="sync-info">Atualiza a cada 5s</span>
         </div>
         <div id="db-historico-lista"><div class="historico-vazio">Nenhum registro neste período</div></div>
       </div>`;
@@ -629,21 +642,33 @@ class GridFlowApp {
 
       container.innerHTML = Object.entries(grupos).map(([grupo, atvsGrupo]) => {
         const integrado = this._gruposIntegrados?.includes(grupo);
+        const concluidas = atvsGrupo.filter(a => okIds.has(a.atividade_id) || naIds.has(a.atividade_id)).length;
         return `
-          <div style="margin-bottom:16px">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-              <div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:#718096;letter-spacing:0.05em">${grupo}</div>
-              ${integrado ? '<span style="background:#f0fff4;color:#276749;padding:1px 8px;border-radius:10px;font-size:0.7rem;font-weight:600;border:1px solid #9ae6b4">🔗 Integrado</span>' : ''}
+          <div class="grupo-section">
+            <div class="grupo-header">
+              <span class="grupo-label">${grupo}</span>
+              <span class="grupo-count ${concluidas === atvsGrupo.length ? 'completo' : ''}">${concluidas}/${atvsGrupo.length}</span>
+              ${integrado ? '<span class="badge-integrado">Integrado</span>' : ''}
             </div>
             <div class="atividades-grid">
-              ${atvsGrupo.map(a => `
-                <button class="atividade-btn ${okIds.has(a.atividade_id) ? 'concluida' : naIds.has(a.atividade_id) ? 'na' : ''}"
-                  data-id="${a.atividade_id}"
-                  data-nome="${a.nome.replace(/"/g,'&quot;')}"
-                  data-grupo="${a.grupo || 'Geral'}"
-                  data-status="${okIds.has(a.atividade_id) ? 'OK' : naIds.has(a.atividade_id) ? 'NA' : ''}">
-                  <span class="btn-codigo">${a.codigo || ''}</span>${a.nome}
-                </button>`).join('')}
+              ${atvsGrupo.map(a => {
+                const isOK = okIds.has(a.atividade_id);
+                const isNA = naIds.has(a.atividade_id);
+                const dot = isOK
+                  ? `<svg class="atv-dot" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#22c55e"/><polyline points="5,10 8.5,13.5 15,7" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+                  : isNA
+                  ? `<svg class="atv-dot" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#ef4444"/><line x1="6.5" y1="6.5" x2="13.5" y2="13.5" stroke="white" stroke-width="2.5" stroke-linecap="round"/><line x1="13.5" y1="6.5" x2="6.5" y2="13.5" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>`
+                  : `<svg class="atv-dot" viewBox="0 0 20 20"><circle cx="10" cy="10" r="9" fill="none" stroke="#cbd5e0" stroke-width="2" stroke-dasharray="3.5 2"/></svg>`;
+                return `
+                  <button class="atividade-btn ${isOK ? 'concluida' : isNA ? 'na' : ''}"
+                    data-id="${a.atividade_id}"
+                    data-nome="${a.nome.replace(/"/g,'&quot;')}"
+                    data-grupo="${a.grupo || 'Geral'}"
+                    data-status="${isOK ? 'OK' : isNA ? 'NA' : ''}">
+                    ${dot}
+                    <span class="atv-nome">${a.nome}</span>
+                  </button>`;
+              }).join('')}
             </div>
           </div>`;
       }).join('');
@@ -2914,6 +2939,354 @@ class GridFlowApp {
         } catch (e) { alert('Erro ao excluir: ' + e.message); }
       });
     });
+  }
+
+  // ── Mensagens & Emails ───────────────────────────────────────────────────
+
+  _renderMensagensShell() {
+    return `
+      <div class="card" style="margin-bottom:0">
+        <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap">
+          <button class="msg-subtab-btn active" data-subtab="templates" style="padding:7px 16px;border-radius:8px;border:1.5px solid #3498db;background:#3498db;color:#fff;font-weight:600;cursor:pointer;font-size:0.85rem">📄 Templates</button>
+          <button class="msg-subtab-btn" data-subtab="agendar" style="padding:7px 16px;border-radius:8px;border:1.5px solid #e2e8f0;background:#fff;color:#4a5568;font-weight:600;cursor:pointer;font-size:0.85rem">📅 Agendar Email</button>
+          <button class="msg-subtab-btn" data-subtab="historico" style="padding:7px 16px;border-radius:8px;border:1.5px solid #e2e8f0;background:#fff;color:#4a5568;font-weight:600;cursor:pointer;font-size:0.85rem">📋 Histórico</button>
+        </div>
+
+        <!-- SubAba: Templates -->
+        <div id="msg-sub-templates">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+            <h3 style="margin:0;font-size:1rem;color:#2d3748">Meus Templates de Email</h3>
+            <button id="btn-novo-template" style="padding:7px 14px;background:#3498db;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:0.85rem">+ Novo Template</button>
+          </div>
+          <div id="msg-templates-list">
+            <div style="text-align:center;color:#a0aec0;padding:30px;font-size:0.9rem">Carregando...</div>
+          </div>
+        </div>
+
+        <!-- SubAba: Agendar -->
+        <div id="msg-sub-agendar" style="display:none">
+          <h3 style="margin:0 0 16px;font-size:1rem;color:#2d3748">Agendar Envio de Email</h3>
+          <form id="form-agendar-email" style="display:flex;flex-direction:column;gap:12px;max-width:520px">
+            <div>
+              <label style="display:block;font-size:0.82rem;font-weight:600;color:#4a5568;margin-bottom:4px">Template</label>
+              <select id="msg-select-template" required style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem">
+                <option value="">Selecione um template...</option>
+              </select>
+            </div>
+            <div>
+              <label style="display:block;font-size:0.82rem;font-weight:600;color:#4a5568;margin-bottom:4px">Empresa</label>
+              <select id="msg-select-empresa" required style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem">
+                <option value="">Selecione uma empresa...</option>
+              </select>
+            </div>
+            <div>
+              <label style="display:block;font-size:0.82rem;font-weight:600;color:#4a5568;margin-bottom:4px">Email Destino</label>
+              <input type="email" id="msg-email-destino" required placeholder="cliente@empresa.com.br" style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem;box-sizing:border-box">
+            </div>
+            <div>
+              <label style="display:block;font-size:0.82rem;font-weight:600;color:#4a5568;margin-bottom:4px">Data e Hora de Envio</label>
+              <input type="datetime-local" id="msg-data-agendada" required style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem;box-sizing:border-box">
+            </div>
+            <div id="msg-variaveis-container" style="display:none">
+              <label style="display:block;font-size:0.82rem;font-weight:600;color:#4a5568;margin-bottom:6px">Variáveis do Template</label>
+              <div id="msg-variaveis-fields" style="display:flex;flex-direction:column;gap:8px"></div>
+            </div>
+            <div id="msg-preview-box" style="display:none;border:1px solid #e2e8f0;border-radius:8px;padding:14px;background:#f8fafc;margin-top:4px">
+              <div style="font-size:0.8rem;font-weight:700;color:#718096;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px">Preview</div>
+              <div style="font-size:0.85rem;color:#4a5568;margin-bottom:6px"><strong>Assunto:</strong> <span id="msg-preview-assunto"></span></div>
+              <div id="msg-preview-corpo" style="font-size:0.85rem;color:#4a5568;border-top:1px solid #e2e8f0;padding-top:8px;margin-top:6px"></div>
+            </div>
+            <button type="submit" style="padding:10px 20px;background:#27ae60;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.92rem;align-self:flex-start">📅 Agendar Email</button>
+          </form>
+        </div>
+
+        <!-- SubAba: Histórico -->
+        <div id="msg-sub-historico" style="display:none">
+          <h3 style="margin:0 0 14px;font-size:1rem;color:#2d3748">Histórico de Emails</h3>
+          <div id="msg-historico-list">
+            <div style="text-align:center;color:#a0aec0;padding:30px;font-size:0.9rem">Carregando...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Template -->
+      <div id="msg-modal-template" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;display:flex;align-items:center;justify-content:center">
+        <div style="background:#fff;border-radius:14px;padding:28px;width:min(600px,96vw);max-height:90vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,0.2)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+            <h3 style="margin:0;font-size:1.05rem;color:#2d3748" id="msg-modal-titulo">Novo Template</h3>
+            <button id="msg-modal-fechar" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#718096">×</button>
+          </div>
+          <form id="form-template" style="display:flex;flex-direction:column;gap:12px">
+            <input type="hidden" id="template-edit-id">
+            <div>
+              <label style="display:block;font-size:0.82rem;font-weight:600;color:#4a5568;margin-bottom:4px">Nome do Template</label>
+              <input type="text" id="template-nome" required placeholder="Ex: Cobrança de Documentos" style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem;box-sizing:border-box">
+            </div>
+            <div>
+              <label style="display:block;font-size:0.82rem;font-weight:600;color:#4a5568;margin-bottom:4px">Assunto do Email</label>
+              <input type="text" id="template-assunto" required placeholder="Ex: Falta de documentos - {empresa_nome}" style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem;box-sizing:border-box">
+            </div>
+            <div>
+              <label style="display:block;font-size:0.82rem;font-weight:600;color:#4a5568;margin-bottom:4px">Corpo do Email (HTML ou texto)</label>
+              <textarea id="template-corpo" required rows="8" placeholder="Prezado cliente,&#10;&#10;Notificamos que faltam documentos para o mês de {mes_ano}.&#10;..." style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem;box-sizing:border-box;resize:vertical;font-family:inherit"></textarea>
+            </div>
+            <div>
+              <label style="display:block;font-size:0.82rem;font-weight:600;color:#4a5568;margin-bottom:4px">Variáveis disponíveis <span style="font-weight:400;color:#a0aec0">(separadas por vírgula)</span></label>
+              <input type="text" id="template-variaveis" placeholder="empresa_nome, mes_ano, protocolo" style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem;box-sizing:border-box">
+              <div style="font-size:0.75rem;color:#a0aec0;margin-top:4px">Use <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px">{variavel}</code> no assunto e corpo para substituição automática.</div>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:4px">
+              <button type="submit" style="padding:9px 20px;background:#3498db;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.9rem">Salvar Template</button>
+              <button type="button" id="msg-modal-cancelar" style="padding:9px 16px;background:#f7fafc;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;color:#4a5568;font-size:0.9rem">Cancelar</button>
+            </div>
+          </form>
+        </div>
+      </div>`;
+  }
+
+  _configurarEventosMensagens() {
+    // SubAbas
+    document.querySelectorAll('.msg-subtab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.msg-subtab-btn').forEach(b => {
+          b.style.background = '#fff'; b.style.color = '#4a5568'; b.style.borderColor = '#e2e8f0';
+        });
+        btn.style.background = '#3498db'; btn.style.color = '#fff'; btn.style.borderColor = '#3498db';
+        document.getElementById('msg-sub-templates').style.display = 'none';
+        document.getElementById('msg-sub-agendar').style.display = 'none';
+        document.getElementById('msg-sub-historico').style.display = 'none';
+        document.getElementById(`msg-sub-${btn.dataset.subtab}`).style.display = 'block';
+      });
+    });
+
+    // Modal template: abrir
+    document.getElementById('btn-novo-template').addEventListener('click', () => {
+      document.getElementById('template-edit-id').value = '';
+      document.getElementById('form-template').reset();
+      document.getElementById('msg-modal-titulo').textContent = 'Novo Template';
+      document.getElementById('msg-modal-template').style.display = 'flex';
+    });
+
+    // Modal template: fechar
+    ['msg-modal-fechar', 'msg-modal-cancelar'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('click', () => {
+        document.getElementById('msg-modal-template').style.display = 'none';
+      });
+    });
+
+    // Salvar template
+    document.getElementById('form-template').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const editId = document.getElementById('template-edit-id').value;
+      const vars = document.getElementById('template-variaveis').value
+        .split(',').map(v => v.trim()).filter(Boolean);
+      const payload = {
+        nome_template: document.getElementById('template-nome').value.trim(),
+        assunto: document.getElementById('template-assunto').value.trim(),
+        corpo_html: document.getElementById('template-corpo').value.trim(),
+        variaveis_disponiveis: vars
+      };
+      try {
+        if (editId) {
+          await this.api(`/api/templates-email/${editId}`, { method: 'PATCH', body: JSON.stringify(payload) });
+        } else {
+          await this.api('/api/templates-email', { method: 'POST', body: JSON.stringify(payload) });
+        }
+        document.getElementById('msg-modal-template').style.display = 'none';
+        await this._carregarTemplates();
+        this._atualizarSelectTemplates();
+      } catch (err) { alert('Erro ao salvar template: ' + err.message); }
+    });
+
+    // Carrega empresas no select de agendamento
+    this._carregarEmpresasSelect();
+
+    // Ao trocar template, atualiza variáveis e preview
+    document.getElementById('msg-select-template').addEventListener('change', () => this._atualizarCamposVariaveis());
+
+    // Preview dinâmico ao digitar variáveis
+    document.getElementById('msg-variaveis-fields').addEventListener('input', () => this._atualizarPreview());
+    document.getElementById('msg-email-destino').addEventListener('input', () => this._atualizarPreview());
+
+    // Agendar email
+    document.getElementById('form-agendar-email').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const templateId = document.getElementById('msg-select-template').value;
+      const empresaId = document.getElementById('msg-select-empresa').value;
+      const emailDestino = document.getElementById('msg-email-destino').value;
+      const dataAgendada = document.getElementById('msg-data-agendada').value;
+      const variaveis = this._coletarVariaveis();
+      if (!templateId || !empresaId || !emailDestino || !dataAgendada)
+        return alert('Preencha todos os campos obrigatórios.');
+      try {
+        await this.api('/api/agendar-email', {
+          method: 'POST',
+          body: JSON.stringify({ template_id: parseInt(templateId), empresa_id: parseInt(empresaId), email_destino: emailDestino, data_agendada: new Date(dataAgendada).toISOString(), variaveis })
+        });
+        alert('Email agendado com sucesso!');
+        document.getElementById('form-agendar-email').reset();
+        document.getElementById('msg-variaveis-container').style.display = 'none';
+        document.getElementById('msg-preview-box').style.display = 'none';
+        await this._carregarHistoricoEmails();
+      } catch (err) { alert('Erro ao agendar: ' + err.message); }
+    });
+  }
+
+  async _carregarTemplates() {
+    this._templates = [];
+    try {
+      this._templates = await this.api('/api/templates-email');
+    } catch {}
+    const el = document.getElementById('msg-templates-list');
+    if (!el) return;
+    if (!this._templates.length) {
+      el.innerHTML = '<div style="text-align:center;color:#a0aec0;padding:30px;font-size:0.9rem">Nenhum template cadastrado ainda. Clique em "Novo Template" para começar.</div>';
+      return;
+    }
+    el.innerHTML = this._templates.map(t => `
+      <div style="border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;margin-bottom:10px;background:#fff;display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;color:#2d3748;font-size:0.95rem;margin-bottom:3px">${t.nome_template}</div>
+          <div style="font-size:0.82rem;color:#718096;margin-bottom:4px"><strong>Assunto:</strong> ${t.assunto}</div>
+          ${t.variaveis_disponiveis && t.variaveis_disponiveis.length ? `<div style="font-size:0.75rem;color:#a0aec0">Variáveis: {${t.variaveis_disponiveis.join('}, {')}}</div>` : ''}
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button onclick="App._editarTemplate(${t.id})" style="padding:5px 10px;background:#f0f4ff;color:#3498db;border:1px solid #c3dafe;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600">✏️ Editar</button>
+          <button onclick="App._deletarTemplate(${t.id})" style="padding:5px 10px;background:#fff5f5;color:#e53e3e;border:1px solid #fed7d7;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600">🗑️</button>
+        </div>
+      </div>`).join('');
+    this._atualizarSelectTemplates();
+  }
+
+  _atualizarSelectTemplates() {
+    const sel = document.getElementById('msg-select-template');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Selecione um template...</option>' +
+      (this._templates || []).map(t => `<option value="${t.id}">${t.nome_template}</option>`).join('');
+  }
+
+  async _editarTemplate(id) {
+    const t = (this._templates || []).find(x => x.id === id);
+    if (!t) return;
+    document.getElementById('template-edit-id').value = id;
+    document.getElementById('template-nome').value = t.nome_template;
+    document.getElementById('template-assunto').value = t.assunto;
+    document.getElementById('template-corpo').value = t.corpo_html;
+    document.getElementById('template-variaveis').value = (t.variaveis_disponiveis || []).join(', ');
+    document.getElementById('msg-modal-titulo').textContent = 'Editar Template';
+    document.getElementById('msg-modal-template').style.display = 'flex';
+  }
+
+  async _deletarTemplate(id) {
+    if (!confirm('Excluir este template?')) return;
+    try {
+      await this.api(`/api/templates-email/${id}`, { method: 'DELETE' });
+      await this._carregarTemplates();
+    } catch (err) { alert('Erro ao excluir: ' + err.message); }
+  }
+
+  async _carregarEmpresasSelect() {
+    try {
+      const emps = await this.api('/api/empresas');
+      const sel = document.getElementById('msg-select-empresa');
+      if (!sel) return;
+      sel.innerHTML = '<option value="">Selecione uma empresa...</option>' +
+        emps.map(e => `<option value="${e.id}">${e.nome}</option>`).join('');
+    } catch {}
+  }
+
+  _atualizarCamposVariaveis() {
+    const templateId = document.getElementById('msg-select-template').value;
+    const template = (this._templates || []).find(t => t.id == templateId);
+    const container = document.getElementById('msg-variaveis-container');
+    const fields = document.getElementById('msg-variaveis-fields');
+    if (!template || !template.variaveis_disponiveis || !template.variaveis_disponiveis.length) {
+      container.style.display = 'none';
+      this._atualizarPreview();
+      return;
+    }
+    container.style.display = 'block';
+    fields.innerHTML = template.variaveis_disponiveis.map(v => `
+      <div style="display:flex;align-items:center;gap:8px">
+        <label style="font-size:0.82rem;color:#4a5568;width:140px;flex-shrink:0">{${v}}</label>
+        <input type="text" data-var="${v}" placeholder="Valor para ${v}" style="flex:1;padding:6px 9px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.85rem">
+      </div>`).join('');
+    fields.querySelectorAll('input').forEach(inp => inp.addEventListener('input', () => this._atualizarPreview()));
+    this._atualizarPreview();
+  }
+
+  _coletarVariaveis() {
+    const vars = {};
+    document.querySelectorAll('#msg-variaveis-fields input[data-var]').forEach(inp => {
+      if (inp.value.trim()) vars[inp.dataset.var] = inp.value.trim();
+    });
+    return vars;
+  }
+
+  _atualizarPreview() {
+    const templateId = document.getElementById('msg-select-template').value;
+    const template = (this._templates || []).find(t => t.id == templateId);
+    const box = document.getElementById('msg-preview-box');
+    if (!template) { box.style.display = 'none'; return; }
+    const vars = this._coletarVariaveis();
+    const processarLocal = (txt) => {
+      let r = txt;
+      for (const [k, v] of Object.entries(vars)) r = r.replace(new RegExp(`\\{${k}\\}`, 'g'), v);
+      return r;
+    };
+    document.getElementById('msg-preview-assunto').textContent = processarLocal(template.assunto);
+    document.getElementById('msg-preview-corpo').innerHTML = processarLocal(template.corpo_html);
+    box.style.display = 'block';
+  }
+
+  async _carregarHistoricoEmails() {
+    let emails = [];
+    try { emails = await this.api('/api/historico-emails'); } catch {}
+    const el = document.getElementById('msg-historico-list');
+    if (!el) return;
+    if (!emails.length) {
+      el.innerHTML = '<div style="text-align:center;color:#a0aec0;padding:30px;font-size:0.9rem">Nenhum email agendado ainda.</div>';
+      return;
+    }
+    const statusCor = { pendente: '#d69e2e', enviado: '#27ae60', falha: '#e53e3e' };
+    const statusIcon = { pendente: '⏳', enviado: '✅', falha: '❌' };
+    el.innerHTML = `
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:0.85rem">
+          <thead>
+            <tr style="border-bottom:2px solid #e2e8f0">
+              <th style="text-align:left;padding:8px 10px;color:#718096;font-weight:600">Empresa</th>
+              <th style="text-align:left;padding:8px 10px;color:#718096;font-weight:600">Email</th>
+              <th style="text-align:left;padding:8px 10px;color:#718096;font-weight:600">Assunto</th>
+              <th style="text-align:left;padding:8px 10px;color:#718096;font-weight:600">Status</th>
+              <th style="text-align:left;padding:8px 10px;color:#718096;font-weight:600">Agendado para</th>
+              <th style="text-align:left;padding:8px 10px;color:#718096;font-weight:600">Enviado em</th>
+              <th style="padding:8px 4px"></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${emails.map(e => `
+              <tr style="border-bottom:1px solid #f0f0f0">
+                <td style="padding:8px 10px;color:#2d3748">${e.empresas?.nome || e.empresa_id}</td>
+                <td style="padding:8px 10px;color:#4a5568">${e.email_destino}</td>
+                <td style="padding:8px 10px;color:#4a5568;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${e.assunto}">${e.assunto}</td>
+                <td style="padding:8px 10px"><span style="font-weight:700;color:${statusCor[e.status] || '#718096'}">${statusIcon[e.status] || ''} ${e.status}</span>${e.mensagem_erro ? `<br><span style="font-size:0.72rem;color:#a0aec0" title="${e.mensagem_erro}">Erro</span>` : ''}</td>
+                <td style="padding:8px 10px;color:#718096">${new Date(e.data_agendada).toLocaleString('pt-BR')}</td>
+                <td style="padding:8px 10px;color:#718096">${e.data_envio_real ? new Date(e.data_envio_real).toLocaleString('pt-BR') : '—'}</td>
+                <td style="padding:8px 4px">${e.status === 'pendente' ? `<button onclick="App._cancelarEmail(${e.id})" style="padding:3px 8px;background:#fff5f5;color:#e53e3e;border:1px solid #fed7d7;border-radius:5px;cursor:pointer;font-size:0.75rem">Cancelar</button>` : ''}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  async _cancelarEmail(id) {
+    if (!confirm('Cancelar este email agendado?')) return;
+    try {
+      await this.api(`/api/emails-agendados/${id}`, { method: 'DELETE' });
+      await this._carregarHistoricoEmails();
+    } catch (err) { alert('Erro ao cancelar: ' + err.message); }
   }
 }
 
