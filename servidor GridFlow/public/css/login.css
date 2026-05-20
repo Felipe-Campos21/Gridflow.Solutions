@@ -52,6 +52,7 @@ body {
   color: #1a237e;
   letter-spacing: -0.5px;
   line-height: 1.1;
+  white-space: nowrap;
 }
 .login-logo-text strong { font-weight: 800; color: #2563eb; }
 .login-logo-sub {
@@ -367,15 +368,15 @@ body {
 
 .login-illustration {
   width: 100%;
-  margin-bottom: 20px;
+  margin-bottom: 14px;
 }
 
 .login-tagline {
-  font-size: 1.75rem;
+  font-size: 1.6rem;
   font-weight: 800;
   color: #fff;
   line-height: 1.25;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   letter-spacing: -0.5px;
 }
 .tagline-highlight { color: #06b6d4; }
@@ -384,32 +385,34 @@ body {
   height: 3px;
   background: #2563eb;
   border-radius: 2px;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 .login-tagline-sub {
-  font-size: 0.85rem;
+  font-size: 0.83rem;
   color: rgba(255,255,255,0.58);
-  line-height: 1.6;
-  margin-bottom: 22px;
+  line-height: 1.55;
+  margin-bottom: 18px;
   max-width: 420px;
 }
 
-/* Features */
+/* Features — layout horizontal para caber na altura */
 .login-features {
   display: flex;
-  flex-direction: column;
-  gap: 14px;
+  flex-direction: row;
+  gap: 12px;
   width: 100%;
 }
 .login-feature {
   display: flex;
+  flex-direction: column;
   align-items: flex-start;
-  gap: 12px;
+  gap: 8px;
+  flex: 1;
 }
 .feat-icon-wrap {
-  width: 36px;
-  height: 36px;
-  border-radius: 9px;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
   border: 1px solid rgba(255,255,255,0.12);
   background: rgba(255,255,255,0.06);
   display: flex;
@@ -419,15 +422,15 @@ body {
   flex-shrink: 0;
 }
 .feat-title {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 700;
   color: rgba(255,255,255,0.92);
   margin-bottom: 2px;
 }
 .feat-desc {
-  font-size: 0.76rem;
+  font-size: 0.72rem;
   color: rgba(255,255,255,0.48);
-  line-height: 1.4;
+  line-height: 1.35;
 }
 
 /* ── Responsive ────────────────────────────────────────────────────────────── */
