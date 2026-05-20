@@ -862,11 +862,13 @@ const server = http.createServer(async (req, res) => {
                                          if (method === 'POST') {
                                                const body = await readBody(req);
                                                const eId = parseInt(body.empresa_id), per = body.periodo || '';
-                                               const chk = await sbFetch('notas?empresa_id=eq.' + eId + '&periodo=eq.' + encodeURIComponent(per) + '&select=id');
+                                               const chk = await sbFetch('notas?empresa_id=eq.' + eId + '&periodo=eq.' + encodeURIComponent(per) + '&select=id,anexos');
                                                if (chk.body && chk.body[0]) {
-                                                     await sbFetch('notas?id=eq.' + chk.body[0].id, { method: 'PATCH', body: { texto: body.texto || '', usuario: body.usuario || '', atualizado_em: agora() } });
+                                                     const patch = { texto: body.texto || '', usuario: body.usuario || '', atualizado_em: agora() };
+                                                     if (body.anexos !== undefined) patch.anexos = body.anexos;
+                                                     await sbFetch('notas?id=eq.' + chk.body[0].id, { method: 'PATCH', body: patch });
                                                } else {
-                                                     const nb = { empresa_id: eId, periodo: per, texto: body.texto || '', usuario: body.usuario || '', criado_em: agora() };
+                                                     const nb = { empresa_id: eId, periodo: per, texto: body.texto || '', usuario: body.usuario || '', anexos: body.anexos || [], criado_em: agora() };
                                                      if (contaId) nb.conta_id = contaId;
                                                      await sbFetch('notas', { method: 'POST', body: nb, prefer: 'return=minimal' });
                                                }

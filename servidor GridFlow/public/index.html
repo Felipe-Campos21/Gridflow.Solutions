@@ -125,12 +125,23 @@
       <button class="modal-close" id="btn-modal-atv-close">×</button>
     </div>
     <div class="modal-body">
-      <div style="margin-bottom:16px">
+      <div style="margin-bottom:12px">
         <label style="font-size:0.8rem;font-weight:600;color:#4a5568;display:block;margin-bottom:6px">
           Observação <span style="color:#a0aec0;font-weight:400">(opcional)</span>
         </label>
         <textarea id="modal-atv-obs" rows="3" placeholder="Adicione uma nota ou deixe em branco..."
           style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem;resize:vertical;font-family:inherit;box-sizing:border-box"></textarea>
+      </div>
+      <div style="margin-bottom:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <label style="font-size:0.8rem;font-weight:600;color:#4a5568">Documentos <span style="color:#a0aec0;font-weight:400">(opcional)</span></label>
+          <label style="display:inline-flex;align-items:center;gap:5px;padding:4px 12px;background:#f0f4ff;border:1px solid #c7d7ff;border-radius:7px;cursor:pointer;font-size:0.78rem;font-weight:600;color:#2563eb">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+            Anexar
+            <input type="file" id="modal-atv-file" accept="image/*,.pdf" multiple style="display:none">
+          </label>
+        </div>
+        <div id="modal-atv-anexos-preview" style="display:flex;flex-wrap:wrap;gap:8px;min-height:0"></div>
       </div>
       <div id="modal-atv-btns" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"></div>
     </div>

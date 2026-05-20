@@ -394,8 +394,14 @@ class GridFlowApp {
           <div class="card" id="db-notas-card" style="display:none">
             <h3 style="margin:0 0 10px">Anotações — <span style="color:var(--brand);font-weight:700">${this.periodo}</span></h3>
             <textarea id="db-nota-texto" rows="4" placeholder="Registre aqui pendências, observações ou lembretes..."></textarea>
+            <div id="db-nota-anexos-preview" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;min-height:0"></div>
             <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
-              <button class="btn btn-primary btn-sm" id="db-nota-salvar">💾 Salvar</button>
+              <button class="btn btn-primary btn-sm" id="db-nota-salvar">Salvar</button>
+              <label style="display:inline-flex;align-items:center;gap:5px;padding:5px 12px;background:#f0f4ff;border:1px solid #c7d7ff;border-radius:7px;cursor:pointer;font-size:0.78rem;font-weight:600;color:#2563eb">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                Anexar
+                <input type="file" id="db-nota-file" accept="image/*,.pdf" multiple style="display:none">
+              </label>
               <span id="db-nota-status" style="font-size:0.75rem;color:#718096"></span>
             </div>
           </div>
@@ -433,6 +439,12 @@ class GridFlowApp {
       });
     });
     document.getElementById('db-nota-salvar')?.addEventListener('click', () => this.salvarNota());
+    document.getElementById('db-nota-file')?.addEventListener('change', e => {
+      this._notaAnexosPending = this._notaAnexosPending || [];
+      Array.from(e.target.files).forEach(f => this._notaAnexosPending.push(f));
+      e.target.value = '';
+      this._atualizarPreviewNota();
+    });
   }
 
   async buscarEmpresas(q) {
@@ -692,6 +704,14 @@ class GridFlowApp {
 
     const h = this._getHistorico(atividadeId, empresaId);
     document.getElementById('modal-atv-obs').value = h?.observacao || '';
+    this._atvAnexosSaved = h?.anexos || [];
+    this._atvAnexosPending = [];
+    this._atualizarPreviewAtv();
+    document.getElementById('modal-atv-file').onchange = (e) => {
+      Array.from(e.target.files).forEach(f => this._atvAnexosPending.push(f));
+      e.target.value = '';
+      this._atualizarPreviewAtv();
+    };
 
     const btns = document.getElementById('modal-atv-btns');
     btns.innerHTML = '';
@@ -734,6 +754,8 @@ class GridFlowApp {
 
   async confirmarAtividade(atividadeId, empresaId, novoStatus, btn, grupo) {
     const obs = document.getElementById('modal-atv-obs').value.trim();
+    const novosAnexos = await this._uploadPendentes(this._atvAnexosPending || [], `atv_${empresaId}_${atividadeId}`);
+    const anexos = [...(this._atvAnexosSaved || []), ...novosAnexos];
     document.getElementById('modal-atividade').classList.remove('show');
 
     const isMatriz = empresaId === this.empresaSelecionada?.id;
@@ -755,7 +777,7 @@ class GridFlowApp {
       const novo = await this.api('/api/historico', {
         method: 'POST',
         body: JSON.stringify({ empresa_id: empresaId, atividade_id: atividadeId,
-          periodo: this.periodo, usuario: this.usuario, status: novoStatus, observacao: obs })
+          periodo: this.periodo, usuario: this.usuario, status: novoStatus, observacao: obs, anexos })
       });
       this._setHistorico(atividadeId, empresaId, novo);
 
@@ -1056,21 +1078,142 @@ class GridFlowApp {
     if (!this.empresaSelecionada) return;
     try {
       const notas = await this.api(`/api/notas?empresa_id=${this.empresaSelecionada.id}&periodo=${encodeURIComponent(this.periodo)}`);
-      document.getElementById('db-nota-texto').value = (notas && notas.length) ? (notas[0].texto || '') : '';
+      const nota = notas && notas.length ? notas[0] : null;
+      document.getElementById('db-nota-texto').value = nota?.texto || '';
+      this._notaAnexosSaved = nota?.anexos || [];
+      this._notaAnexosPending = [];
+      this._atualizarPreviewNota();
     } catch (e) { console.error(e); }
   }
 
   async salvarNota() {
     if (!this.empresaSelecionada || !this.usuario) return;
+    const st = document.getElementById('db-nota-status');
     try {
+      st.textContent = 'Salvando...';
+      const novosAnexos = await this._uploadPendentes(this._notaAnexosPending || [], `nota_${this.empresaSelecionada.id}`);
+      const anexos = [...(this._notaAnexosSaved || []), ...novosAnexos];
       await this.api('/api/notas', { method: 'POST', body: JSON.stringify({
         empresa_id: this.empresaSelecionada.id, periodo: this.periodo,
-        usuario: this.usuario, texto: document.getElementById('db-nota-texto').value
+        usuario: this.usuario, texto: document.getElementById('db-nota-texto').value, anexos
       })});
-      const st = document.getElementById('db-nota-status');
+      this._notaAnexosSaved = anexos;
+      this._notaAnexosPending = [];
+      this._atualizarPreviewNota();
       st.textContent = 'Salvo!';
       setTimeout(() => st.textContent = '', 2000);
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error(e); st.textContent = 'Erro ao salvar'; }
+  }
+
+  _atualizarPreviewNota() {
+    this._renderAnexosPreview('db-nota-anexos-preview',
+      this._notaAnexosSaved || [], this._notaAnexosPending || [],
+      (i) => { this._notaAnexosPending.splice(i, 1); this._atualizarPreviewNota(); },
+      (i) => { this._notaAnexosSaved.splice(i, 1); this._atualizarPreviewNota(); }
+    );
+  }
+
+  _atualizarPreviewAtv() {
+    this._renderAnexosPreview('modal-atv-anexos-preview',
+      this._atvAnexosSaved || [], this._atvAnexosPending || [],
+      (i) => { this._atvAnexosPending.splice(i, 1); this._atualizarPreviewAtv(); },
+      (i) => { this._atvAnexosSaved.splice(i, 1); this._atualizarPreviewAtv(); }
+    );
+  }
+
+  async _uploadPendentes(files, prefixo) {
+    const resultados = [];
+    for (const file of files) {
+      try {
+        const r = await this._uploadAnexo(file, prefixo);
+        resultados.push(r);
+      } catch (e) { console.error('Erro upload:', e); }
+    }
+    return resultados;
+  }
+
+  async _uploadAnexo(file, prefixo = 'geral') {
+    const ext = file.name.split('.').pop().toLowerCase();
+    const caminho = `${prefixo}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+    const res = await fetch(`${CONFIG.SUPABASE_URL}/storage/v1/object/anexos/${caminho}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${CONFIG.SUPABASE_ANON_KEY}`,
+        'Content-Type': file.type || 'application/octet-stream',
+        'x-upsert': 'true'
+      },
+      body: file
+    });
+    if (!res.ok) throw new Error(`Upload falhou: ${res.status}`);
+    return {
+      url: `${CONFIG.SUPABASE_URL}/storage/v1/object/public/anexos/${caminho}`,
+      nome: file.name,
+      tipo: file.type,
+      tamanho: file.size
+    };
+  }
+
+  _renderAnexosPreview(containerId, salvos, pendentes, onRemovePendente, onRemoveSalvo) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    const isPdf = t => t === 'application/pdf';
+    const isImg = t => t && t.startsWith('image/');
+
+    const mkItem = (label, tipo, url, onX) => {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'position:relative;display:inline-flex;flex-direction:column;align-items:center;gap:4px;';
+      const isImage = isImg(tipo);
+      const isPDF = isPdf(tipo);
+      if (isImage && url && !url.startsWith('blob:') && url.startsWith('http')) {
+        wrap.innerHTML = `
+          <a href="${url}" target="_blank" style="display:block;width:60px;height:60px;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0;flex-shrink:0">
+            <img src="${url}" style="width:100%;height:100%;object-fit:cover" alt="${label}">
+          </a>`;
+      } else if (isImage && url) {
+        wrap.innerHTML = `
+          <div style="width:60px;height:60px;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0;background:#f0f4ff;display:flex;align-items:center;justify-content:center">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          </div>`;
+      } else {
+        wrap.innerHTML = `
+          <a href="${url || '#'}" target="${url ? '_blank' : '_self'}" style="width:60px;height:60px;border-radius:8px;border:1px solid #e2e8f0;background:#fff5f5;display:flex;align-items:center;justify-content:center;text-decoration:none">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#e53e3e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          </a>`;
+      }
+      const nome = document.createElement('span');
+      nome.style.cssText = 'font-size:0.62rem;color:#718096;max-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center';
+      nome.textContent = label;
+      const xBtn = document.createElement('button');
+      xBtn.innerHTML = '×';
+      xBtn.style.cssText = 'position:absolute;top:-5px;right:-5px;width:16px;height:16px;border-radius:50%;background:#e53e3e;color:#fff;border:none;cursor:pointer;font-size:0.7rem;line-height:1;display:flex;align-items:center;justify-content:center;padding:0';
+      xBtn.addEventListener('click', onX);
+      wrap.appendChild(nome);
+      wrap.appendChild(xBtn);
+      return wrap;
+    };
+
+    el.innerHTML = '';
+    salvos.forEach((a, i) => el.appendChild(mkItem(a.nome, a.tipo, a.url, () => onRemoveSalvo(i))));
+    pendentes.forEach((f, i) => {
+      const blobUrl = URL.createObjectURL(f);
+      el.appendChild(mkItem(f.name, f.type, blobUrl, () => onRemovePendente(i)));
+    });
+  }
+
+  _renderAnexosMini(anexos) {
+    if (!anexos || !anexos.length) return '';
+    const isPDF = a => a.tipo === 'application/pdf';
+    return `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">
+      ${anexos.map(a => isPDF(a)
+        ? `<a href="${a.url}" target="_blank" title="${a.nome}" style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:#fff5f5;border:1px solid #fed7d7;border-radius:6px;color:#c53030;font-size:0.72rem;text-decoration:none;font-weight:600">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            ${a.nome}
+          </a>`
+        : `<a href="${a.url}" target="_blank" title="${a.nome}">
+            <img src="${a.url}" style="width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0" alt="${a.nome}">
+          </a>`
+      ).join('')}
+    </div>`;
   }
 
   iniciarAutoRefresh() {
@@ -2870,6 +3013,7 @@ class GridFlowApp {
                 <span style="font-size:0.72rem;color:#a0aec0;margin-left:auto">${dataFmt}</span>
               </div>
               <div class="rel-nota-texto" style="font-size:0.88rem;color:#2d3748;line-height:1.5;white-space:pre-wrap">${n.texto || ''}</div>
+              ${this._renderAnexosMini(n.anexos)}
               <textarea class="rel-nota-edit" data-id="${n.id}" style="display:none;width:100%;padding:8px 10px;border:1px solid #3498db;border-radius:6px;font-size:0.88rem;resize:vertical;font-family:inherit;box-sizing:border-box;margin-top:6px" rows="3">${n.texto || ''}</textarea>
               <div class="rel-edit-btns" style="display:none;margin-top:8px;display:none;gap:8px">
                 <button class="btn-rel-salvar" data-id="${n.id}" style="padding:5px 14px;background:#3498db;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;font-weight:600">Salvar</button>
