@@ -353,7 +353,16 @@ class GridFlowApp {
     }
   }
 
-  async atualizarConteudo() { await this.renderizarConteudo(); }
+  async atualizarConteudo() {
+    if (this.currentTab === 'dashboard' && this.empresaSelecionada) {
+      // Atualiza apenas os labels de período visíveis no DOM
+      document.querySelectorAll('[data-periodo-label]').forEach(el => el.textContent = this.periodo);
+      // Recarrega dados para o novo período sem destruir a empresa selecionada
+      await Promise.all([this.carregarAtividades(), this.carregarHistorico(), this.carregarNota()]);
+    } else {
+      await this.renderizarConteudo();
+    }
+  }
 
   // ── Dashboard ─────────────────────────────────────────────────────────────
   async renderDashboard() {
@@ -392,7 +401,7 @@ class GridFlowApp {
             </div>
           </div>
           <div class="card" id="db-notas-card" style="display:none">
-            <h3 style="margin:0 0 10px">Anotações — <span style="color:var(--brand);font-weight:700">${this.periodo}</span></h3>
+            <h3 style="margin:0 0 10px">Anotações — <span data-periodo-label style="color:var(--brand);font-weight:700">${this.periodo}</span></h3>
             <input id="db-nota-assunto" type="text" placeholder="Assunto (opcional, ex: Pendência SPED, Revisão DRE...)"
               style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;margin-bottom:8px;box-sizing:border-box">
             <textarea id="db-nota-texto" rows="4" placeholder="Registre aqui pendências, observações ou lembretes..."></textarea>
@@ -501,7 +510,7 @@ class GridFlowApp {
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
             <h3 style="margin:0">✅ Atividades</h3>
             <div style="display:flex;align-items:center;gap:8px">
-              <span style="font-size:0.78rem;font-weight:600;color:#3498db;background:#ebf8ff;padding:3px 10px;border-radius:20px">📅 ${this.periodo}</span>
+              <span data-periodo-label style="font-size:0.78rem;font-weight:600;color:#3498db;background:#ebf8ff;padding:3px 10px;border-radius:20px">📅 ${this.periodo}</span>
               <button id="btn-resetar-checklist" style="font-size:0.75rem;padding:3px 10px;background:#fff5f5;border:1px solid #fed7d7;border-radius:20px;color:#c53030;cursor:pointer;font-weight:600">🔄 Resetar</button>
             </div>
           </div>
@@ -510,7 +519,7 @@ class GridFlowApp {
         <div id="db-filiais-section"><div class="loading">Carregando filiais...</div></div>
         <div class="card" style="margin-top:16px">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-            <h3 style="margin:0">📋 Histórico — <span style="color:#3498db">${this.periodo}</span></h3>
+            <h3 style="margin:0">📋 Histórico — <span data-periodo-label style="color:#3498db">${this.periodo}</span></h3>
             <span class="sync-info">Auto-atualiza a cada 5s</span>
           </div>
           <div id="db-historico-lista"><div class="historico-vazio">Nenhum registro neste período</div></div>
@@ -612,7 +621,7 @@ class GridFlowApp {
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
           <h3 style="margin:0">Atividades</h3>
           <div style="display:flex;align-items:center;gap:8px">
-            <span style="font-size:0.76rem;font-weight:600;color:var(--brand);background:var(--brand-light);padding:3px 10px;border-radius:20px;border:1px solid #bfdbfe">${this.periodo}</span>
+            <span data-periodo-label style="font-size:0.76rem;font-weight:600;color:var(--brand);background:var(--brand-light);padding:3px 10px;border-radius:20px;border:1px solid #bfdbfe">${this.periodo}</span>
             <button id="btn-resetar-checklist" style="font-size:0.75rem;padding:3px 10px;background:#fef2f2;border:1px solid #fecaca;border-radius:20px;color:#b91c1c;cursor:pointer;font-weight:600;font-family:inherit">Resetar</button>
           </div>
         </div>
@@ -620,7 +629,7 @@ class GridFlowApp {
       </div>
       <div class="card">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-          <h3 style="margin:0">Histórico — <span style="color:var(--brand);font-weight:700">${this.periodo}</span></h3>
+          <h3 style="margin:0">Histórico — <span data-periodo-label style="color:var(--brand);font-weight:700">${this.periodo}</span></h3>
           <span class="sync-info">Atualiza a cada 5s</span>
         </div>
         <div id="db-historico-lista"><div class="historico-vazio">Nenhum registro neste período</div></div>
