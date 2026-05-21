@@ -288,7 +288,10 @@ class GridFlowApp {
     document.getElementById('user-switch').addEventListener('click', () => this.openUserModal());
     document.getElementById('btn-periodo').addEventListener('click', e => {
       e.stopPropagation();
-      document.getElementById('periodo-dropdown').classList.toggle('show');
+      const dd = document.getElementById('periodo-dropdown');
+      const abrindo = !dd.classList.contains('show');
+      if (abrindo) this.renderPeriodoDropdown();
+      dd.classList.toggle('show');
     });
     document.addEventListener('click', e => {
       if (!e.target.closest('#periodo-dropdown') && !e.target.closest('#btn-periodo'))
@@ -304,7 +307,7 @@ class GridFlowApp {
     document.querySelectorAll('.nav-item').forEach(i => i.classList.toggle('active', i.dataset.tab === tab));
     const titles = { dashboard:'Checklist', atividades:'Gerenciador de Atividades',
       configurar:'Configurar Empresa', empresas:'Gerenciador de Empresas',
-      colaboradores:'Colaboradores', status:'Status Geral', relatorio:'Relatório de Anotações',
+      colaboradores:'Colaboradores', status:'Status Geral', relatorio:'Relatórios',
       mensagens:'Mensagens & Emails' };
     document.getElementById('topbar-title').textContent = titles[tab] || tab;
     this.renderizarConteudo();
@@ -337,7 +340,8 @@ class GridFlowApp {
         this._statusSearch = '';
         content.innerHTML = this._renderStatusShell();
         this._configurarEventosStatus();
-        await this._carregarStatus();
+        if (this._statusView === 'anual') await this._carregarStatusAnual();
+        else await this._carregarStatus();
         break;
       case 'relatorio':
         content.innerHTML = this._renderRelatorioShell();
@@ -402,18 +406,22 @@ class GridFlowApp {
           </div>
           <div class="card" id="db-notas-card" style="display:none">
             <h3 style="margin:0 0 10px">Anotações — <span data-periodo-label style="color:var(--brand);font-weight:700">${this.periodo}</span></h3>
-            <input id="db-nota-assunto" type="text" placeholder="Assunto (opcional, ex: Pendência SPED, Revisão DRE...)"
-              style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;margin-bottom:8px;box-sizing:border-box">
-            <textarea id="db-nota-texto" rows="4" placeholder="Registre aqui pendências, observações ou lembretes..."></textarea>
-            <div id="db-nota-anexos-preview" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;min-height:0"></div>
-            <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
-              <button class="btn btn-primary btn-sm" id="db-nota-salvar">Salvar</button>
-              <label style="display:inline-flex;align-items:center;gap:5px;padding:5px 12px;background:#f0f4ff;border:1px solid #c7d7ff;border-radius:7px;cursor:pointer;font-size:0.78rem;font-weight:600;color:#2563eb">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-                Anexar
-                <input type="file" id="db-nota-file" accept="image/*,.pdf" multiple style="display:none">
-              </label>
-              <span id="db-nota-status" style="font-size:0.75rem;color:#718096"></span>
+            <div id="db-notas-lista"></div>
+            <div class="nota-nova-section">
+              <div class="nota-nova-label">Nova anotação</div>
+              <input id="db-nota-assunto" type="text" placeholder="Assunto (ex: Pendência SPED, Revisão DRE...)"
+                style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;margin-bottom:8px;box-sizing:border-box">
+              <textarea id="db-nota-texto" rows="3" placeholder="Registre aqui pendências, observações ou lembretes..."></textarea>
+              <div id="db-nota-anexos-preview" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;min-height:0"></div>
+              <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+                <button class="btn btn-primary btn-sm" id="db-nota-salvar">+ Adicionar</button>
+                <label style="display:inline-flex;align-items:center;gap:5px;padding:5px 12px;background:#f0f4ff;border:1px solid #c7d7ff;border-radius:7px;cursor:pointer;font-size:0.78rem;font-weight:600;color:#2563eb">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                  Anexar
+                  <input type="file" id="db-nota-file" accept="image/*,.pdf" multiple style="display:none">
+                </label>
+                <span id="db-nota-status" style="font-size:0.75rem;color:#718096"></span>
+              </div>
             </div>
           </div>
         </div>
@@ -1089,19 +1097,142 @@ class GridFlowApp {
     if (!this.empresaSelecionada) return;
     try {
       const notas = await this.api(`/api/notas?empresa_id=${this.empresaSelecionada.id}&periodo=${encodeURIComponent(this.periodo)}`);
-      const nota = notas && notas.length ? notas[0] : null;
+      this._notasCarregadas = notas || [];
+      this._renderNotasList();
       const assuntoEl = document.getElementById('db-nota-assunto');
-      if (assuntoEl) assuntoEl.value = nota?.assunto || '';
-      document.getElementById('db-nota-texto').value = nota?.texto || '';
-      this._notaAnexosSaved = nota?.anexos || [];
+      if (assuntoEl) assuntoEl.value = '';
+      const textoEl = document.getElementById('db-nota-texto');
+      if (textoEl) textoEl.value = '';
+      this._notaAnexosSaved = [];
       this._notaAnexosPending = [];
       this._atualizarPreviewNota();
     } catch (e) { console.error(e); }
   }
 
+  _renderNotasList() {
+    const container = document.getElementById('db-notas-lista');
+    if (!container) return;
+    const notas = this._notasCarregadas || [];
+    if (!notas.length) {
+      container.innerHTML = '<div style="color:#a0aec0;font-size:0.82rem;padding:2px 0 8px">Nenhuma anotação registrada neste período.</div>';
+      return;
+    }
+    container.innerHTML = notas.map((n, idx) => {
+      const anexosHtml = (n.anexos || []).length
+        ? `<div class="nota-item-anexos">${n.anexos.map(a => `<a href="${a.url}" target="_blank" rel="noopener">${a.nome || 'Arquivo'}</a>`).join('')}</div>`
+        : '';
+      return `
+        <div class="nota-item" data-nota-idx="${idx}">
+          <div class="nota-item-header">
+            ${n.assunto ? `<span class="nota-item-assunto">${n.assunto}</span>` : ''}
+            <span class="nota-item-meta">${n.usuario || ''} · ${n.criado_em || n.atualizado_em || ''}</span>
+            <div class="nota-item-actions">
+              <button class="btn-nota-edit" data-idx="${idx}" title="Editar">✏️</button>
+              <button class="btn-nota-del" data-id="${n.id}" title="Excluir">🗑️</button>
+            </div>
+          </div>
+          <div class="nota-item-texto">${n.texto || ''}</div>
+          ${anexosHtml}
+        </div>`;
+    }).join('');
+
+    container.querySelectorAll('.btn-nota-del').forEach(btn => {
+      btn.addEventListener('click', () => this._deletarNota(parseInt(btn.dataset.id)));
+    });
+    container.querySelectorAll('.btn-nota-edit').forEach(btn => {
+      btn.addEventListener('click', () => this._editarNotaInline(parseInt(btn.dataset.idx)));
+    });
+  }
+
+  async _deletarNota(id) {
+    if (!confirm('Excluir esta anotação?')) return;
+    try {
+      await this.api(`/api/notas?id=${id}`, { method: 'DELETE' });
+      this._notasCarregadas = (this._notasCarregadas || []).filter(n => n.id !== id);
+      this._renderNotasList();
+    } catch (e) { console.error(e); alert('Erro ao excluir anotação.'); }
+  }
+
+  _editarNotaInline(idx) {
+    const notas = this._notasCarregadas || [];
+    const n = notas[idx];
+    if (!n) return;
+    const container = document.getElementById('db-notas-lista');
+    const card = container?.querySelector(`.nota-item[data-nota-idx="${idx}"]`);
+    if (!card) return;
+
+    const anexosExistentes = n.anexos || [];
+    card.innerHTML = `
+      <div class="nota-item-edit-form">
+        <input class="nota-edit-assunto" type="text" value="${(n.assunto || '').replace(/"/g, '&quot;')}"
+          placeholder="Assunto" style="width:100%;padding:6px 10px;border:1px solid #e2e8f0;border-radius:7px;font-size:0.83rem;margin-bottom:6px;box-sizing:border-box">
+        <textarea class="nota-edit-texto" rows="3" style="width:100%;box-sizing:border-box;font-size:0.83rem;border:1px solid #e2e8f0;border-radius:6px;padding:8px 10px;resize:vertical">${n.texto || ''}</textarea>
+        <div class="nota-edit-anexos" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">
+          ${anexosExistentes.map((a, ai) => `
+            <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;background:#ebf8ff;border:1px solid #bee3f8;border-radius:5px;padding:2px 8px">
+              <a href="${a.url}" target="_blank" rel="noopener" style="color:#3182ce;text-decoration:none">${a.nome || 'Arquivo'}</a>
+              <button class="btn-nota-edit-rm-anexo" data-ai="${ai}" style="background:none;border:none;color:#fc8181;cursor:pointer;font-size:0.85rem;padding:0;line-height:1">×</button>
+            </span>`).join('')}
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+          <button class="btn btn-primary btn-sm btn-nota-edit-salvar">Salvar</button>
+          <button class="btn btn-secondary btn-sm btn-nota-edit-cancelar">Cancelar</button>
+          <label style="display:inline-flex;align-items:center;gap:4px;padding:5px 10px;background:#f0f4ff;border:1px solid #c7d7ff;border-radius:7px;cursor:pointer;font-size:0.78rem;font-weight:600;color:#2563eb">
+            Anexar<input class="nota-edit-file" type="file" accept="image/*,.pdf" multiple style="display:none">
+          </label>
+          <span class="nota-edit-status" style="font-size:0.75rem;color:#718096"></span>
+        </div>
+      </div>`;
+
+    let editAnexosSaved = [...anexosExistentes];
+    let editAnexosPending = [];
+
+    card.querySelectorAll('.btn-nota-edit-rm-anexo').forEach(btn => {
+      btn.addEventListener('click', () => {
+        editAnexosSaved.splice(parseInt(btn.dataset.ai), 1);
+        this._editarNotaInline(idx);
+        const c2 = container?.querySelector(`.nota-item[data-nota-idx="${idx}"]`);
+        if (c2) { c2.querySelector('.nota-edit-assunto').value = n.assunto || ''; c2.querySelector('.nota-edit-texto').value = n.texto || ''; }
+      });
+    });
+
+    card.querySelector('.nota-edit-file')?.addEventListener('change', e => {
+      Array.from(e.target.files).forEach(f => editAnexosPending.push(f));
+      e.target.value = '';
+      const st = card.querySelector('.nota-edit-status');
+      if (st) st.textContent = `${editAnexosPending.length} arquivo(s) pendente(s)`;
+    });
+
+    card.querySelector('.btn-nota-edit-cancelar')?.addEventListener('click', () => this._renderNotasList());
+
+    card.querySelector('.btn-nota-edit-salvar')?.addEventListener('click', async () => {
+      const st = card.querySelector('.nota-edit-status');
+      st.textContent = 'Salvando...';
+      try {
+        const novos = await this._uploadPendentes(editAnexosPending, `nota_${this.empresaSelecionada?.id}`);
+        const anexosFinal = [...editAnexosSaved, ...novos];
+        await this.api('/api/notas', { method: 'PUT', body: JSON.stringify({
+          id: n.id,
+          assunto: card.querySelector('.nota-edit-assunto').value.trim(),
+          texto: card.querySelector('.nota-edit-texto').value,
+          usuario: this.usuario,
+          anexos: anexosFinal
+        })});
+        this._notasCarregadas[idx] = { ...n, assunto: card.querySelector('.nota-edit-assunto').value.trim(), texto: card.querySelector('.nota-edit-texto').value, anexos: anexosFinal };
+        this._renderNotasList();
+      } catch (e) { console.error(e); st.textContent = 'Erro ao salvar'; }
+    });
+  }
+
   async salvarNota() {
     if (!this.empresaSelecionada || !this.usuario) return;
     const st = document.getElementById('db-nota-status');
+    const texto = document.getElementById('db-nota-texto')?.value?.trim();
+    if (!texto) {
+      st.textContent = 'Escreva algo antes de adicionar.';
+      setTimeout(() => { st.textContent = ''; }, 2000);
+      return;
+    }
     try {
       st.textContent = 'Salvando...';
       const novosAnexos = await this._uploadPendentes(this._notaAnexosPending || [], `nota_${this.empresaSelecionada.id}`);
@@ -1110,13 +1241,16 @@ class GridFlowApp {
         empresa_id: this.empresaSelecionada.id, periodo: this.periodo,
         usuario: this.usuario,
         assunto: document.getElementById('db-nota-assunto')?.value.trim() || '',
-        texto: document.getElementById('db-nota-texto').value, anexos
+        texto, anexos
       })});
-      this._notaAnexosSaved = anexos;
+      document.getElementById('db-nota-assunto').value = '';
+      document.getElementById('db-nota-texto').value = '';
+      this._notaAnexosSaved = [];
       this._notaAnexosPending = [];
       this._atualizarPreviewNota();
-      st.textContent = 'Salvo!';
-      setTimeout(() => st.textContent = '', 2000);
+      st.textContent = 'Adicionado!';
+      setTimeout(() => { st.textContent = ''; }, 2000);
+      await this.carregarNota();
     } catch (e) { console.error(e); st.textContent = 'Erro ao salvar'; }
   }
 
@@ -2555,6 +2689,9 @@ class GridFlowApp {
 
   _renderStatusShell() {
     const userName = this.usuario || '—';
+    const anoAtual = new Date().getFullYear();
+    const anosDisponiveis = this._anos || [anoAtual];
+    this._statusAno = this._statusAno || anoAtual;
     return `
       <div class="status-page">
         <div class="card status-header-card">
@@ -2563,10 +2700,15 @@ class GridFlowApp {
             <div class="status-subtitle">${userName} · Período: <span style="color:#3498db;font-weight:700">${this.periodo || '—'}</span></div>
           </div>
           <div class="status-controls">
-            <input id="status-search" class="status-search" placeholder="🔍 Buscar empresa..." value="${this._statusSearch || ''}">
+            <input id="status-search" class="status-search" placeholder="🔍 Buscar empresa..." value="${this._statusSearch || ''}"
+              style="${this._statusView === 'anual' ? 'display:none' : ''}">
+            <select id="status-ano-select" style="display:${this._statusView === 'anual' ? 'block' : 'none'};padding:7px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;color:#4a5568;background:#fff">
+              ${[...anosDisponiveis].sort((a,b)=>b-a).map(a => `<option value="${a}"${a===this._statusAno?' selected':''}>${a}</option>`).join('')}
+            </select>
             <div class="status-view-toggle">
               <button class="btn-status-view${this._statusView === 'colaboradores' ? ' active' : ''}" data-view="colaboradores">👥 Colaboradores</button>
-              <button class="btn-status-view${this._statusView === 'empresas' ? ' active' : ''}" data-view="empresas">🏢 Todas as Empresas</button>
+              <button class="btn-status-view${this._statusView === 'empresas' ? ' active' : ''}" data-view="empresas">🏢 Empresas</button>
+              <button class="btn-status-view${this._statusView === 'anual' ? ' active' : ''}" data-view="anual">📅 Anual</button>
             </div>
             <button class="btn btn-secondary btn-sm" id="btn-status-refresh">🔄 Atualizar</button>
           </div>
@@ -2914,9 +3056,20 @@ class GridFlowApp {
         this._statusRegime = '';
         this._statusColabDetalhe = null;
         const s = document.getElementById('status-search');
-        if (s) s.value = '';
-        if (this._statusData) this._renderStatusContent();
+        if (s) { s.value = ''; s.style.display = this._statusView === 'anual' ? 'none' : ''; }
+        const anoSel = document.getElementById('status-ano-select');
+        if (anoSel) anoSel.style.display = this._statusView === 'anual' ? 'block' : 'none';
+        if (this._statusView === 'anual') {
+          this._carregarStatusAnual();
+        } else if (this._statusData) {
+          this._renderStatusContent();
+        }
       });
+    });
+
+    document.getElementById('status-ano-select')?.addEventListener('change', e => {
+      this._statusAno = parseInt(e.target.value);
+      this._carregarStatusAnual();
     });
 
     let searchTO;
@@ -2933,7 +3086,10 @@ class GridFlowApp {
     }
 
     const refreshBtn = document.getElementById('btn-status-refresh');
-    if (refreshBtn) refreshBtn.addEventListener('click', () => this._carregarStatus());
+    if (refreshBtn) refreshBtn.addEventListener('click', () => {
+      if (this._statusView === 'anual') this._carregarStatusAnual();
+      else this._carregarStatus();
+    });
 
     document.addEventListener('click', e => {
       if (!e.target.closest('.badge-pendente')) {
@@ -2942,32 +3098,182 @@ class GridFlowApp {
     });
   }
 
-  // ── Relatório de Anotações ────────────────────────────────────────────────
+  async _carregarStatusAnual() {
+    const el = document.getElementById('status-main-content');
+    const sumEl = document.getElementById('status-summary-area');
+    if (el) el.innerHTML = '<div class="loading"></div>';
+    if (sumEl) sumEl.innerHTML = '';
+    try {
+      const ano = this._statusAno || new Date().getFullYear();
+      this._statusAnualData = await this.api(`/api/status/anual?ano=${ano}`);
+      this._renderStatusAnual();
+    } catch (e) {
+      if (el) el.innerHTML = `<div class="empty-state"><div class="empty-state-icon">⚠️</div><div class="empty-state-text">Erro ao carregar: ${e.message}</div></div>`;
+    }
+  }
+
+  _renderStatusAnual() {
+    const el = document.getElementById('status-main-content');
+    const sumEl = document.getElementById('status-summary-area');
+    if (!el || !this._statusAnualData) return;
+
+    const { meses, empresas } = this._statusAnualData;
+    const nomeMes = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    const search = (this._statusSearch || '').toLowerCase();
+
+    let lista = empresas;
+    if (search) lista = lista.filter(e => e.empresa.nome.toLowerCase().includes(search) || String(e.empresa.codigo_interno).includes(search));
+
+    const totalEmps = lista.length;
+    const totalCelulas = lista.reduce((s, e) => s + Object.values(e.meses).filter(m => m.total > 0).length, 0);
+    const totalOk = lista.reduce((s, e) => s + Object.values(e.meses).filter(m => m.pct === 100 && m.total > 0).length, 0);
+
+    if (sumEl) sumEl.innerHTML = `
+      <div class="card status-summary-card" style="margin-bottom:12px">
+        <div class="status-summary-cards">
+          <div class="summary-stat"><div class="summary-stat-icon">🏢</div><div class="summary-stat-value" style="color:#2d3748">${totalEmps}</div><div class="summary-stat-label">Empresas</div></div>
+          <div class="summary-stat summary-stat-blue"><div class="summary-stat-icon">✅</div><div class="summary-stat-value" style="color:#27ae60">${totalOk}</div><div class="summary-stat-label">Meses 100%</div></div>
+          <div class="summary-stat"><div class="summary-stat-icon">⏳</div><div class="summary-stat-value" style="color:#e67e22">${totalCelulas - totalOk}</div><div class="summary-stat-label">Meses pendentes</div></div>
+        </div>
+      </div>`;
+
+    if (!lista.length) {
+      el.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🏢</div><div class="empty-state-text">Nenhuma empresa encontrada</div></div>';
+      return;
+    }
+
+    el.innerHTML = `
+      <div class="card" style="padding:0;overflow:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:0.78rem;min-width:700px">
+          <thead>
+            <tr style="background:#f8fafc">
+              <th style="padding:10px 14px;text-align:left;border-bottom:2px solid #e2e8f0;font-size:0.72rem;color:#718096;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;position:sticky;left:0;background:#f8fafc;z-index:1">Empresa</th>
+              ${meses.map((m, i) => `<th style="padding:8px 6px;text-align:center;border-bottom:2px solid #e2e8f0;font-size:0.72rem;color:#718096;text-transform:uppercase;min-width:52px">${nomeMes[i]}</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            ${lista.map((e, ri) => `
+              <tr style="background:${ri%2===0?'#fff':'#fafbfc'}">
+                <td style="padding:8px 14px;border-bottom:1px solid #f0f4f8;white-space:nowrap;position:sticky;left:0;background:${ri%2===0?'#fff':'#fafbfc'};z-index:1">
+                  <div style="font-weight:600;color:#2d3748;font-size:0.82rem">${e.empresa.nome}</div>
+                  ${e.empresa.codigo_interno ? `<div style="font-size:0.68rem;color:#a0aec0">#${e.empresa.codigo_interno}</div>` : ''}
+                </td>
+                ${meses.map(per => {
+                  const m = e.meses[per];
+                  if (!m || m.total === 0) return `<td style="padding:6px;text-align:center;border-bottom:1px solid #f0f4f8"><span style="display:inline-block;width:28px;height:28px;border-radius:50%;background:#edf2f7;font-size:0.65rem;line-height:28px;color:#a0aec0">—</span></td>`;
+                  const cor = m.pct === 100 ? '#27ae60' : m.pct >= 60 ? '#e67e22' : '#e74c3c';
+                  const bg  = m.pct === 100 ? '#f0fff4' : m.pct >= 60 ? '#fffaf0' : '#fff5f5';
+                  return `<td style="padding:6px;text-align:center;border-bottom:1px solid #f0f4f8">
+                    <div class="anual-celula" data-empresa="${e.empresa.id}" data-per="${per}" title="${e.empresa.nome} — ${per}: ${m.pct}% (${m.concluidas}/${m.total})"
+                      style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;width:40px;height:36px;border-radius:7px;background:${bg};border:1px solid ${cor}30;cursor:${m.pendentes>0?'pointer':'default'}">
+                      <span style="font-size:0.7rem;font-weight:700;color:${cor}">${m.pct}%</span>
+                      ${m.pendentes > 0 ? `<span style="font-size:0.6rem;color:#a0aec0">${m.pendentes}p</span>` : ''}
+                    </div>
+                  </td>`;
+                }).join('')}
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+
+    el.querySelectorAll('.anual-celula[data-empresa]').forEach(cell => {
+      cell.addEventListener('click', () => {
+        const empId = parseInt(cell.dataset.empresa);
+        const per   = cell.dataset.per;
+        const empData = lista.find(e => e.empresa.id === empId);
+        const mes = empData?.meses[per];
+        if (!mes || !mes.pendentes_lista?.length) return;
+
+        const existing = document.getElementById('anual-pop');
+        if (existing) existing.remove();
+
+        const grupos = {};
+        for (const p of mes.pendentes_lista) {
+          const g = p.grupo || 'Geral';
+          if (!grupos[g]) grupos[g] = [];
+          grupos[g].push(p.nome);
+        }
+        const pop = document.createElement('div');
+        pop.id = 'anual-pop';
+        pop.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.18);padding:18px 20px;z-index:9999;min-width:280px;max-width:400px;max-height:80vh;overflow-y:auto';
+        pop.innerHTML = `
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <div>
+              <div style="font-weight:700;font-size:0.92rem;color:#2d3748">${empData.empresa.nome}</div>
+              <div style="font-size:0.75rem;color:#718096">${per} · ${mes.pendentes} pendente${mes.pendentes !== 1 ? 's' : ''}</div>
+            </div>
+            <button id="anual-pop-close" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#a0aec0;line-height:1;padding:2px 6px">×</button>
+          </div>
+          ${Object.entries(grupos).map(([g, ativs]) => `
+            <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#a0aec0;margin:10px 0 4px">${g}</div>
+            ${ativs.map(nome => `<div style="padding:4px 0;font-size:0.82rem;color:#4a5568;display:flex;align-items:center;gap:6px"><span style="color:#e74c3c">⏳</span>${nome}</div>`).join('')}
+          `).join('')}`;
+        document.body.appendChild(pop);
+        document.getElementById('anual-pop-close')?.addEventListener('click', () => pop.remove());
+        setTimeout(() => document.addEventListener('click', function h(ev) {
+          if (!pop.contains(ev.target) && !cell.contains(ev.target)) { pop.remove(); document.removeEventListener('click', h); }
+        }), 10);
+      });
+    });
+  }
+
+  // ── Relatório ─────────────────────────────────────────────────────────────
   _renderRelatorioShell() {
     return `
       <div class="status-page">
-        <div class="status-header-card" style="margin-bottom:16px">
-          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+        <div class="card" style="margin-bottom:16px;padding:14px 16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
             <div>
-              <div style="font-size:1.1rem;font-weight:700;color:#2d3748">📝 Relatório de Anotações</div>
-              <div style="font-size:0.8rem;color:#718096;margin-top:2px">Todas as notas registradas por empresa e período</div>
+              <div style="font-size:1.1rem;font-weight:700;color:#2d3748">📊 Relatórios</div>
             </div>
             <button id="btn-rel-refresh" style="padding:6px 14px;background:#ebf8ff;border:1px solid #bee3f8;border-radius:8px;color:#2b6cb0;font-weight:600;cursor:pointer;font-size:0.82rem">🔄 Atualizar</button>
           </div>
-          <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
-            <input id="rel-search" type="text" placeholder="🔍 Buscar por empresa, código, texto..."
-              style="flex:1;min-width:180px;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem" autocomplete="off">
-            <select id="rel-periodo" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;color:#4a5568;background:#fff">
-              <option value="">Todos os períodos</option>
-            </select>
-            <select id="rel-usuario" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;color:#4a5568;background:#fff">
-              <option value="">Todos os usuários</option>
-            </select>
-            <select id="rel-assunto" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;color:#4a5568;background:#fff">
-              <option value="">Todos os assuntos</option>
-            </select>
+          <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+            <button class="rel-subtab-btn active" data-subtab="anotacoes" style="padding:7px 16px;border-radius:8px;border:1.5px solid #3498db;background:#3498db;color:#fff;font-weight:600;cursor:pointer;font-size:0.85rem">📝 Anotações</button>
+            <button class="rel-subtab-btn" data-subtab="historico" style="padding:7px 16px;border-radius:8px;border:1.5px solid #e2e8f0;background:#fff;color:#4a5568;font-weight:600;cursor:pointer;font-size:0.85rem">📋 Histórico de Atividades</button>
           </div>
-          <div id="rel-summary" style="margin-top:10px;font-size:0.8rem;color:#718096"></div>
+          <div id="rel-filtros-anotacoes">
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <input id="rel-search" type="text" placeholder="🔍 Buscar por empresa, código, texto..."
+                style="flex:1;min-width:180px;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem" autocomplete="off">
+              <select id="rel-periodo" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;color:#4a5568;background:#fff">
+                <option value="">Todos os períodos</option>
+              </select>
+              <select id="rel-usuario" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;color:#4a5568;background:#fff">
+                <option value="">Todos os usuários</option>
+              </select>
+              <select id="rel-assunto" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;color:#4a5568;background:#fff">
+                <option value="">Todos os assuntos</option>
+              </select>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;flex-wrap:wrap;gap:8px">
+              <div id="rel-summary" style="font-size:0.8rem;color:#718096"></div>
+              <div style="display:flex;gap:6px">
+                <button class="btn-rel-view${(this._relatorioView||'empresa')==='empresa'?' active':''}" data-view="empresa"
+                  style="padding:4px 12px;border-radius:7px;border:1.5px solid ${(this._relatorioView||'empresa')==='empresa'?'#3498db':'#e2e8f0'};background:${(this._relatorioView||'empresa')==='empresa'?'#ebf8ff':'#fff'};color:${(this._relatorioView||'empresa')==='empresa'?'#2b6cb0':'#718096'};font-size:0.78rem;font-weight:600;cursor:pointer">🏢 Por Empresa</button>
+                <button class="btn-rel-view${(this._relatorioView||'empresa')==='lista'?' active':''}" data-view="lista"
+                  style="padding:4px 12px;border-radius:7px;border:1.5px solid ${(this._relatorioView||'empresa')==='lista'?'#3498db':'#e2e8f0'};background:${(this._relatorioView||'empresa')==='lista'?'#ebf8ff':'#fff'};color:${(this._relatorioView||'empresa')==='lista'?'#2b6cb0':'#718096'};font-size:0.78rem;font-weight:600;cursor:pointer">☰ Lista</button>
+              </div>
+            </div>
+          </div>
+          <div id="rel-filtros-historico" style="display:none">
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <input id="hist-search" type="text" placeholder="🔍 Buscar por empresa, atividade..."
+                style="flex:1;min-width:180px;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem" autocomplete="off">
+              <select id="hist-periodo" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;color:#4a5568;background:#fff">
+                <option value="">Todos os períodos</option>
+              </select>
+              <select id="hist-usuario" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;color:#4a5568;background:#fff">
+                <option value="">Todos os usuários</option>
+              </select>
+              <select id="hist-status" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;color:#4a5568;background:#fff">
+                <option value="">Todos os status</option>
+                <option value="OK">OK</option>
+                <option value="Não Aplicável">Não Aplicável</option>
+              </select>
+            </div>
+            <div id="hist-summary" style="margin-top:8px;font-size:0.8rem;color:#718096"></div>
+          </div>
         </div>
         <div id="rel-lista" style="display:flex;flex-direction:column;gap:10px">
           <div class="loading"></div>
@@ -2976,17 +3282,51 @@ class GridFlowApp {
   }
 
   _configurarEventosRelatorio() {
-    document.getElementById('btn-rel-refresh')?.addEventListener('click', () => this._carregarRelatorio());
+    this._relatorioSubtab = this._relatorioSubtab || 'anotacoes';
+    this._relatorioView   = this._relatorioView   || 'empresa';
+
+    document.getElementById('btn-rel-refresh')?.addEventListener('click', () => {
+      if (this._relatorioSubtab === 'historico') this._carregarHistorico();
+      else this._carregarRelatorio();
+    });
+
+    document.querySelectorAll('.rel-subtab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.rel-subtab-btn').forEach(b => {
+          b.style.background = '#fff'; b.style.borderColor = '#e2e8f0'; b.style.color = '#4a5568';
+        });
+        btn.style.background = '#3498db'; btn.style.borderColor = '#3498db'; btn.style.color = '#fff';
+        this._relatorioSubtab = btn.dataset.subtab;
+        const isHist = this._relatorioSubtab === 'historico';
+        document.getElementById('rel-filtros-anotacoes').style.display = isHist ? 'none' : '';
+        document.getElementById('rel-filtros-historico').style.display = isHist ? '' : 'none';
+        if (isHist) this._carregarHistorico();
+        else this._carregarRelatorio();
+      });
+    });
+
+    document.querySelectorAll('.btn-rel-view').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this._relatorioView = btn.dataset.view;
+        this._filtrarRelatorio();
+      });
+    });
 
     let to;
     document.getElementById('rel-search')?.addEventListener('input', () => {
-      clearTimeout(to);
-      to = setTimeout(() => this._filtrarRelatorio(), 200);
+      clearTimeout(to); to = setTimeout(() => this._filtrarRelatorio(), 200);
     });
-
     document.getElementById('rel-periodo')?.addEventListener('change', () => this._filtrarRelatorio());
     document.getElementById('rel-usuario')?.addEventListener('change', () => this._filtrarRelatorio());
     document.getElementById('rel-assunto')?.addEventListener('change', () => this._filtrarRelatorio());
+
+    let toH;
+    document.getElementById('hist-search')?.addEventListener('input', () => {
+      clearTimeout(toH); toH = setTimeout(() => this._filtrarHistorico(), 200);
+    });
+    document.getElementById('hist-periodo')?.addEventListener('change', () => this._filtrarHistorico());
+    document.getElementById('hist-usuario')?.addEventListener('change', () => this._filtrarHistorico());
+    document.getElementById('hist-status')?.addEventListener('change', () => this._filtrarHistorico());
   }
 
   _filtrarRelatorio() {
@@ -3000,9 +3340,10 @@ class GridFlowApp {
       (n.empresa_nome || '').toLowerCase().includes(q) ||
       (n.empresa_codigo || '').toLowerCase().includes(q) ||
       (n.texto || '').toLowerCase().includes(q) ||
+      (n.assunto || '').toLowerCase().includes(q) ||
       (n.usuario || '').toLowerCase().includes(q)
     );
-    if (per) lista = lista.filter(n => n.periodo === per);
+    if (per)     lista = lista.filter(n => n.periodo === per);
     if (usuario) lista = lista.filter(n => n.usuario === usuario);
     if (assunto) lista = lista.filter(n => n.assunto === assunto);
     this._renderRelatorioLista(lista);
@@ -3025,21 +3366,18 @@ class GridFlowApp {
         periodoSel.innerHTML = '<option value="">Todos os períodos</option>' +
           periodos.map(p => `<option value="${p}">${p}</option>`).join('');
       }
-
       const usuarioSel = document.getElementById('rel-usuario');
       if (usuarioSel) {
         const usuarios = [...new Set(this._relatorioNotas.map(n => n.usuario).filter(Boolean))].sort();
         usuarioSel.innerHTML = '<option value="">Todos os usuários</option>' +
           usuarios.map(u => `<option value="${u}">${u}</option>`).join('');
       }
-
       const assuntoSel = document.getElementById('rel-assunto');
       if (assuntoSel) {
         const assuntos = [...new Set(this._relatorioNotas.map(n => n.assunto).filter(Boolean))].sort();
         assuntoSel.innerHTML = '<option value="">Todos os assuntos</option>' +
           assuntos.map(a => `<option value="${a}">${a}</option>`).join('');
       }
-
       this._filtrarRelatorio();
     } catch (e) {
       el.innerHTML = `<div style="color:#c53030;padding:20px;text-align:center">Erro ao carregar anotações: ${e.message}</div>`;
@@ -3054,14 +3392,7 @@ class GridFlowApp {
     if (summaryEl) {
       if (lista.length) {
         const totalEmpresas = new Set(lista.map(n => n.empresa_id)).size;
-        const contPorEmpresa = {};
-        lista.forEach(n => { contPorEmpresa[n.empresa_nome || '—'] = (contPorEmpresa[n.empresa_nome || '—'] || 0) + 1; });
-        const topEmpresas = Object.entries(contPorEmpresa).sort((a, b) => b[1] - a[1]).slice(0, 5);
-        summaryEl.innerHTML = `
-          <span style="font-weight:600;color:#4a5568">${lista.length} anotação${lista.length !== 1 ? 'ões' : ''}</span>
-          em <span style="font-weight:600;color:#4a5568">${totalEmpresas} empresa${totalEmpresas !== 1 ? 's' : ''}</span>
-          &nbsp;·&nbsp;
-          ${topEmpresas.map(([nome, cnt]) => `<span style="background:#edf2f7;border-radius:10px;padding:1px 8px;font-size:0.75rem;margin-right:4px">${nome}: <strong>${cnt}</strong></span>`).join('')}`;
+        summaryEl.innerHTML = `<span style="font-weight:600;color:#4a5568">${lista.length} anotação${lista.length !== 1 ? 'ões' : ''}</span> em <span style="font-weight:600;color:#4a5568">${totalEmpresas} empresa${totalEmpresas !== 1 ? 's' : ''}</span>`;
       } else {
         summaryEl.innerHTML = '';
       }
@@ -3071,49 +3402,96 @@ class GridFlowApp {
       el.innerHTML = '<div style="text-align:center;color:#a0aec0;padding:40px;font-size:0.9rem">Nenhuma anotação encontrada</div>';
       return;
     }
-    el.innerHTML = lista.map(n => {
-      const data = n.atualizado_em || n.criado_em || '';
-      const dataFmt = data ? data.slice(0, 10).split('-').reverse().join('/') : '—';
-      return `
-        <div class="card rel-nota-card" data-nota-id="${n.id}" style="padding:14px 16px">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
-            <div style="flex:1;min-width:0">
-              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
-                <span style="font-size:0.8rem;font-weight:700;color:#2b6cb0;background:#ebf8ff;padding:2px 10px;border-radius:12px">
-                  ${n.empresa_nome || '—'}${n.empresa_codigo ? ` <span style="font-weight:400;color:#63b3ed">#${n.empresa_codigo}</span>` : ''}
-                </span>
-                ${n.assunto ? `<span style="font-size:0.75rem;font-weight:700;color:#744210;background:#fefcbf;border:1px solid #f6e05e;padding:2px 8px;border-radius:12px">📌 ${n.assunto}</span>` : ''}
-                ${n.periodo ? `<span style="font-size:0.75rem;color:#718096;background:#f7fafc;border:1px solid #e2e8f0;padding:2px 8px;border-radius:12px">📅 ${n.periodo}</span>` : ''}
-                ${n.usuario ? `<span style="font-size:0.75rem;color:#718096">por <strong>${n.usuario}</strong></span>` : ''}
-                <span style="font-size:0.72rem;color:#a0aec0;margin-left:auto">${dataFmt}</span>
-              </div>
-              <div class="rel-nota-texto" style="font-size:0.88rem;color:#2d3748;line-height:1.5;white-space:pre-wrap">${n.texto || ''}</div>
-              ${this._renderAnexosMini(n.anexos)}
-              <textarea class="rel-nota-edit" data-id="${n.id}" style="display:none;width:100%;padding:8px 10px;border:1px solid #3498db;border-radius:6px;font-size:0.88rem;resize:vertical;font-family:inherit;box-sizing:border-box;margin-top:6px" rows="3">${n.texto || ''}</textarea>
-              <div class="rel-edit-btns" style="display:none;margin-top:8px;display:none;gap:8px">
-                <button class="btn-rel-salvar" data-id="${n.id}" style="padding:5px 14px;background:#3498db;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;font-weight:600">Salvar</button>
-                <button class="btn-rel-cancelar" data-id="${n.id}" style="padding:5px 14px;background:#f7fafc;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.82rem">Cancelar</button>
-              </div>
+
+    if ((this._relatorioView || 'empresa') === 'empresa') {
+      this._renderRelatorioAgrupado(lista, el);
+    } else {
+      this._renderRelatorioFlat(lista, el);
+    }
+  }
+
+  _renderRelatorioAgrupado(lista, el) {
+    const grupos = {};
+    lista.forEach(n => {
+      const key = n.empresa_id;
+      if (!grupos[key]) grupos[key] = { nome: n.empresa_nome || '—', codigo: n.empresa_codigo || '', notas: [] };
+      grupos[key].notas.push(n);
+    });
+    const empresas = Object.values(grupos).sort((a, b) => a.nome.localeCompare(b.nome));
+
+    el.innerHTML = empresas.map(emp => `
+      <div class="card rel-empresa-grupo" style="padding:0;overflow:hidden">
+        <div class="rel-empresa-header" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#f8fafc;border-bottom:1px solid #e2e8f0;cursor:pointer;user-select:none">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:0.88rem;font-weight:700;color:#2d3748">${emp.nome}</span>
+            ${emp.codigo ? `<span style="font-size:0.75rem;color:#718096;background:#edf2f7;padding:1px 8px;border-radius:8px">#${emp.codigo}</span>` : ''}
+            <span style="font-size:0.75rem;color:#a0aec0">${emp.notas.length} anotação${emp.notas.length !== 1 ? 'ões' : ''}</span>
+          </div>
+          <span class="rel-grupo-chevron" style="color:#a0aec0;font-size:0.75rem">▼</span>
+        </div>
+        <div class="rel-grupo-body" style="display:flex;flex-direction:column;gap:0">
+          ${emp.notas.map(n => this._relNotaCard(n)).join('')}
+        </div>
+      </div>`).join('');
+
+    el.querySelectorAll('.rel-empresa-header').forEach(h => {
+      h.addEventListener('click', () => {
+        const body = h.nextElementSibling;
+        const chevron = h.querySelector('.rel-grupo-chevron');
+        const aberto = body.style.display !== 'none';
+        body.style.display = aberto ? 'none' : 'flex';
+        chevron.textContent = aberto ? '▶' : '▼';
+      });
+    });
+
+    this._ligarEventosNotasRel(el);
+  }
+
+  _renderRelatorioFlat(lista, el) {
+    el.innerHTML = `<div style="display:flex;flex-direction:column;gap:10px">${lista.map(n => `<div class="card" style="padding:0;overflow:hidden">${this._relNotaCard(n, true)}</div>`).join('')}</div>`;
+    this._ligarEventosNotasRel(el);
+  }
+
+  _relNotaCard(n, showEmpresa = false) {
+    const data = n.atualizado_em || n.criado_em || '';
+    const dataFmt = data ? (data.length > 10 ? data.slice(0, 16) : data) : '—';
+    return `
+      <div class="rel-nota-card" data-nota-id="${n.id}" style="padding:12px 16px;border-bottom:1px solid #f0f4f8">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:5px">
+              ${showEmpresa && n.empresa_nome ? `<span style="font-size:0.78rem;font-weight:700;color:#2b6cb0;background:#ebf8ff;padding:1px 8px;border-radius:10px">${n.empresa_nome}${n.empresa_codigo ? ` #${n.empresa_codigo}` : ''}</span>` : ''}
+              ${n.assunto ? `<span style="font-size:0.75rem;font-weight:700;color:#744210;background:#fefcbf;border:1px solid #f6e05e;padding:1px 7px;border-radius:10px">📌 ${n.assunto}</span>` : ''}
+              ${n.periodo ? `<span style="font-size:0.72rem;color:#718096;background:#f7fafc;border:1px solid #e2e8f0;padding:1px 7px;border-radius:10px">📅 ${n.periodo}</span>` : ''}
+              ${n.usuario ? `<span style="font-size:0.72rem;color:#718096">por <strong>${n.usuario}</strong></span>` : ''}
+              <span style="font-size:0.7rem;color:#a0aec0;margin-left:auto">${dataFmt}</span>
             </div>
-            <div style="display:flex;gap:6px;flex-shrink:0">
-              <button class="btn-rel-editar" data-id="${n.id}" title="Editar" style="padding:4px 10px;background:#f7fafc;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.82rem;color:#4a5568">✏️</button>
-              <button class="btn-rel-excluir" data-id="${n.id}" title="Excluir" style="padding:4px 10px;background:#fff5f5;border:1px solid #fed7d7;border-radius:6px;cursor:pointer;font-size:0.82rem;color:#c53030">🗑️</button>
+            <div class="rel-nota-texto" style="font-size:0.87rem;color:#2d3748;line-height:1.5;white-space:pre-wrap">${n.texto || ''}</div>
+            ${this._renderAnexosMini(n.anexos)}
+            <textarea class="rel-nota-edit" style="display:none;width:100%;padding:8px 10px;border:1px solid #3498db;border-radius:6px;font-size:0.87rem;resize:vertical;font-family:inherit;box-sizing:border-box;margin-top:6px" rows="3">${n.texto || ''}</textarea>
+            <div class="rel-edit-btns" style="display:none;gap:8px;margin-top:8px">
+              <button class="btn-rel-salvar" data-id="${n.id}" style="padding:5px 14px;background:#3498db;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;font-weight:600">Salvar</button>
+              <button class="btn-rel-cancelar" style="padding:5px 14px;background:#f7fafc;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.82rem">Cancelar</button>
             </div>
           </div>
-        </div>`;
-    }).join('');
+          <div style="display:flex;gap:5px;flex-shrink:0">
+            <button class="btn-rel-editar" data-id="${n.id}" title="Editar" style="padding:4px 9px;background:#f7fafc;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.8rem;color:#4a5568">✏️</button>
+            <button class="btn-rel-excluir" data-id="${n.id}" title="Excluir" style="padding:4px 9px;background:#fff5f5;border:1px solid #fed7d7;border-radius:6px;cursor:pointer;font-size:0.8rem;color:#c53030">🗑️</button>
+          </div>
+        </div>
+      </div>`;
+  }
 
+  _ligarEventosNotasRel(el) {
     el.querySelectorAll('.btn-rel-editar').forEach(btn => {
       btn.addEventListener('click', () => {
         const card = btn.closest('.rel-nota-card');
         card.querySelector('.rel-nota-texto').style.display = 'none';
         card.querySelector('.rel-nota-edit').style.display = 'block';
-        const editBtns = card.querySelector('.rel-edit-btns');
-        editBtns.style.display = 'flex';
+        card.querySelector('.rel-edit-btns').style.display = 'flex';
         card.querySelector('.rel-nota-edit').focus();
       });
     });
-
     el.querySelectorAll('.btn-rel-cancelar').forEach(btn => {
       btn.addEventListener('click', () => {
         const card = btn.closest('.rel-nota-card');
@@ -3122,7 +3500,6 @@ class GridFlowApp {
         card.querySelector('.rel-edit-btns').style.display = 'none';
       });
     });
-
     el.querySelectorAll('.btn-rel-salvar').forEach(btn => {
       btn.addEventListener('click', async () => {
         const id = parseInt(btn.dataset.id);
@@ -3130,12 +3507,8 @@ class GridFlowApp {
         const novo = card.querySelector('.rel-nota-edit').value.trim();
         if (!novo) { alert('O texto não pode ficar vazio.'); return; }
         try {
-          await this.api('/api/notas', {
-            method: 'PUT',
-            body: JSON.stringify({ id, texto: novo })
-          });
-          const nota = this._relatorioNotas?.find(n => n.id === id);
-          if (nota) nota.texto = novo;
+          await this.api('/api/notas', { method: 'PUT', body: JSON.stringify({ id, texto: novo, usuario: this.usuario }) });
+          if (this._relatorioNotas) { const nota = this._relatorioNotas.find(n => n.id === id); if (nota) nota.texto = novo; }
           card.querySelector('.rel-nota-texto').textContent = novo;
           card.querySelector('.rel-nota-texto').style.display = '';
           card.querySelector('.rel-nota-edit').style.display = 'none';
@@ -3143,7 +3516,6 @@ class GridFlowApp {
         } catch (e) { alert('Erro ao salvar: ' + e.message); }
       });
     });
-
     el.querySelectorAll('.btn-rel-excluir').forEach(btn => {
       btn.addEventListener('click', async () => {
         if (!confirm('Excluir esta anotação?')) return;
@@ -3152,10 +3524,132 @@ class GridFlowApp {
           await this.api(`/api/notas?id=${id}`, { method: 'DELETE' });
           if (this._relatorioNotas) this._relatorioNotas = this._relatorioNotas.filter(n => n.id !== id);
           btn.closest('.rel-nota-card').remove();
-          if (!document.querySelectorAll('.rel-nota-card').length) {
-            el.innerHTML = '<div style="text-align:center;color:#a0aec0;padding:40px;font-size:0.9rem">Nenhuma anotação encontrada</div>';
-          }
         } catch (e) { alert('Erro ao excluir: ' + e.message); }
+      });
+    });
+  }
+
+  // ── Histórico de Atividades (Relatório) ───────────────────────────────────
+  async _carregarHistorico() {
+    const el = document.getElementById('rel-lista');
+    if (!el) return;
+    el.innerHTML = '<div class="loading"></div>';
+    try {
+      this._historicoRel = await this.api('/api/relatorio/historico');
+
+      const periodoSel = document.getElementById('hist-periodo');
+      if (periodoSel) {
+        const periodos = [...new Set(this._historicoRel.map(h => h.periodo).filter(Boolean))].sort((a, b) => {
+          const [ma, aa] = a.split('/').map(Number);
+          const [mb, ab] = b.split('/').map(Number);
+          return (ab - aa) || (mb - ma);
+        });
+        periodoSel.innerHTML = '<option value="">Todos os períodos</option>' + periodos.map(p => `<option value="${p}">${p}</option>`).join('');
+      }
+      const usuarioSel = document.getElementById('hist-usuario');
+      if (usuarioSel) {
+        const usuarios = [...new Set(this._historicoRel.map(h => h.usuario).filter(Boolean))].sort();
+        usuarioSel.innerHTML = '<option value="">Todos os usuários</option>' + usuarios.map(u => `<option value="${u}">${u}</option>`).join('');
+      }
+      this._filtrarHistorico();
+    } catch (e) {
+      el.innerHTML = `<div style="color:#c53030;padding:20px;text-align:center">Erro ao carregar histórico: ${e.message}</div>`;
+    }
+  }
+
+  _filtrarHistorico() {
+    if (!this._historicoRel) return;
+    const q       = (document.getElementById('hist-search')?.value || '').toLowerCase();
+    const periodo = document.getElementById('hist-periodo')?.value || '';
+    const usuario = document.getElementById('hist-usuario')?.value || '';
+    const status  = document.getElementById('hist-status')?.value  || '';
+    let lista = this._historicoRel;
+    if (q)       lista = lista.filter(h => (h.empresa_nome || '').toLowerCase().includes(q) || (h.atividade_nome || '').toLowerCase().includes(q));
+    if (periodo) lista = lista.filter(h => h.periodo === periodo);
+    if (usuario) lista = lista.filter(h => h.usuario === usuario);
+    if (status)  lista = lista.filter(h => h.status === status);
+    this._renderHistoricoLista(lista);
+  }
+
+  _renderHistoricoLista(lista) {
+    const el = document.getElementById('rel-lista');
+    if (!el) return;
+
+    const summaryEl = document.getElementById('hist-summary');
+    if (summaryEl) {
+      const totalEmpresas = new Set(lista.map(h => h.empresa_id)).size;
+      const totalOk = lista.filter(h => h.status === 'OK').length;
+      summaryEl.innerHTML = lista.length
+        ? `<span style="font-weight:600;color:#4a5568">${lista.length} registro${lista.length !== 1 ? 's' : ''}</span> · <span style="color:#27ae60;font-weight:600">${totalOk} OK</span> · <span style="font-weight:600">${totalEmpresas} empresa${totalEmpresas !== 1 ? 's' : ''}</span>`
+        : '';
+    }
+
+    if (!lista.length) {
+      el.innerHTML = '<div style="text-align:center;color:#a0aec0;padding:40px;font-size:0.9rem">Nenhum registro encontrado</div>';
+      return;
+    }
+
+    const grupos = {};
+    lista.forEach(h => {
+      const key = h.empresa_id;
+      if (!grupos[key]) grupos[key] = { nome: h.empresa_nome || '—', codigo: h.empresa_codigo || '', itens: [] };
+      grupos[key].itens.push(h);
+    });
+    const empresas = Object.values(grupos).sort((a, b) => a.nome.localeCompare(b.nome));
+
+    el.innerHTML = empresas.map(emp => `
+      <div class="card rel-empresa-grupo" style="padding:0;overflow:hidden;margin-bottom:2px">
+        <div class="rel-empresa-header" style="display:flex;align-items:center;justify-content:space-between;padding:11px 16px;background:#f8fafc;border-bottom:1px solid #e2e8f0;cursor:pointer;user-select:none">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:0.88rem;font-weight:700;color:#2d3748">${emp.nome}</span>
+            ${emp.codigo ? `<span style="font-size:0.72rem;color:#718096;background:#edf2f7;padding:1px 7px;border-radius:8px">#${emp.codigo}</span>` : ''}
+            <span style="font-size:0.72rem;color:#a0aec0">${emp.itens.length} registro${emp.itens.length !== 1 ? 's' : ''}</span>
+          </div>
+          <span class="rel-grupo-chevron" style="color:#a0aec0;font-size:0.72rem">▼</span>
+        </div>
+        <div class="rel-grupo-body">
+          <table style="width:100%;border-collapse:collapse;font-size:0.8rem">
+            <thead>
+              <tr style="background:#f8fafc;color:#718096;font-size:0.72rem;text-transform:uppercase;letter-spacing:.04em">
+                <th style="padding:6px 14px;text-align:left;border-bottom:1px solid #e2e8f0">Atividade</th>
+                <th style="padding:6px 10px;text-align:center;border-bottom:1px solid #e2e8f0">Período</th>
+                <th style="padding:6px 10px;text-align:center;border-bottom:1px solid #e2e8f0">Status</th>
+                <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #e2e8f0">Usuário</th>
+                <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #e2e8f0">Data</th>
+                <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #e2e8f0">Obs.</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${emp.itens.map((h, i) => {
+                const statusColor = h.status === 'OK' ? '#27ae60' : '#718096';
+                const statusBg    = h.status === 'OK' ? '#f0fff4' : '#f7fafc';
+                const statusBd    = h.status === 'OK' ? '#9ae6b4' : '#e2e8f0';
+                return `<tr style="background:${i % 2 === 0 ? '#fff' : '#fafbfc'}">
+                  <td style="padding:7px 14px;color:#2d3748">
+                    ${h.atividade_grupo ? `<span style="font-size:0.68rem;color:#a0aec0;margin-right:4px">[${h.atividade_grupo}]</span>` : ''}
+                    ${h.atividade_nome || '—'}
+                  </td>
+                  <td style="padding:7px 10px;text-align:center;color:#718096">${h.periodo || '—'}</td>
+                  <td style="padding:7px 10px;text-align:center">
+                    <span style="font-size:0.72rem;font-weight:700;color:${statusColor};background:${statusBg};border:1px solid ${statusBd};padding:2px 8px;border-radius:8px">${h.status}</span>
+                  </td>
+                  <td style="padding:7px 10px;color:#718096">${h.usuario || '—'}</td>
+                  <td style="padding:7px 10px;color:#a0aec0;white-space:nowrap">${h.data || '—'}</td>
+                  <td style="padding:7px 10px;color:#718096;max-width:200px;word-break:break-word">${h.obs || ''}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>`).join('');
+
+    el.querySelectorAll('.rel-empresa-header').forEach(h => {
+      h.addEventListener('click', () => {
+        const body = h.nextElementSibling;
+        const chevron = h.querySelector('.rel-grupo-chevron');
+        const aberto = body.style.display !== 'none';
+        body.style.display = aberto ? 'none' : '';
+        chevron.textContent = aberto ? '▶' : '▼';
       });
     });
   }

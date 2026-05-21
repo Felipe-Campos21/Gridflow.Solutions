@@ -848,6 +848,56 @@ const server = http.createServer(async (req, res) => {
     }
 
                                    // ================================================================
+                                   // STATUS ANUAL
+                                   // ================================================================
+                                   if (pathname === '/api/status/anual' && method === 'GET') {
+                                         const ano = parseInt(parsed.query.ano) || new Date().getFullYear();
+                                         const cidQ = contaId ? '&conta_id=eq.' + contaId : '';
+                                         const [empR, ativsR, easR, histR] = await Promise.all([
+                                               sbFetch('empresas?ativo=eq.1' + cidQ + '&select=id,nome,codigo_interno&order=nome.asc'),
+                                               sbFetch('atividades?ativo=eq.1' + cidQ + '&select=id,nome,grupo'),
+                                               sbFetch('empresa_atividades?select=*'),
+                                               sbFetch('historico?periodo=like.*%2F' + ano + (contaId ? '&conta_id=eq.' + contaId : '') + '&select=empresa_id,periodo,atividade_id,status')
+                                         ]);
+                                         const emps = empR.body || [], ativs = ativsR.body || [], eas = easR.body || [], hist = histR.body || [];
+                                         const meses = [];
+                                         for (let m = 1; m <= 12; m++) meses.push(String(m).padStart(2, '0') + '/' + ano);
+                                         const resultado = emps.map(emp => {
+                                               const eaMap = {};
+                                               eas.filter(ea => ea.empresa_id === emp.id).forEach(ea => { eaMap[ea.atividade_id] = ea.habilitada; });
+                                               const atvsHab = ativs.filter(a => eaMap[a.id] !== 0);
+                                               const porMes = {};
+                                               for (const per of meses) {
+                                                     const eHist = hist.filter(h => h.empresa_id === emp.id && h.periodo === per);
+                                                     const okIds = new Set(eHist.filter(h => h.status === 'OK').map(h => h.atividade_id));
+                                                     const naIds = new Set(eHist.filter(h => h.status === 'Não Aplicável').map(h => h.atividade_id));
+                                                     const total = atvsHab.length, concluidas = new Set([...okIds, ...naIds]).size;
+                                                     const pct = total > 0 ? Math.round((concluidas / total) * 100) : 0;
+                                                     const pendentes_lista = atvsHab.filter(a => !okIds.has(a.id) && !naIds.has(a.id)).map(a => ({ id: a.id, nome: a.nome, grupo: a.grupo || 'Geral' }));
+                                                     porMes[per] = { total, concluidas, pct, pendentes: total - concluidas, pendentes_lista };
+                                               }
+                                               return { empresa: { id: emp.id, nome: emp.nome, codigo_interno: emp.codigo_interno || '' }, meses: porMes };
+                                         });
+                                         return sendJson(res, 200, { meses, empresas: resultado });
+                                   }
+
+                                   // ================================================================
+                                   // RELATÓRIO DE HISTÓRICO
+                                   // ================================================================
+                                   if (pathname === '/api/relatorio/historico' && method === 'GET') {
+                                         const cidQ = contaId ? '&conta_id=eq.' + contaId : '';
+                                         let q = 'historico?select=*,empresas(nome,codigo_interno),atividades(nome,grupo)' + cidQ + '&order=data.desc&limit=1000';
+                                         if (parsed.query.periodo) q += '&periodo=eq.' + encodeURIComponent(parsed.query.periodo);
+                                         if (parsed.query.usuario) q += '&usuario=eq.' + encodeURIComponent(parsed.query.usuario);
+                                         const r = await sbFetch(q);
+                                         const items = (r.body || []).map(h => {
+                                               const { empresas, atividades, ...rest } = h;
+                                               return { ...rest, empresa_nome: empresas?.nome || null, empresa_codigo: empresas?.codigo_interno || null, atividade_nome: atividades?.nome || null, atividade_grupo: atividades?.grupo || null };
+                                         });
+                                         return sendJson(res, 200, items);
+                                   }
+
+                                   // ================================================================
                                    // PERÍODOS
                                    // ================================================================
                                    if (pathname === '/api/periodos' && method === 'GET') {
@@ -875,24 +925,18 @@ const server = http.createServer(async (req, res) => {
                                          if (method === 'POST') {
                                                const body = await readBody(req);
                                                const eId = parseInt(body.empresa_id), per = body.periodo || '';
-                                               const chk = await sbFetch('notas?empresa_id=eq.' + eId + '&periodo=eq.' + encodeURIComponent(per) + '&select=id,anexos');
-                                               if (chk.body && chk.body[0]) {
-                                                     const patch = { texto: body.texto || '', usuario: body.usuario || '', atualizado_em: agora() };
-                                                     if (body.anexos !== undefined) patch.anexos = body.anexos;
-                                                     if (body.assunto !== undefined) patch.assunto = body.assunto;
-                                                     await sbFetch('notas?id=eq.' + chk.body[0].id, { method: 'PATCH', body: patch });
-                                               } else {
-                                                     const nb = { empresa_id: eId, periodo: per, texto: body.texto || '', usuario: body.usuario || '', anexos: body.anexos || [], criado_em: agora() };
-                                                     if (body.assunto !== undefined) nb.assunto = body.assunto;
-                                                     if (contaId) nb.conta_id = contaId;
-                                                     await sbFetch('notas', { method: 'POST', body: nb, prefer: 'return=minimal' });
-                                               }
+                                               const nb = { empresa_id: eId, periodo: per, texto: body.texto || '', usuario: body.usuario || '', anexos: body.anexos || [], criado_em: agora() };
+                                               if (body.assunto !== undefined) nb.assunto = body.assunto;
+                                               if (contaId) nb.conta_id = contaId;
+                                               await sbFetch('notas', { method: 'POST', body: nb, prefer: 'return=minimal' });
                                                return sendJson(res, 200, { ok: true });
                                          }
                                          if (method === 'PUT') {
                                                const body = await readBody(req);
-                                               const agr = agora();
-                                               await sbFetch('notas?id=eq.' + parseInt(body.id), { method: 'PATCH', body: { texto: body.texto, usuario: body.usuario, atualizado_em: agr } });
+                                               const patch = { texto: body.texto, usuario: body.usuario, atualizado_em: agora() };
+                                               if (body.assunto !== undefined) patch.assunto = body.assunto;
+                                               if (body.anexos !== undefined) patch.anexos = body.anexos;
+                                               await sbFetch('notas?id=eq.' + parseInt(body.id), { method: 'PATCH', body: patch });
                                                return sendJson(res, 200, { ok: true });
                                          }
                                          if (method === 'DELETE') {
@@ -951,7 +995,7 @@ const server = http.createServer(async (req, res) => {
                                          }
                                          const porColaborador = cols.map(col => {
                                                const empIds = ces.filter(ce => ce.colaborador_id === col.id).map(ce => ce.empresa_id);
-                                               const colEmps = empIds.length ? emps.filter(e => empIds.includes(e.id)) : emps;
+                                               const colEmps = emps.filter(e => empIds.includes(e.id));
                                                const empDetalhe = calcEmpresas(colEmps).sort((a, b) => a.empresa.nome.localeCompare(b.empresa.nome));
                                                const totalAtv = empDetalhe.reduce((s, e) => s + e.total, 0);
                                                const concluidasT = empDetalhe.reduce((s, e) => s + e.concluidas, 0);
@@ -971,7 +1015,8 @@ const server = http.createServer(async (req, res) => {
                                          const col = colR.body[0];
                                          const cesR = await sbFetch('colaborador_empresas?colaborador_id=eq.' + col.id + '&select=empresa_id');
                                          const empIds = (cesR.body || []).map(ce => ce.empresa_id);
-                                         const empQ = empIds.length ? 'empresas?id=in.(' + empIds.join(',') + ')&ativo=eq.1&order=nome.asc' : ('empresas?ativo=eq.1' + cidQ + '&order=nome.asc');
+                                         if (!empIds.length) return sendJson(res, 200, []);
+                                         const empQ = 'empresas?id=in.(' + empIds.join(',') + ')&ativo=eq.1&order=nome.asc';
                                          const [empR, ativsR, easR, histR] = await Promise.all([
                                                sbFetch(empQ),
                                                sbFetch('atividades?ativo=eq.1' + cidQ + '&select=*'),

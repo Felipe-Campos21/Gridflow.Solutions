@@ -646,6 +646,89 @@ body {
 }
 #db-nota-status { font-size: 0.75rem; color: #718096; }
 
+.nota-item {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: #f8fafc;
+}
+.nota-item-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-bottom: 5px;
+}
+.nota-item-assunto {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #2b6cb0;
+  background: #ebf8ff;
+  border-radius: 5px;
+  padding: 1px 8px;
+  flex-shrink: 0;
+}
+.nota-item-meta {
+  font-size: 0.72rem;
+  color: #a0aec0;
+  flex: 1;
+  margin-top: 2px;
+}
+.nota-item-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.nota-item-actions button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 2px 5px;
+  border-radius: 4px;
+  color: #718096;
+  line-height: 1;
+}
+.nota-item-actions button:hover { background: #edf2f7; }
+.nota-item-texto {
+  font-size: 0.82rem;
+  color: #4a5568;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.nota-item-anexos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.nota-item-anexos a {
+  font-size: 0.75rem;
+  color: #3182ce;
+  background: #ebf8ff;
+  border: 1px solid #bee3f8;
+  border-radius: 5px;
+  padding: 2px 8px;
+  text-decoration: none;
+}
+.nota-item-edit-form {
+  margin-top: 6px;
+}
+.nota-nova-section {
+  border-top: 1px solid #e2e8f0;
+  margin-top: 10px;
+  padding-top: 12px;
+}
+.nota-nova-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: #a0aec0;
+  margin-bottom: 8px;
+}
+
 /* ── Buttons ─────────────────────────────────────────────────────────────── */
 .btn {
   padding: 8px 16px;
