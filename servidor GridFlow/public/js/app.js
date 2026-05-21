@@ -3118,22 +3118,27 @@ class GridFlowApp {
     if (!el || !this._statusAnualData) return;
 
     const { meses, empresas } = this._statusAnualData;
-    const nomeMes = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    const nomeMes = { '01':'Janeiro','02':'Fevereiro','03':'Março','04':'Abril','05':'Maio','06':'Junho',
+                      '07':'Julho','08':'Agosto','09':'Setembro','10':'Outubro','11':'Novembro','12':'Dezembro' };
     const search = (this._statusSearch || '').toLowerCase();
 
     let lista = empresas;
-    if (search) lista = lista.filter(e => e.empresa.nome.toLowerCase().includes(search) || String(e.empresa.codigo_interno).includes(search));
+    if (search) lista = lista.filter(e =>
+      e.empresa.nome.toLowerCase().includes(search) ||
+      String(e.empresa.codigo_interno).includes(search)
+    );
 
-    const totalEmps = lista.length;
-    const totalCelulas = lista.reduce((s, e) => s + Object.values(e.meses).filter(m => m.total > 0).length, 0);
-    const totalOk = lista.reduce((s, e) => s + Object.values(e.meses).filter(m => m.pct === 100 && m.total > 0).length, 0);
+    // Cálculos globais
+    const totalMesesComAtiv  = lista.reduce((s, e) => s + Object.values(e.meses).filter(m => m.total > 0).length, 0);
+    const totalMesesOk       = lista.reduce((s, e) => s + Object.values(e.meses).filter(m => m.pct === 100 && m.total > 0).length, 0);
+    const totalMesesPend     = totalMesesComAtiv - totalMesesOk;
 
     if (sumEl) sumEl.innerHTML = `
       <div class="card status-summary-card" style="margin-bottom:12px">
         <div class="status-summary-cards">
-          <div class="summary-stat"><div class="summary-stat-icon">🏢</div><div class="summary-stat-value" style="color:#2d3748">${totalEmps}</div><div class="summary-stat-label">Empresas</div></div>
-          <div class="summary-stat summary-stat-blue"><div class="summary-stat-icon">✅</div><div class="summary-stat-value" style="color:#27ae60">${totalOk}</div><div class="summary-stat-label">Meses 100%</div></div>
-          <div class="summary-stat"><div class="summary-stat-icon">⏳</div><div class="summary-stat-value" style="color:#e67e22">${totalCelulas - totalOk}</div><div class="summary-stat-label">Meses pendentes</div></div>
+          <div class="summary-stat"><div class="summary-stat-icon">🏢</div><div class="summary-stat-value" style="color:#2d3748">${lista.length}</div><div class="summary-stat-label">Empresas</div></div>
+          <div class="summary-stat summary-stat-blue"><div class="summary-stat-icon">✅</div><div class="summary-stat-value" style="color:#27ae60">${totalMesesOk}</div><div class="summary-stat-label">Meses 100%</div></div>
+          <div class="summary-stat"><div class="summary-stat-icon">⏳</div><div class="summary-stat-value" style="color:#e67e22">${totalMesesPend}</div><div class="summary-stat-label">Meses pendentes</div></div>
         </div>
       </div>`;
 
@@ -3142,77 +3147,74 @@ class GridFlowApp {
       return;
     }
 
-    el.innerHTML = `
-      <div class="card" style="padding:0;overflow:auto">
-        <table style="width:100%;border-collapse:collapse;font-size:0.78rem;min-width:700px">
-          <thead>
-            <tr style="background:#f8fafc">
-              <th style="padding:10px 14px;text-align:left;border-bottom:2px solid #e2e8f0;font-size:0.72rem;color:#718096;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;position:sticky;left:0;background:#f8fafc;z-index:1">Empresa</th>
-              ${meses.map((m, i) => `<th style="padding:8px 6px;text-align:center;border-bottom:2px solid #e2e8f0;font-size:0.72rem;color:#718096;text-transform:uppercase;min-width:52px">${nomeMes[i]}</th>`).join('')}
-            </tr>
-          </thead>
-          <tbody>
-            ${lista.map((e, ri) => `
-              <tr style="background:${ri%2===0?'#fff':'#fafbfc'}">
-                <td style="padding:8px 14px;border-bottom:1px solid #f0f4f8;white-space:nowrap;position:sticky;left:0;background:${ri%2===0?'#fff':'#fafbfc'};z-index:1">
-                  <div style="font-weight:600;color:#2d3748;font-size:0.82rem">${e.empresa.nome}</div>
-                  ${e.empresa.codigo_interno ? `<div style="font-size:0.68rem;color:#a0aec0">#${e.empresa.codigo_interno}</div>` : ''}
-                </td>
-                ${meses.map(per => {
-                  const m = e.meses[per];
-                  if (!m || m.total === 0) return `<td style="padding:6px;text-align:center;border-bottom:1px solid #f0f4f8"><span style="display:inline-block;width:28px;height:28px;border-radius:50%;background:#edf2f7;font-size:0.65rem;line-height:28px;color:#a0aec0">—</span></td>`;
-                  const cor = m.pct === 100 ? '#27ae60' : m.pct >= 60 ? '#e67e22' : '#e74c3c';
-                  const bg  = m.pct === 100 ? '#f0fff4' : m.pct >= 60 ? '#fffaf0' : '#fff5f5';
-                  return `<td style="padding:6px;text-align:center;border-bottom:1px solid #f0f4f8">
-                    <div class="anual-celula" data-empresa="${e.empresa.id}" data-per="${per}" title="${e.empresa.nome} — ${per}: ${m.pct}% (${m.concluidas}/${m.total})"
-                      style="display:inline-flex;flex-direction:column;align-items:center;justify-content:center;width:40px;height:36px;border-radius:7px;background:${bg};border:1px solid ${cor}30;cursor:${m.pendentes>0?'pointer':'default'}">
-                      <span style="font-size:0.7rem;font-weight:700;color:${cor}">${m.pct}%</span>
-                      ${m.pendentes > 0 ? `<span style="font-size:0.6rem;color:#a0aec0">${m.pendentes}p</span>` : ''}
-                    </div>
-                  </td>`;
-                }).join('')}
-              </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>`;
+    el.innerHTML = `<div class="status-emp-grid">${lista.map(e => {
+      // Progresso anual ponderado
+      const mesesComAtiv = Object.values(e.meses).filter(m => m.total > 0);
+      const totalAtv    = mesesComAtiv.reduce((s, m) => s + m.total, 0);
+      const totalConc   = mesesComAtiv.reduce((s, m) => s + m.concluidas, 0);
+      const pctAnual    = totalAtv > 0 ? Math.round((totalConc / totalAtv) * 100) : 0;
+      const cor         = this._statusColor(pctAnual);
+      const mesesOk     = mesesComAtiv.filter(m => m.pct === 100).length;
+      const mesesPend   = mesesComAtiv.filter(m => m.pct < 100).length;
 
-    el.querySelectorAll('.anual-celula[data-empresa]').forEach(cell => {
-      cell.addEventListener('click', () => {
-        const empId = parseInt(cell.dataset.empresa);
-        const per   = cell.dataset.per;
-        const empData = lista.find(e => e.empresa.id === empId);
-        const mes = empData?.meses[per];
-        if (!mes || !mes.pendentes_lista?.length) return;
+      // Meses com pendências ordenados
+      const mesesPendentes = meses
+        .map(per => ({ per, m: e.meses[per] }))
+        .filter(({ m }) => m && m.total > 0 && m.pendentes > 0);
 
-        const existing = document.getElementById('anual-pop');
-        if (existing) existing.remove();
-
-        const grupos = {};
-        for (const p of mes.pendentes_lista) {
-          const g = p.grupo || 'Geral';
-          if (!grupos[g]) grupos[g] = [];
-          grupos[g].push(p.nome);
-        }
-        const pop = document.createElement('div');
-        pop.id = 'anual-pop';
-        pop.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.18);padding:18px 20px;z-index:9999;min-width:280px;max-width:400px;max-height:80vh;overflow-y:auto';
-        pop.innerHTML = `
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-            <div>
-              <div style="font-weight:700;font-size:0.92rem;color:#2d3748">${empData.empresa.nome}</div>
-              <div style="font-size:0.75rem;color:#718096">${per} · ${mes.pendentes} pendente${mes.pendentes !== 1 ? 's' : ''}</div>
+      const dropId = `anual-drop-${e.empresa.id}`;
+      return `
+        <div class="emp-status-card">
+          <div class="emp-card-top">
+            <div style="flex:1;min-width:0">
+              <div class="emp-card-id">${e.empresa.codigo_interno || e.empresa.id}</div>
+              <div class="emp-card-nome">${e.empresa.nome}</div>
             </div>
-            <button id="anual-pop-close" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#a0aec0;line-height:1;padding:2px 6px">×</button>
+            <div style="text-align:right;margin-left:8px">
+              <div class="emp-card-pct" style="color:${cor}">${pctAnual}%</div>
+              <div class="emp-card-pct-label">anual</div>
+            </div>
           </div>
-          ${Object.entries(grupos).map(([g, ativs]) => `
-            <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#a0aec0;margin:10px 0 4px">${g}</div>
-            ${ativs.map(nome => `<div style="padding:4px 0;font-size:0.82rem;color:#4a5568;display:flex;align-items:center;gap:6px"><span style="color:#e74c3c">⏳</span>${nome}</div>`).join('')}
-          `).join('')}`;
-        document.body.appendChild(pop);
-        document.getElementById('anual-pop-close')?.addEventListener('click', () => pop.remove());
-        setTimeout(() => document.addEventListener('click', function h(ev) {
-          if (!pop.contains(ev.target) && !cell.contains(ev.target)) { pop.remove(); document.removeEventListener('click', h); }
-        }), 10);
+          <div class="status-progress-track" style="margin-bottom:10px">
+            <div class="status-progress-fill" style="width:${pctAnual}%;background:${cor}"></div>
+          </div>
+          <div class="emp-card-badges">
+            <div class="badge-ok">✅ ${mesesOk} mes${mesesOk !== 1 ? 'es' : ''} OK</div>
+            ${mesesPendentes.length > 0 ? `
+              <div class="badge-pendente" data-dropid="${dropId}">
+                ⏳ ${mesesPend} mes${mesesPend !== 1 ? 'es' : ''} pendentes ▾
+                <div class="pendente-dropdown" id="${dropId}" style="min-width:240px">
+                  ${mesesPendentes.map(({ per, m }) => {
+                    const mesNome = nomeMes[per.split('/')[0]] || per;
+                    const grupos = {};
+                    for (const p of m.pendentes_lista) {
+                      const g = p.grupo || 'Geral';
+                      if (!grupos[g]) grupos[g] = [];
+                      grupos[g].push(p.nome);
+                    }
+                    return `
+                      <div style="padding:6px 10px 2px;border-top:1px solid #edf2f7;margin-top:4px">
+                        <div style="font-size:0.7rem;font-weight:700;color:#3498db;margin-bottom:4px">📅 ${mesNome} — ${m.pendentes} pendente${m.pendentes !== 1 ? 's' : ''}</div>
+                        ${Object.entries(grupos).map(([g, ativs]) => `
+                          <div class="pdrop-grupo">${g.toUpperCase()}</div>
+                          ${ativs.map(nome => `<div class="pdrop-item">⏳ ${nome}</div>`).join('')}
+                        `).join('')}
+                      </div>`;
+                  }).join('')}
+                </div>
+              </div>` : `<div class="badge-ok" style="background:#f0fff4;border-color:#9ae6b4;color:#22543d">✅ Tudo em dia</div>`}
+          </div>
+        </div>`;
+    }).join('')}</div>`;
+
+    el.querySelectorAll('.badge-pendente[data-dropid]').forEach(badge => {
+      badge.addEventListener('click', ev => {
+        ev.stopPropagation();
+        const drop = document.getElementById(badge.dataset.dropid);
+        if (drop) {
+          el.querySelectorAll('.pendente-dropdown.open').forEach(d => { if (d !== drop) d.classList.remove('open'); });
+          drop.classList.toggle('open');
+        }
       });
     });
   }
@@ -3414,37 +3416,60 @@ class GridFlowApp {
     const grupos = {};
     lista.forEach(n => {
       const key = n.empresa_id;
-      if (!grupos[key]) grupos[key] = { nome: n.empresa_nome || '—', codigo: n.empresa_codigo || '', notas: [] };
+      if (!grupos[key]) grupos[key] = { id: n.empresa_id, nome: n.empresa_nome || '—', codigo: n.empresa_codigo || '', notas: [] };
       grupos[key].notas.push(n);
     });
     const empresas = Object.values(grupos).sort((a, b) => a.nome.localeCompare(b.nome));
 
-    el.innerHTML = empresas.map(emp => `
-      <div class="card rel-empresa-grupo" style="padding:0;overflow:hidden">
-        <div class="rel-empresa-header" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#f8fafc;border-bottom:1px solid #e2e8f0;cursor:pointer;user-select:none">
-          <div style="display:flex;align-items:center;gap:10px">
-            <span style="font-size:0.88rem;font-weight:700;color:#2d3748">${emp.nome}</span>
-            ${emp.codigo ? `<span style="font-size:0.75rem;color:#718096;background:#edf2f7;padding:1px 8px;border-radius:8px">#${emp.codigo}</span>` : ''}
-            <span style="font-size:0.75rem;color:#a0aec0">${emp.notas.length} anotação${emp.notas.length !== 1 ? 'ões' : ''}</span>
+    // Grid de cards de empresa
+    el.innerHTML = `<div class="status-emp-grid" id="rel-emp-grid">
+      ${empresas.map(emp => `
+        <div class="emp-status-card rel-emp-card" data-empid="${emp.id}" style="cursor:pointer">
+          <div class="emp-card-top">
+            <div style="flex:1;min-width:0">
+              ${emp.codigo ? `<div class="emp-card-id">${emp.codigo}</div>` : ''}
+              <div class="emp-card-nome">${emp.nome}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0;margin-left:8px">
+              <div style="font-size:1.4rem;font-weight:700;color:#3498db;line-height:1">${emp.notas.length}</div>
+              <div style="font-size:0.68rem;color:#a0aec0">nota${emp.notas.length !== 1 ? 's' : ''}</div>
+            </div>
           </div>
-          <span class="rel-grupo-chevron" style="color:#a0aec0;font-size:0.75rem">▼</span>
-        </div>
-        <div class="rel-grupo-body" style="display:flex;flex-direction:column;gap:0">
-          ${emp.notas.map(n => this._relNotaCard(n)).join('')}
-        </div>
-      </div>`).join('');
+          <div class="emp-card-badges" style="margin-top:6px">
+            <span style="font-size:0.75rem;color:#718096;font-style:italic">Ver anotações →</span>
+          </div>
+        </div>`).join('')}
+    </div>
+    <div id="rel-notas-detalhe" style="display:none"></div>`;
 
-    el.querySelectorAll('.rel-empresa-header').forEach(h => {
-      h.addEventListener('click', () => {
-        const body = h.nextElementSibling;
-        const chevron = h.querySelector('.rel-grupo-chevron');
-        const aberto = body.style.display !== 'none';
-        body.style.display = aberto ? 'none' : 'flex';
-        chevron.textContent = aberto ? '▶' : '▼';
+    el.querySelectorAll('.rel-emp-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const empId = parseInt(card.dataset.empid);
+        const emp = empresas.find(e => e.id === empId);
+        if (!emp) return;
+        const grid = document.getElementById('rel-emp-grid');
+        const detalhe = document.getElementById('rel-notas-detalhe');
+        grid.style.display = 'none';
+        detalhe.style.display = 'block';
+        detalhe.innerHTML = `
+          <div style="margin-bottom:12px;display:flex;align-items:center;gap:10px">
+            <button id="btn-rel-voltar" style="padding:5px 14px;background:#f7fafc;border:1px solid #e2e8f0;border-radius:7px;cursor:pointer;font-size:0.82rem;font-weight:600;color:#4a5568">← Voltar</button>
+            <div>
+              <span style="font-weight:700;color:#2d3748">${emp.nome}</span>
+              ${emp.codigo ? `<span style="font-size:0.75rem;color:#a0aec0;margin-left:6px">#${emp.codigo}</span>` : ''}
+              <span style="font-size:0.75rem;color:#a0aec0;margin-left:8px">${emp.notas.length} anotação${emp.notas.length !== 1 ? 'ões' : ''}</span>
+            </div>
+          </div>
+          <div class="card" style="padding:0;overflow:hidden">
+            ${emp.notas.map(n => this._relNotaCard(n)).join('')}
+          </div>`;
+        document.getElementById('btn-rel-voltar')?.addEventListener('click', () => {
+          detalhe.style.display = 'none';
+          grid.style.display = '';
+        });
+        this._ligarEventosNotasRel(detalhe);
       });
     });
-
-    this._ligarEventosNotasRel(el);
   }
 
   _renderRelatorioFlat(lista, el) {
