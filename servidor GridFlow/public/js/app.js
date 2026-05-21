@@ -340,8 +340,7 @@ class GridFlowApp {
         this._statusSearch = '';
         content.innerHTML = this._renderStatusShell();
         this._configurarEventosStatus();
-        if (this._statusView === 'anual') await this._carregarStatusAnual();
-        else await this._carregarStatus();
+        await this._carregarStatus();
         break;
       case 'relatorio':
         content.innerHTML = this._renderRelatorioShell();
@@ -2689,9 +2688,7 @@ class GridFlowApp {
 
   _renderStatusShell() {
     const userName = this.usuario || '—';
-    const anoAtual = new Date().getFullYear();
-    const anosDisponiveis = this._anos || [anoAtual];
-    this._statusAno = this._statusAno || anoAtual;
+    if (this._statusView === 'anual') this._statusView = 'empresas';
     return `
       <div class="status-page">
         <div class="card status-header-card">
@@ -2700,15 +2697,10 @@ class GridFlowApp {
             <div class="status-subtitle">${userName} · Período: <span style="color:#3498db;font-weight:700">${this.periodo || '—'}</span></div>
           </div>
           <div class="status-controls">
-            <input id="status-search" class="status-search" placeholder="🔍 Buscar empresa..." value="${this._statusSearch || ''}"
-              style="${this._statusView === 'anual' ? 'display:none' : ''}">
-            <select id="status-ano-select" style="display:${this._statusView === 'anual' ? 'block' : 'none'};padding:7px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;color:#4a5568;background:#fff">
-              ${[...anosDisponiveis].sort((a,b)=>b-a).map(a => `<option value="${a}"${a===this._statusAno?' selected':''}>${a}</option>`).join('')}
-            </select>
+            <input id="status-search" class="status-search" placeholder="🔍 Buscar empresa..." value="${this._statusSearch || ''}">
             <div class="status-view-toggle">
               <button class="btn-status-view${this._statusView === 'colaboradores' ? ' active' : ''}" data-view="colaboradores">👥 Colaboradores</button>
-              <button class="btn-status-view${this._statusView === 'empresas' ? ' active' : ''}" data-view="empresas">🏢 Empresas</button>
-              <button class="btn-status-view${this._statusView === 'anual' ? ' active' : ''}" data-view="anual">📅 Anual</button>
+              <button class="btn-status-view${this._statusView !== 'colaboradores' ? ' active' : ''}" data-view="empresas">🏢 Empresas</button>
             </div>
             <button class="btn btn-secondary btn-sm" id="btn-status-refresh">🔄 Atualizar</button>
           </div>
@@ -2732,6 +2724,10 @@ class GridFlowApp {
   _renderStatusContent() {
     if (this._statusColabDetalhe) {
       this._renderCollabDetalhe(this._statusColabDetalhe);
+      return;
+    }
+    if (this._statusEmpresaDetalhe) {
+      this._renderEmpresaDetalhe(this._statusEmpresaDetalhe);
       return;
     }
     this._renderStatusSummary();
@@ -2967,65 +2963,53 @@ class GridFlowApp {
     const { geral } = this._statusData;
     const search = (this._statusSearch || '').toLowerCase();
     const regime = this._statusRegime || '';
+    const CIRC = 201.06;
 
     let filtered = geral;
-    if (search) {
-      filtered = filtered.filter(e =>
-        e.empresa.nome.toLowerCase().includes(search) ||
-        String(e.empresa.codigo_interno).includes(search)
-      );
-    }
-    if (regime) {
-      filtered = filtered.filter(e =>
-        (e.empresa.regime_tributario || '').toLowerCase() === regime.toLowerCase()
-      );
-    }
+    if (search) filtered = filtered.filter(e =>
+      e.empresa.nome.toLowerCase().includes(search) ||
+      String(e.empresa.codigo_interno).includes(search)
+    );
+    if (regime) filtered = filtered.filter(e =>
+      (e.empresa.regime_tributario || '').toLowerCase() === regime.toLowerCase()
+    );
 
     const regimes = [...new Set(geral.map(e => e.empresa.regime_tributario).filter(Boolean))].sort();
-
     const regimeFilter = regimes.length > 0 ? `
       <div class="regime-filter">
         <button class="btn-regime${!regime ? ' active' : ''}" data-regime="">Todos</button>
         ${regimes.map(r => `<button class="btn-regime${regime === r ? ' active' : ''}" data-regime="${r}">${r}</button>`).join('')}
       </div>` : '';
 
-    const cards = filtered.length === 0
-      ? `<div class="empty-state"><div class="empty-state-icon">🏢</div><div class="empty-state-text">Nenhuma empresa encontrada</div></div>`
-      : `<div class="status-emp-grid">
-          ${filtered.map(e => {
-            const cor = this._statusColor(e.pct);
-            return `
-              <div class="emp-status-card">
-                <div class="emp-card-top">
-                  <div style="flex:1;min-width:0">
-                    <div class="emp-card-id">${e.empresa.codigo_interno || e.empresa.id}</div>
-                    <div class="emp-card-nome">${e.empresa.nome}</div>
-                    ${e.empresa.regime_tributario ? `<div style="font-size:0.68rem;color:#a0aec0;margin-top:2px">${e.empresa.regime_tributario}</div>` : ''}
-                  </div>
-                  <div style="text-align:right;margin-left:8px">
-                    <div class="emp-card-pct" style="color:${cor}">${e.pct}%</div>
-                    <div class="emp-card-pct-label">concluído</div>
-                  </div>
-                </div>
-                <div class="status-progress-track" style="margin-bottom:10px">
-                  <div class="status-progress-fill" style="width:${e.pct}%;background:${cor}"></div>
-                </div>
-                <div class="emp-card-badges">
-                  <div class="badge-ok">✅ ${e.ok} OK</div>
-                  ${e.nao_aplicavel > 0 ? `<div class="badge-ok" style="background:#f0f8ff;border-color:#bee3f8;color:#2b6cb0">N/A ${e.nao_aplicavel}</div>` : ''}
-                  ${e.pendentes > 0 ? `
-                    <div class="badge-pendente" data-empid="${e.empresa.id}">
-                      ⏳ ${e.pendentes} pendentes ▾
-                      <div class="pendente-dropdown" id="pend-drop-${e.empresa.id}">
-                        ${this._renderPendentesDropdown(e.pendentes_lista)}
-                      </div>
-                    </div>` : `<div class="badge-ok" style="background:#f0fff4;border-color:#9ae6b4;color:#22543d">✅ Concluído</div>`}
-                </div>
-              </div>`;
-          }).join('')}
-        </div>`;
+    if (filtered.length === 0) {
+      content.innerHTML = regimeFilter + '<div class="empty-state"><div class="empty-state-icon">🏢</div><div class="empty-state-text">Nenhuma empresa encontrada</div></div>';
+      return;
+    }
 
-    content.innerHTML = regimeFilter + cards;
+    content.innerHTML = regimeFilter + `<div class="status-collab-grid">
+      ${filtered.map(e => {
+        const cor    = this._statusColor(e.pct);
+        const offset = (CIRC * (1 - e.pct / 100)).toFixed(2);
+        return `
+          <div class="collab-status-card collab-clicavel" data-empid="${e.empresa.id}" style="cursor:pointer">
+            <div class="collab-ring-wrap">
+              <svg width="80" height="80" viewBox="0 0 80 80" style="transform:rotate(-90deg)">
+                <circle cx="40" cy="40" r="32" fill="none" stroke="#e2e8f0" stroke-width="7"/>
+                <circle cx="40" cy="40" r="32" fill="none" stroke="${cor}" stroke-width="7"
+                  stroke-dasharray="${CIRC}" stroke-dashoffset="${offset}" stroke-linecap="round"/>
+              </svg>
+              <div class="collab-ring-avatar" style="background:#f8fafc;color:#4a5568;font-size:0.72rem;font-weight:700">
+                ${e.empresa.codigo_interno || '—'}
+              </div>
+            </div>
+            <div class="collab-card-name">${e.empresa.nome}</div>
+            ${e.empresa.regime_tributario ? `<div class="collab-card-role">${e.empresa.regime_tributario}</div>` : '<div class="collab-card-role">&nbsp;</div>'}
+            <div class="collab-card-pct" style="color:${cor}">${e.pct}%</div>
+            <div class="collab-card-info">${e.concluidas}/${e.total} atividades · ${e.pendentes} pendente${e.pendentes !== 1 ? 's' : ''}</div>
+            <div class="collab-card-detail">Ver detalhes →</div>
+          </div>`;
+      }).join('')}
+    </div>`;
 
     content.querySelectorAll('.btn-regime').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -3034,15 +3018,129 @@ class GridFlowApp {
       });
     });
 
-    content.querySelectorAll('.badge-pendente').forEach(badge => {
-      badge.addEventListener('click', e => {
-        e.stopPropagation();
-        const drop = document.getElementById(`pend-drop-${badge.dataset.empid}`);
-        if (drop) {
-          content.querySelectorAll('.pendente-dropdown.open').forEach(d => { if (d !== drop) d.classList.remove('open'); });
-          drop.classList.toggle('open');
+    content.querySelectorAll('.collab-clicavel[data-empid]').forEach(card => {
+      card.addEventListener('click', () => {
+        const empId = parseInt(card.dataset.empid);
+        const empData = this._statusData.geral.find(e => e.empresa.id === empId);
+        if (empData) {
+          this._statusEmpresaDetalhe = empData;
+          this._renderStatusContent();
         }
       });
+    });
+  }
+
+  async _renderEmpresaDetalhe(empData) {
+    const summaryEl = document.getElementById('status-summary-area');
+    const content   = document.getElementById('status-main-content');
+    if (!summaryEl || !content) return;
+
+    const cor = this._statusColor(empData.pct);
+    const nomeMes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    const anoAtual = this.periodo ? parseInt(this.periodo.split('/')[1]) : new Date().getFullYear();
+
+    // Header da empresa
+    summaryEl.innerHTML = `
+      <div class="card status-summary-card">
+        <div class="collab-detalhe-header">
+          <button class="btn btn-secondary btn-sm" id="btn-emp-voltar">← Voltar</button>
+          <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0">
+            <div>
+              <div style="font-weight:700;font-size:1rem;color:#2d3748">${empData.empresa.nome}</div>
+              <div style="font-size:0.78rem;color:#718096">${empData.empresa.codigo_interno ? `#${empData.empresa.codigo_interno}` : ''}${empData.empresa.regime_tributario ? ` · ${empData.empresa.regime_tributario}` : ''}</div>
+            </div>
+          </div>
+          <div class="collab-detalhe-stats">
+            <div class="summary-stat"><div class="summary-stat-icon">📋</div><div class="summary-stat-value" style="color:#2d3748">${empData.total}</div><div class="summary-stat-label">Total</div></div>
+            <div class="summary-stat"><div class="summary-stat-icon">✅</div><div class="summary-stat-value" style="color:#27ae60">${empData.ok}</div><div class="summary-stat-label">OK</div></div>
+            ${empData.nao_aplicavel > 0 ? `<div class="summary-stat"><div class="summary-stat-icon">—</div><div class="summary-stat-value" style="color:#718096">${empData.nao_aplicavel}</div><div class="summary-stat-label">N/A</div></div>` : ''}
+            <div class="summary-stat summary-stat-pink"><div class="summary-stat-icon">📈</div><div class="summary-stat-value" style="color:${cor}">${empData.pct}%</div><div class="summary-stat-label">${this.periodo}</div></div>
+          </div>
+        </div>
+        <div class="status-progress-label" style="margin-top:12px">Progresso em ${this.periodo} (${empData.pct}%)</div>
+        <div class="status-progress-track">
+          <div class="status-progress-fill" style="width:${empData.pct}%;background:${cor}"></div>
+        </div>
+      </div>`;
+
+    document.getElementById('btn-emp-voltar')?.addEventListener('click', () => {
+      this._statusEmpresaDetalhe = null;
+      this._renderStatusContent();
+    });
+
+    // Área principal: pendências do período + barras anuais
+    content.innerHTML = '<div class="loading"></div>';
+
+    // Carrega dados anuais
+    let anualData = null;
+    try {
+      const resp = await this.api(`/api/status/anual?ano=${anoAtual}`);
+      anualData = resp.empresas?.find(e => e.empresa.id === empData.empresa.id);
+    } catch {}
+
+    const pendentesHtml = empData.pendentes > 0 ? `
+      <div class="card" style="margin-bottom:14px">
+        <div style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#e74c3c;margin-bottom:10px">⏳ Pendências em ${this.periodo}</div>
+        ${this._renderPendentesDropdown(empData.pendentes_lista).replace(/class="pdrop-/g, 'class="pdrop-inline pdrop-')}
+      </div>` : `
+      <div class="card" style="margin-bottom:14px;text-align:center;padding:20px">
+        <div style="color:#27ae60;font-size:1.1rem;font-weight:700">✅ Tudo concluído em ${this.periodo}</div>
+        <div style="color:#a0aec0;font-size:0.82rem;margin-top:4px">Todas as atividades estão OK ou N/A</div>
+      </div>`;
+
+    let anualHtml = '';
+    if (anualData) {
+      const meses = Object.entries(anualData.meses);
+      const totalAtv  = meses.reduce((s, [, m]) => s + m.total, 0);
+      const totalConc = meses.reduce((s, [, m]) => s + m.concluidas, 0);
+      const pctAnual  = totalAtv > 0 ? Math.round((totalConc / totalAtv) * 100) : 0;
+      const corAnual  = this._statusColor(pctAnual);
+
+      anualHtml = `
+        <div class="card">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <div style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#718096">Visão Anual ${anoAtual}</div>
+            <span style="font-size:1rem;font-weight:700;color:${corAnual}">${pctAnual}% anual</span>
+          </div>
+          <div class="status-progress-track" style="margin-bottom:16px">
+            <div class="status-progress-fill" style="width:${pctAnual}%;background:${corAnual}"></div>
+          </div>
+          ${meses.map(([per, m], i) => {
+            if (m.total === 0) return `
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;opacity:.4">
+                <div style="width:80px;font-size:0.75rem;color:#a0aec0;flex-shrink:0">${nomeMes[i]}</div>
+                <div style="flex:1;height:8px;border-radius:4px;background:#edf2f7"></div>
+                <div style="width:38px;font-size:0.75rem;color:#a0aec0;text-align:right">—</div>
+              </div>`;
+            const c = this._statusColor(m.pct);
+            const isPeriodoAtual = per === this.periodo;
+            return `
+              <div style="margin-bottom:10px">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <div style="width:80px;font-size:0.75rem;color:${isPeriodoAtual ? '#3498db' : '#718096'};flex-shrink:0;font-weight:${isPeriodoAtual ? '700' : '400'}">${nomeMes[i]}</div>
+                  <div style="flex:1;height:8px;border-radius:4px;background:#edf2f7;overflow:hidden">
+                    <div style="height:100%;width:${m.pct}%;background:${c};border-radius:4px;transition:width .4s"></div>
+                  </div>
+                  <div style="width:38px;font-size:0.75rem;font-weight:700;color:${c};text-align:right">${m.pct}%</div>
+                  ${m.pendentes > 0 ? `<div style="font-size:0.7rem;color:#e74c3c;white-space:nowrap">⏳ ${m.pendentes}</div>` : m.total > 0 ? '<div style="font-size:0.7rem;color:#27ae60">✅</div>' : ''}
+                </div>
+                ${m.pendentes > 0 && per !== this.periodo ? `
+                  <div style="margin:4px 0 2px 90px">
+                    ${m.pendentes_lista.slice(0, 3).map(p => `<div style="font-size:0.72rem;color:#a0aec0;padding:1px 0">· ${p.nome}</div>`).join('')}
+                    ${m.pendentes_lista.length > 3 ? `<div style="font-size:0.7rem;color:#a0aec0">+${m.pendentes_lista.length - 3} mais...</div>` : ''}
+                  </div>` : ''}
+              </div>`;
+          }).join('')}
+        </div>`;
+    }
+
+    content.innerHTML = pendentesHtml + anualHtml;
+
+    content.querySelectorAll('.pdrop-grupo').forEach(el => {
+      el.style.cssText = 'font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#a0aec0;padding:6px 0 2px';
+    });
+    content.querySelectorAll('.pdrop-item').forEach(el => {
+      el.style.cssText = 'padding:3px 0;font-size:0.82rem;color:#4a5568;display:flex;align-items:center;gap:6px';
     });
   }
 
@@ -3055,21 +3153,11 @@ class GridFlowApp {
         this._statusSearch = '';
         this._statusRegime = '';
         this._statusColabDetalhe = null;
+        this._statusEmpresaDetalhe = null;
         const s = document.getElementById('status-search');
-        if (s) { s.value = ''; s.style.display = this._statusView === 'anual' ? 'none' : ''; }
-        const anoSel = document.getElementById('status-ano-select');
-        if (anoSel) anoSel.style.display = this._statusView === 'anual' ? 'block' : 'none';
-        if (this._statusView === 'anual') {
-          this._carregarStatusAnual();
-        } else if (this._statusData) {
-          this._renderStatusContent();
-        }
+        if (s) s.value = '';
+        if (this._statusData) this._renderStatusContent();
       });
-    });
-
-    document.getElementById('status-ano-select')?.addEventListener('change', e => {
-      this._statusAno = parseInt(e.target.value);
-      this._carregarStatusAnual();
     });
 
     let searchTO;
@@ -3080,16 +3168,14 @@ class GridFlowApp {
         searchTO = setTimeout(() => {
           this._statusSearch = searchEl.value;
           this._statusColabDetalhe = null;
+          this._statusEmpresaDetalhe = null;
           if (this._statusData) this._renderStatusContent();
         }, 200);
       });
     }
 
     const refreshBtn = document.getElementById('btn-status-refresh');
-    if (refreshBtn) refreshBtn.addEventListener('click', () => {
-      if (this._statusView === 'anual') this._carregarStatusAnual();
-      else this._carregarStatus();
-    });
+    if (refreshBtn) refreshBtn.addEventListener('click', () => this._carregarStatus());
 
     document.addEventListener('click', e => {
       if (!e.target.closest('.badge-pendente')) {
