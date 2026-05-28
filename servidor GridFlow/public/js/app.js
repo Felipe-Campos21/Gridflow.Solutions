@@ -22,6 +22,7 @@ class GridFlowApp {
     this._statusRegime = '';
     this._statusData = null;
     this._statusColabDetalhe = null;
+    this._empresasFixadas = [];
   }
 
   async init() {
@@ -34,6 +35,7 @@ class GridFlowApp {
     const user = JSON.parse(savedUser);
     this.usuario    = user.nome;
     this.contaId    = user.conta_id || null;
+    try { this._empresasFixadas = JSON.parse(localStorage.getItem('gridflow_fixadas_' + (user.conta_id || 'default')) || '[]'); } catch { this._empresasFixadas = []; }
     this.colaborador = { id: user.id, nome: user.nome, admin: user.admin };
     document.getElementById('current-user').textContent = user.nome;
     // Avatar provisório com inicial — será substituído com foto ao carregar colaboradores
@@ -397,6 +399,24 @@ class GridFlowApp {
                 </div>`).join('')}
             </div>
           </div>` : ''}
+          ${this._empresasFixadas.length ? `
+          <div class="card" id="db-fixadas-card">
+            <h3>Empresas Buscadas</h3>
+            <div id="db-fixadas-lista">
+              ${this._empresasFixadas.map(e => `
+                <div class="minha-empresa-item empresa-fixada-item" data-id="${e.id}" style="position:relative;padding-right:32px">
+                  <div class="minha-empresa-item-icon">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  </div>
+                  <div class="minha-empresa-info">
+                    <div class="minha-empresa-nome">${e.nome}</div>
+                    ${e.codigo_interno || e.cnpj ? `<div class="minha-empresa-cod">${e.codigo_interno || e.cnpj}</div>` : ''}
+                  </div>
+                  <button class="btn-remover-fixada" data-id="${e.id}" title="Remover da lista"
+                    style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#cbd5e0;font-size:1.2rem;line-height:1;padding:2px 6px;border-radius:4px">×</button>
+                </div>`).join('')}
+            </div>
+          </div>` : ''}
           <div class="card" id="db-empresa-card">
             <h3>Empresa Selecionada</h3>
             <div id="db-empresa-info">
@@ -456,6 +476,16 @@ class GridFlowApp {
         await this.selecionarEmpresa(this.minhasEmpresas.find(e => e.id == el.dataset.id));
       });
     });
+    this._configurarEventosFixadas();
+
+    if (this.empresaSelecionada) {
+      const id = this.empresaSelecionada.id;
+      document.querySelectorAll('.minha-empresa-item, .empresa-fixada-item').forEach(el => {
+        if (el.dataset.id == id) el.classList.add('ativa');
+      });
+      this.selecionarEmpresa(this.empresaSelecionada);
+    }
+
     document.getElementById('db-nota-salvar')?.addEventListener('click', () => this.salvarNota());
     document.getElementById('db-nota-file')?.addEventListener('change', e => {
       this._notaAnexosPending = this._notaAnexosPending || [];
@@ -479,7 +509,16 @@ class GridFlowApp {
           </div>`).join('');
         results.querySelectorAll('.search-result-item').forEach(item => {
           item.addEventListener('click', async () => {
-            await this.selecionarEmpresa(lista.find(e => e.id == item.dataset.id));
+            const empresa = lista.find(e => e.id == item.dataset.id);
+            await this.selecionarEmpresa(empresa);
+            if (!this.minhasEmpresas.some(e => e.id == empresa.id) &&
+                !this._empresasFixadas.some(e => e.id == empresa.id)) {
+              this._empresasFixadas.push(empresa);
+              this._salvarFixadas();
+              this._atualizarListaFixadas();
+            }
+            document.querySelectorAll('.minha-empresa-item, .empresa-fixada-item').forEach(i => i.classList.remove('ativa'));
+            document.querySelector(`.empresa-fixada-item[data-id="${empresa.id}"]`)?.classList.add('ativa');
             results.classList.remove('show');
             document.getElementById('db-search-input').value = '';
           });
@@ -551,6 +590,77 @@ class GridFlowApp {
     }
     await this.carregarNota();
     this._configurarBtnReset();
+  }
+
+  _salvarFixadas() {
+    localStorage.setItem('gridflow_fixadas_' + (this.contaId || 'default'), JSON.stringify(this._empresasFixadas));
+  }
+
+  _atualizarListaFixadas() {
+    const col = document.querySelector('.col-left');
+    if (!col) return;
+    const existing = document.getElementById('db-fixadas-card');
+    if (existing) existing.remove();
+    if (!this._empresasFixadas.length) return;
+    const ref = document.getElementById('db-minhas-empresas')?.closest('.card') ||
+                col.querySelector('.search-box')?.closest('.card');
+    if (!ref) return;
+    const div = document.createElement('div');
+    div.className = 'card';
+    div.id = 'db-fixadas-card';
+    div.innerHTML = `
+      <h3>Empresas Buscadas</h3>
+      <div id="db-fixadas-lista">
+        ${this._empresasFixadas.map(e => `
+          <div class="minha-empresa-item empresa-fixada-item" data-id="${e.id}" style="position:relative;padding-right:32px">
+            <div class="minha-empresa-item-icon">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </div>
+            <div class="minha-empresa-info">
+              <div class="minha-empresa-nome">${e.nome}</div>
+              ${e.codigo_interno || e.cnpj ? `<div class="minha-empresa-cod">${e.codigo_interno || e.cnpj}</div>` : ''}
+            </div>
+            <button class="btn-remover-fixada" data-id="${e.id}" title="Remover da lista"
+              style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#cbd5e0;font-size:1.2rem;line-height:1;padding:2px 6px;border-radius:4px">×</button>
+          </div>`).join('')}
+      </div>`;
+    ref.insertAdjacentElement('afterend', div);
+    this._configurarEventosFixadas();
+  }
+
+  _configurarEventosFixadas() {
+    document.querySelectorAll('.empresa-fixada-item').forEach(el => {
+      el.addEventListener('click', async e => {
+        if (e.target.closest('.btn-remover-fixada')) return;
+        document.querySelectorAll('.minha-empresa-item, .empresa-fixada-item').forEach(i => i.classList.remove('ativa'));
+        el.classList.add('ativa');
+        const empresa = this._empresasFixadas.find(ef => ef.id == el.dataset.id);
+        if (empresa) await this.selecionarEmpresa(empresa);
+      });
+    });
+    document.querySelectorAll('.btn-remover-fixada').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const id = parseInt(btn.dataset.id);
+        this._empresasFixadas = this._empresasFixadas.filter(ef => ef.id !== id);
+        this._salvarFixadas();
+        if (this.empresaSelecionada?.id === id) {
+          this.empresaSelecionada = null;
+          const infoEl = document.getElementById('db-empresa-info');
+          if (infoEl) infoEl.innerHTML = `<div class="empresa-info-empty">${this.minhasEmpresas.length ? 'Clique em uma das suas empresas' : 'Busque e selecione uma empresa'}</div>`;
+          const notasCard = document.getElementById('db-notas-card');
+          if (notasCard) notasCard.style.display = 'none';
+          const colRight = document.getElementById('db-col-right');
+          if (colRight) colRight.innerHTML = `
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;min-height:320px;gap:14px;color:#a0aec0;text-align:center;padding:40px 20px">
+              <div style="font-size:3rem;line-height:1">🏢</div>
+              <div style="font-size:1rem;font-weight:700;color:#4a5568">Nenhuma empresa selecionada</div>
+              <div style="font-size:0.85rem;color:#a0aec0;max-width:260px;line-height:1.5">Escolha uma empresa na lista ao lado para visualizar e preencher as atividades do período.</div>
+            </div>`;
+        }
+        this._atualizarListaFixadas();
+      });
+    });
   }
 
   _configurarBtnReset() {
@@ -3126,8 +3236,7 @@ class GridFlowApp {
                 </div>
                 ${m.pendentes > 0 && per !== this.periodo ? `
                   <div style="margin:4px 0 2px 90px">
-                    ${m.pendentes_lista.slice(0, 3).map(p => `<div style="font-size:0.72rem;color:#a0aec0;padding:1px 0">· ${p.nome}</div>`).join('')}
-                    ${m.pendentes_lista.length > 3 ? `<div style="font-size:0.7rem;color:#a0aec0">+${m.pendentes_lista.length - 3} mais...</div>` : ''}
+                    ${m.pendentes_lista.map(p => `<div style="font-size:0.72rem;color:#a0aec0;padding:1px 0">· ${p.nome}</div>`).join('')}
                   </div>` : ''}
               </div>`;
           }).join('')}
@@ -3746,7 +3855,7 @@ class GridFlowApp {
                   </td>
                   <td style="padding:7px 10px;color:#718096">${h.usuario || '—'}</td>
                   <td style="padding:7px 10px;color:#a0aec0;white-space:nowrap">${h.data || '—'}</td>
-                  <td style="padding:7px 10px;color:#718096;max-width:200px;word-break:break-word">${h.obs || ''}</td>
+                  <td style="padding:7px 10px;color:#718096;max-width:200px;word-break:break-word">${h.observacao || ''}</td>
                 </tr>`;
               }).join('')}
             </tbody>
