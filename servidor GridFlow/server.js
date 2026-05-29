@@ -743,12 +743,13 @@ const server = http.createServer(async (req, res) => {
                                    // HISTÓRICO
                                    // ================================================================
                                    if (pathname === '/api/historico' && method === 'GET') {
-                                         const { empresa_id, periodo } = parsed.query;
+                                         const { empresa_id, periodo, ano } = parsed.query;
                                          let q;
                                          if (empresa_id) {
                                                q = 'historico?empresa_id=eq.' + empresa_id;
                                                if (periodo) q += '&periodo=eq.' + encodeURIComponent(periodo);
-                                               q += '&order=data.desc&limit=100';
+                                               else if (ano) q += '&periodo=like.' + encodeURIComponent('%/' + ano);
+                                               q += '&order=data.desc&limit=500';
                                          } else {
                                                q = contaId ? 'historico?conta_id=eq.' + contaId + '&order=data.desc&limit=100' : 'historico?order=data.desc&limit=100';
                                          }

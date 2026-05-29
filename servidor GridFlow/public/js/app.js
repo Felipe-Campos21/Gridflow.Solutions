@@ -769,6 +769,8 @@ class GridFlowApp {
       ]);
 
       this._atividadesEmpresa = atividades;
+
+      // Histórico do período atual (base)
       this.historicoAtual = {};
       historico.forEach(h => { this.historicoAtual[h.atividade_id] = h; });
 
@@ -776,9 +778,33 @@ class GridFlowApp {
       const grupos = {};
       habilitadas.forEach(a => { (grupos[a.grupo || 'Geral'] = grupos[a.grupo || 'Geral'] || []).push(a); });
 
+      // Atividades Anuais: buscar histórico de qualquer mês do ano corrente
+      const cfg = this._carregarGruposConfig();
+      const idsAnuais = new Set(
+        Object.keys(grupos)
+          .filter(g => cfg[g]?.prazo === 'Anual')
+          .flatMap(g => grupos[g].map(a => a.atividade_id))
+      );
+      if (idsAnuais.size > 0) {
+        const ano = this.periodo ? this.periodo.split('/')[1] : String(new Date().getFullYear());
+        try {
+          const historicoAnual = await this.api(`/api/historico?empresa_id=${empresaId}&ano=${encodeURIComponent(ano)}`);
+          // Para cada atividade anual sem registro no período atual, usar o mais recente do ano
+          for (const h of historicoAnual) {
+            if (idsAnuais.has(h.atividade_id) && !this.historicoAtual[h.atividade_id]) {
+              this.historicoAtual[h.atividade_id] = h;
+            }
+          }
+        } catch {}
+      }
+
       this._checklistGrupos = grupos;
-      this._checklistOkIds = new Set(historico.filter(h => h.status === 'OK').map(h => h.atividade_id));
-      this._checklistNaIds = new Set(historico.filter(h => h.status === 'Não Aplicável').map(h => h.atividade_id));
+      this._checklistOkIds = new Set(
+        Object.values(this.historicoAtual).filter(h => h.status === 'OK').map(h => h.atividade_id)
+      );
+      this._checklistNaIds = new Set(
+        Object.values(this.historicoAtual).filter(h => h.status === 'Não Aplicável').map(h => h.atividade_id)
+      );
 
       this._renderFiltrosPrazo();
       this._renderChecklistAtividades();
