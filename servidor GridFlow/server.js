@@ -442,7 +442,7 @@ const server = http.createServer(async (req, res) => {
       const result = await sbFetch(
               'colaboradores?email=eq.' + encodeURIComponent(emailLower) +
               '&senha_hash=eq.' + encodeURIComponent(senhaHash) +
-              '&ativo=eq.1&select=id,nome,email,funcao,foto,conta_id,admin_conta'
+              '&ativo=eq.1&select=id,nome,email,funcao,foto,conta_id,admin_conta,setor'
             );
 
       if (!result.body || result.body.length === 0)
@@ -484,7 +484,7 @@ const server = http.createServer(async (req, res) => {
               ok: true,
               colaborador: {
                         id: colab.id, nome: colab.nome, email: colab.email,
-                        funcao: colab.funcao, foto: colab.foto, admin: colab.admin_conta
+                        funcao: colab.funcao, foto: colab.foto, admin: colab.admin_conta, setor: colab.setor || null
               },
               conta: {
                         id: conta.id, tipo: conta.tipo, nome_empresa: conta.nome_empresa,
@@ -504,7 +504,7 @@ const server = http.createServer(async (req, res) => {
                                          const body = await readBody(req);
                                          const { conta_id, colaborador_id } = body;
                                          const result = await sbFetch(
-                                                 'colaboradores?id=eq.' + colaborador_id + '&conta_id=eq.' + conta_id + '&ativo=eq.1&select=id,nome,funcao,foto,admin_conta'
+                                                 'colaboradores?id=eq.' + colaborador_id + '&conta_id=eq.' + conta_id + '&ativo=eq.1&select=id,nome,funcao,foto,admin_conta,setor'
                                                );
                                          if (!result.body || result.body.length === 0)
                                                  return sendJson(res, 404, { erro: 'Colaborador não encontrado' });
@@ -544,8 +544,8 @@ const server = http.createServer(async (req, res) => {
                                    // ================================================================
                                    if (pathname === '/api/colaboradores' && method === 'GET') {
                                          const q = contaId
-                                           ? 'colaboradores?conta_id=eq.' + contaId + '&select=id,nome,funcao,foto,ativo,email,admin_conta&order=nome.asc'
-                                                 : 'colaboradores?select=id,nome,funcao,foto,ativo,email,admin_conta&order=nome.asc';
+                                           ? 'colaboradores?conta_id=eq.' + contaId + '&select=id,nome,funcao,foto,ativo,email,admin_conta,setor&order=nome.asc'
+                                                 : 'colaboradores?select=id,nome,funcao,foto,ativo,email,admin_conta,setor&order=nome.asc';
                                          const r = await sbFetch(q);
                                          return sendJson(res, 200, r.body || []);
                                    }

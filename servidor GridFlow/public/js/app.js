@@ -37,7 +37,7 @@ class GridFlowApp {
     this.usuario    = user.nome;
     this.contaId    = user.conta_id || null;
     try { this._empresasFixadas = JSON.parse(localStorage.getItem('gridflow_fixadas_' + (user.conta_id || 'default')) || '[]'); } catch { this._empresasFixadas = []; }
-    this.colaborador = { id: user.id, nome: user.nome, admin: user.admin };
+    this.colaborador = { id: user.id, nome: user.nome, admin: user.admin, setor: user.setor || '' };
     document.getElementById('current-user').textContent = user.nome;
     // Avatar provisório com inicial — será substituído com foto ao carregar colaboradores
     document.getElementById('user-avatar').textContent = user.nome.charAt(0).toUpperCase();
@@ -778,8 +778,17 @@ class GridFlowApp {
       const grupos = {};
       habilitadas.forEach(a => { (grupos[a.grupo || 'Geral'] = grupos[a.grupo || 'Geral'] || []).push(a); });
 
-      // Atividades Anuais: buscar histórico de qualquer mês do ano corrente
+      // Filtrar grupos pelo setor do colaborador (se definido)
       const cfg = this._carregarGruposConfig();
+      const meuSetor = (this.colaborador?.setor || '').toLowerCase();
+      if (meuSetor) {
+        Object.keys(grupos).forEach(g => {
+          const gSetor = (cfg[g]?.setor || '').toLowerCase();
+          if (gSetor && gSetor !== meuSetor) delete grupos[g];
+        });
+      }
+
+      // Atividades Anuais: buscar histórico de qualquer mês do ano corrente
       const idsAnuais = new Set(
         Object.keys(grupos)
           .filter(g => cfg[g]?.prazo === 'Anual')
@@ -1667,15 +1676,19 @@ class GridFlowApp {
           <div class="card" style="padding:0;overflow:hidden">
             <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #f0f0f0">
               <div style="display:flex;align-items:center;gap:8px">
-                <span>📋</span>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#718096" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
                 <span style="font-weight:700;text-transform:uppercase;font-size:0.75rem;color:#718096;letter-spacing:.05em">Atividades</span>
               </div>
-              <button class="btn btn-primary" id="btn-nova-atv" style="font-size:0.82rem;padding:6px 14px">+ Nova</button>
+              <button class="btn btn-primary" id="btn-nova-atv" style="display:flex;align-items:center;gap:5px;font-size:0.82rem;padding:6px 14px">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Nova
+              </button>
             </div>
             <div id="atv-lista" style="max-height:calc(100vh - 200px);overflow-y:auto">
               ${grupos.map(grupo => {
                 const atvsGrupo = this._todasAtividades.filter(a => (a.grupo || 'Geral') === grupo);
                 const prazo = cfg[grupo]?.prazo || '';
+                const setor = cfg[grupo]?.setor || '';
                 return `
                   <div class="atv-grupo-bloco">
                     <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:#f8fafc;border-bottom:1px solid #e2e8f0;border-top:1px solid #e2e8f0">
@@ -1683,10 +1696,12 @@ class GridFlowApp {
                         <span style="font-weight:700;font-size:0.82rem;text-transform:uppercase;letter-spacing:.04em;color:#4a5568">${grupo}</span>
                         <span style="color:#a0aec0;font-weight:400;font-size:0.78rem">(${atvsGrupo.length})</span>
                         ${prazo ? `<span style="font-size:0.7rem;font-weight:700;color:#2b6cb0;background:#ebf8ff;border:1px solid #bee3f8;padding:1px 8px;border-radius:10px">${prazo}</span>` : ''}
+                        ${setor ? `<span style="font-size:0.7rem;font-weight:700;color:#276749;background:#f0fff4;border:1px solid #9ae6b4;padding:1px 8px;border-radius:10px">${setor}</span>` : ''}
                       </div>
                       <button class="btn btn-sm btn-excluir-grupo" data-grupo="${grupo}"
-                        style="background:#fff5f5;border-color:#fed7d7;color:#c53030;font-size:0.72rem;padding:3px 10px">
-                        🗑 Excluir grupo
+                        style="display:flex;align-items:center;gap:4px;background:#fff5f5;border-color:#fed7d7;color:#c53030;font-size:0.72rem;padding:3px 10px">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                        Excluir grupo
                       </button>
                     </div>
                     ${atvsGrupo.map(a => `
@@ -1698,10 +1713,14 @@ class GridFlowApp {
                         <div style="display:flex;gap:5px;flex-shrink:0;margin-top:2px">
                           <button class="btn btn-sm btn-editar-atv"
                             data-id="${a.id}" data-nome="${a.nome.replace(/"/g,'&quot;')}" data-grupo="${grupo}" data-descricao="${(a.descricao||'').replace(/"/g,'&quot;')}"
-                            style="padding:4px 8px;background:#fefcbf;border-color:#f6e05e;color:#744210">✏️</button>
+                            style="padding:4px 8px;background:#fefcbf;border-color:#f6e05e;color:#744210">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                          </button>
                           <button class="btn btn-sm btn-excluir-atv"
                             data-id="${a.id}" data-nome="${a.nome.replace(/"/g,'&quot;')}"
-                            style="padding:4px 8px;background:#fff5f5;border-color:#fed7d7;color:#c53030">❌</button>
+                            style="padding:4px 8px;background:#fff5f5;border-color:#fed7d7;color:#c53030">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                          </button>
                         </div>
                       </div>`).join('')}
                   </div>`;
@@ -1713,7 +1732,7 @@ class GridFlowApp {
           <!-- Formulário -->
           <div class="card" style="position:sticky;top:0">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
-              <span>➕</span>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3498db" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               <span id="atv-form-titulo" style="font-weight:700;text-transform:uppercase;font-size:0.75rem;color:#718096;letter-spacing:.05em">Nova Atividade</span>
             </div>
             <input type="hidden" id="atv-id">
@@ -1738,7 +1757,10 @@ class GridFlowApp {
                 style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;resize:vertical;font-family:inherit;box-sizing:border-box"></textarea>
             </div>
             <div style="display:flex;gap:8px">
-              <button class="btn btn-primary" id="btn-salvar-atv" style="flex:1;padding:10px">💾 Salvar</button>
+              <button class="btn btn-primary" id="btn-salvar-atv" style="display:flex;align-items:center;justify-content:center;gap:6px;flex:1;padding:10px">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                Salvar
+              </button>
               <button class="btn" id="btn-limpar-atv" style="padding:10px 16px">Limpar</button>
             </div>
           </div>
@@ -1747,22 +1769,37 @@ class GridFlowApp {
       const abaGrupos = `
         <div class="card" style="padding:0;overflow:hidden">
           <div style="padding:14px 20px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;gap:8px">
-            <span>⏱</span>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#718096" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             <span style="font-weight:700;text-transform:uppercase;font-size:0.75rem;color:#718096;letter-spacing:.05em">Grupos & Prazos</span>
           </div>
+          <datalist id="setores-list">
+            <option value="Contabilidade">
+            <option value="Fiscal">
+            <option value="Financeiro">
+            <option value="Departamento Pessoal">
+            <option value="Societário">
+            <option value="Legalização">
+          </datalist>
           ${grupos.length === 0 ? '<div style="padding:40px;text-align:center;color:#718096">Nenhum grupo cadastrado</div>' : ''}
           ${grupos.map(grupo => {
             const atvsGrupo = this._todasAtividades.filter(a => (a.grupo || 'Geral') === grupo);
             const prazo = cfg[grupo]?.prazo || '';
+            const setor = cfg[grupo]?.setor || '';
             return `
               <div style="display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid #f0f0f0;flex-wrap:wrap">
-                <div style="flex:1;min-width:200px">
+                <div style="flex:1;min-width:160px">
                   <div style="font-size:0.7rem;font-weight:600;color:#a0aec0;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Nome do grupo</div>
                   <input class="grupo-nome-input" data-original="${grupo}"
                     value="${grupo}"
                     style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:7px;font-size:0.88rem;font-weight:600;color:#2d3748">
                 </div>
                 <div style="min-width:150px">
+                  <div style="font-size:0.7rem;font-weight:600;color:#a0aec0;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Setor</div>
+                  <input class="grupo-setor-input" data-grupo="${grupo}"
+                    value="${setor}" placeholder="Ex: Contabilidade" list="setores-list"
+                    style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:7px;font-size:0.85rem;color:#4a5568;background:#fff">
+                </div>
+                <div style="min-width:140px">
                   <div style="font-size:0.7rem;font-weight:600;color:#a0aec0;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Prazo / Frequência</div>
                   <select class="grupo-prazo-select" data-grupo="${grupo}"
                     style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:7px;font-size:0.85rem;color:#4a5568;background:#fff">
@@ -1773,7 +1810,10 @@ class GridFlowApp {
                 <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
                   <div style="font-size:0.7rem;color:#a0aec0">${atvsGrupo.length} atividade${atvsGrupo.length !== 1 ? 's' : ''}</div>
                   <button class="btn btn-primary btn-sm btn-salvar-grupo" data-original="${grupo}"
-                    style="padding:6px 14px;font-size:0.8rem;white-space:nowrap">💾 Salvar</button>
+                    style="display:flex;align-items:center;gap:5px;padding:6px 14px;font-size:0.8rem;white-space:nowrap">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                    Salvar
+                  </button>
                 </div>
               </div>`;
           }).join('')}
@@ -1783,12 +1823,14 @@ class GridFlowApp {
         <div>
           <div style="display:flex;gap:8px;margin-bottom:16px">
             <button class="atv-subtab-btn" data-subtab="atividades"
-              style="padding:7px 16px;border-radius:8px;border:1.5px solid ${subtab==='atividades'?'#3498db':'#e2e8f0'};background:${subtab==='atividades'?'#3498db':'#fff'};color:${subtab==='atividades'?'#fff':'#4a5568'};font-weight:600;cursor:pointer;font-size:0.85rem">
-              📋 Atividades
+              style="display:flex;align-items:center;gap:6px;padding:7px 16px;border-radius:8px;border:1.5px solid ${subtab==='atividades'?'#3498db':'#e2e8f0'};background:${subtab==='atividades'?'#3498db':'#fff'};color:${subtab==='atividades'?'#fff':'#4a5568'};font-weight:600;cursor:pointer;font-size:0.85rem">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+              Atividades
             </button>
             <button class="atv-subtab-btn" data-subtab="grupos"
-              style="padding:7px 16px;border-radius:8px;border:1.5px solid ${subtab==='grupos'?'#3498db':'#e2e8f0'};background:${subtab==='grupos'?'#3498db':'#fff'};color:${subtab==='grupos'?'#fff':'#4a5568'};font-weight:600;cursor:pointer;font-size:0.85rem">
-              ⏱ Grupos & Prazos
+              style="display:flex;align-items:center;gap:6px;padding:7px 16px;border-radius:8px;border:1.5px solid ${subtab==='grupos'?'#3498db':'#e2e8f0'};background:${subtab==='grupos'?'#3498db':'#fff'};color:${subtab==='grupos'?'#fff':'#4a5568'};font-weight:600;cursor:pointer;font-size:0.85rem">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              Grupos & Prazos
             </button>
           </div>
           <div id="atv-sub-atividades" style="display:${subtab==='atividades'?'':'none'}">${abaAtividades}</div>
@@ -1820,18 +1862,20 @@ class GridFlowApp {
         const row       = btn.closest('div[style*="border-bottom"]');
         const novoNome  = row.querySelector('.grupo-nome-input').value.trim();
         const novoPrazo = row.querySelector('.grupo-prazo-select').value;
+        const novoSetor = (row.querySelector('.grupo-setor-input')?.value || '').trim();
         if (!novoNome) { alert('O nome do grupo não pode ficar vazio'); return; }
 
-        // Prazo: salvar em localStorage
+        // Prazo + Setor: salvar em localStorage
         const cfg = this._carregarGruposConfig();
-        if (novoPrazo) cfg[novoNome] = { ...(cfg[novoNome] || {}), prazo: novoPrazo };
-        else delete (cfg[novoNome] || {}).prazo;
-        // Se renomeou, migrar chave
+        // Se renomeou, migrar chave primeiro
         if (novoNome !== original) {
-          cfg[novoNome] = { ...(cfg[original] || {}), ...(cfg[novoNome] || {}), prazo: novoPrazo || (cfg[original]?.prazo || '') };
+          cfg[novoNome] = { ...(cfg[original] || {}), ...(cfg[novoNome] || {}) };
           delete cfg[original];
         }
-        if (!novoPrazo && cfg[novoNome] && !Object.keys(cfg[novoNome]).length) delete cfg[novoNome];
+        cfg[novoNome] = cfg[novoNome] || {};
+        if (novoPrazo) cfg[novoNome].prazo = novoPrazo; else delete cfg[novoNome].prazo;
+        if (novoSetor) cfg[novoNome].setor = novoSetor; else delete cfg[novoNome].setor;
+        if (!Object.keys(cfg[novoNome]).length) delete cfg[novoNome];
         this._salvarGruposConfig(cfg);
 
         // Renomear: atualizar todas as atividades do grupo
@@ -2529,9 +2573,12 @@ class GridFlowApp {
                   </div>
                 </div>
                 <div>
-                  ${c.admin
-                    ? '<span style="display:inline-flex;align-items:center;gap:4px;background:#fef3c7;color:#d97706;padding:3px 10px;border-radius:20px;font-size:0.73rem;font-weight:600"><svg width="10" height="10" viewBox="0 0 24 24" fill="#d97706" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Admin</span>'
-                    : '<span style="display:inline-flex;align-items:center;gap:4px;background:#f0f0f0;color:#718096;padding:3px 10px;border-radius:20px;font-size:0.73rem"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#718096" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Colaborador</span>'}
+                  <div style="display:flex;flex-direction:column;gap:4px">
+                    ${c.admin
+                      ? '<span style="display:inline-flex;align-items:center;gap:4px;background:#fef3c7;color:#d97706;padding:3px 10px;border-radius:20px;font-size:0.73rem;font-weight:600"><svg width="10" height="10" viewBox="0 0 24 24" fill="#d97706" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Admin</span>'
+                      : '<span style="display:inline-flex;align-items:center;gap:4px;background:#f0f0f0;color:#718096;padding:3px 10px;border-radius:20px;font-size:0.73rem"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#718096" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Colaborador</span>'}
+                    ${c.setor ? `<span style="display:inline-flex;align-items:center;gap:3px;background:#ebf8ff;color:#2b6cb0;padding:2px 8px;border-radius:20px;font-size:0.68rem;font-weight:600"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> ${c.setor}</span>` : ''}
+                  </div>
                 </div>
                 <div style="display:flex;gap:5px">
                   <button class="btn btn-sm btn-empresas-col" title="Gerenciar empresas"
@@ -2540,7 +2587,7 @@ class GridFlowApp {
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
                   </button>
                   <button class="btn btn-sm btn-editar-col" title="Editar"
-                    data-id="${c.id}" data-nome="${c.nome}" data-funcao="${c.funcao||''}" data-admin="${c.admin_conta ?? c.admin ?? 0}" data-foto="${c.foto||''}" data-email="${c.email||''}"
+                    data-id="${c.id}" data-nome="${c.nome}" data-funcao="${c.funcao||''}" data-admin="${c.admin_conta ?? c.admin ?? 0}" data-foto="${c.foto||''}" data-email="${c.email||''}" data-setor="${c.setor||''}"
                     style="padding:5px 8px;background:#fefcbf;border-color:#f6e05e;color:#744210">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                   </button>
@@ -2605,6 +2652,22 @@ class GridFlowApp {
             </label>
             <input id="col-senha" type="password" placeholder="••••••••"
               style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem;box-sizing:border-box">
+          </div>
+
+          <div style="margin-bottom:12px">
+            <label style="font-size:0.8rem;font-weight:600;color:#4a5568;display:block;margin-bottom:4px">
+              Setor <span style="color:#718096;font-weight:400">(opcional)</span>
+            </label>
+            <input id="col-setor" type="text" placeholder="Ex: Contabilidade" list="setores-list-col"
+              style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem;box-sizing:border-box">
+            <datalist id="setores-list-col">
+              <option value="Contabilidade">
+              <option value="Fiscal">
+              <option value="Financeiro">
+              <option value="Departamento Pessoal">
+              <option value="Societário">
+              <option value="Legalização">
+            </datalist>
           </div>
 
           <div style="margin-bottom:14px;display:flex;align-items:center;gap:10px">
@@ -2679,8 +2742,9 @@ class GridFlowApp {
       document.getElementById('col-foto-preview').style.background = '#e2e8f0';
       document.getElementById('col-foto-nome').textContent = 'Quadrada recomendada';
       document.getElementById('btn-foto-remover').style.display = 'none';
+      document.getElementById('col-setor').value = '';
       document.getElementById('form-col-titulo').textContent = 'Novo Colaborador';
-      document.getElementById('form-col-icone').textContent = '➕';
+      document.getElementById('form-col-icone').textContent = '+';
       this._colsFotoBase64 = '';
       this._removerFoto = false;
     };
@@ -2736,6 +2800,7 @@ class GridFlowApp {
       const email = document.getElementById('col-email').value.trim();
       const senha = document.getElementById('col-senha').value;
       const admin = document.getElementById('col-admin').checked;
+      const setor = document.getElementById('col-setor').value.trim();
       if (!nome) { alert('Nome é obrigatório'); return; }
       if (!id && !email) { alert('E-mail é obrigatório para novo colaborador'); return; }
       if (!id && !senha) { alert('Senha é obrigatória para novo colaborador'); return; }
@@ -2746,6 +2811,7 @@ class GridFlowApp {
         const payload = {
           nome, funcao,
           admin_conta: admin ? 1 : 0,
+          setor: setor || null,
           ...(email ? { email } : {}),
           ...(senha ? { senha } : {}),
           ...(foto !== undefined ? { foto } : {}),
@@ -2793,6 +2859,7 @@ class GridFlowApp {
         preview.style.background = this.avatarColor(btn.dataset.nome);
         document.getElementById('col-email').value = btn.dataset.email || '';
         document.getElementById('col-senha').value = '';
+        document.getElementById('col-setor').value = btn.dataset.setor || '';
         document.getElementById('col-senha-label').textContent = 'Nova Senha';
         document.getElementById('col-senha-dica').textContent = ' (deixe em branco para não alterar)';
         abrirPanel();
@@ -2938,18 +3005,22 @@ class GridFlowApp {
     return `
       <div style="display:flex;flex-direction:column;gap:14px">
         <div class="card cfg-busca-card">
-          <div class="cfg-section-label">📋 SELECIONAR EMPRESA</div>
-          <div style="position:relative">
+          <div class="cfg-section-label" style="display:flex;align-items:center;gap:6px">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+            SELECIONAR EMPRESA
+          </div>
+          <div style="position:relative;display:flex;align-items:center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a0aec0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="position:absolute;left:12px;pointer-events:none"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input type="text" id="cfg-search" class="cfg-search-input"
-              placeholder="🔍  Buscar empresa pelo nome..."
-              value="${empresa ? empresa.nome : ''}">
+              placeholder="Buscar empresa pelo nome..."
+              value="${empresa ? empresa.nome : ''}" style="padding-left:36px">
             <div id="cfg-search-results" class="search-results"></div>
           </div>
         </div>
         <div id="cfg-conteudo">
           ${empresa
             ? '<div class="loading"></div>'
-            : `<div class="empty-state"><div class="empty-state-icon">⚙️</div><div class="empty-state-text">Busque e selecione uma empresa acima</div></div>`}
+            : `<div class="empty-state"><div class="empty-state-icon"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#cbd5e0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div><div class="empty-state-text">Busque e selecione uma empresa acima</div></div>`}
         </div>
       </div>`;
   }
