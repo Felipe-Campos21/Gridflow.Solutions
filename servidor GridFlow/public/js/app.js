@@ -966,6 +966,61 @@ class GridFlowApp {
     btns.appendChild(mk('✓ Registrar OK', 'background:#27ae60;color:white;',
       () => this.confirmarAtividade(atividadeId, empresaId, 'OK', btn, grupo)));
 
+    // Botão de descrição
+    const descArea = document.getElementById('modal-atv-desc-area');
+    const descBtn  = document.getElementById('btn-modal-atv-desc');
+    const atv = this._atividadesEmpresa?.find(a => a.atividade_id === atividadeId);
+
+    const _renderDescArea = (editando) => {
+      const descAtual = atv?.descricao || '';
+      if (editando) {
+        descArea.innerHTML = `
+          <textarea id="modal-desc-input" rows="4"
+            style="width:100%;padding:8px 10px;border:1px solid #bee3f8;border-radius:6px;font-size:0.85rem;font-family:inherit;resize:vertical;box-sizing:border-box;background:#fff">${descAtual}</textarea>
+          <div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end">
+            <button id="btn-desc-cancelar" style="padding:5px 14px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;color:#4a5568;font-size:0.8rem;cursor:pointer;font-weight:600">Cancelar</button>
+            <button id="btn-desc-salvar" style="padding:5px 14px;border:none;border-radius:6px;background:#3498db;color:#fff;font-size:0.8rem;cursor:pointer;font-weight:600">✓ Salvar</button>
+          </div>`;
+        document.getElementById('btn-desc-cancelar').onclick = () => _renderDescArea(false);
+        document.getElementById('btn-desc-salvar').onclick = async () => {
+          const novaDesc = document.getElementById('modal-desc-input').value.trim();
+          try {
+            await this.api(`/api/atividades/${atividadeId}`, {
+              method: 'PUT', body: JSON.stringify({ descricao: novaDesc })
+            });
+            if (atv) atv.descricao = novaDesc;
+            _renderDescArea(false);
+          } catch { alert('Erro ao salvar descrição.'); }
+        };
+        document.getElementById('modal-desc-input').focus();
+      } else {
+        const texto = atv?.descricao?.trim();
+        descArea.innerHTML = `
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+            <p style="margin:0;font-size:0.85rem;color:${texto ? '#2d3748' : '#a0aec0'};line-height:1.5;flex:1">
+              ${texto ? texto.replace(/\n/g, '<br>') : 'Nenhuma descrição cadastrada.'}
+            </p>
+            <button id="btn-desc-editar" style="flex-shrink:0;padding:3px 10px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;color:#4a5568;font-size:0.75rem;cursor:pointer;font-weight:600">✏ Editar</button>
+          </div>`;
+        document.getElementById('btn-desc-editar').onclick = () => _renderDescArea(true);
+      }
+    };
+
+    // Reset: fechar área ao abrir o modal
+    descArea.style.display = 'none';
+    descBtn.style.background = '';
+    descBtn.onclick = () => {
+      const aberto = descArea.style.display !== 'none';
+      if (aberto) {
+        descArea.style.display = 'none';
+        descBtn.style.background = '';
+      } else {
+        _renderDescArea(false);
+        descArea.style.display = 'block';
+        descBtn.style.background = '#ebf8ff';
+      }
+    };
+
     document.getElementById('btn-modal-atv-close').onclick =
       () => document.getElementById('modal-atividade').classList.remove('show');
     document.getElementById('modal-atividade').classList.add('show');

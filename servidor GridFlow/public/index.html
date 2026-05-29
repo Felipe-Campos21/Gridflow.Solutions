@@ -116,8 +116,13 @@
 <div id="modal-atividade" class="modal">
   <div class="modal-content" style="max-width:500px">
     <div class="modal-header">
-      <div>
-        <h2 id="modal-atv-nome" style="font-size:1.05rem;font-weight:700;color:#2d3748;margin:0"></h2>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:8px">
+          <h2 id="modal-atv-nome" style="font-size:1.05rem;font-weight:700;color:#2d3748;margin:0"></h2>
+          <button id="btn-modal-atv-desc"
+            title="Ver / editar descrição"
+            style="flex-shrink:0;background:none;border:1px solid #e2e8f0;border-radius:6px;padding:2px 8px;font-size:0.72rem;color:#718096;cursor:pointer;font-weight:600;line-height:1.4;transition:background .15s">ℹ Descrição</button>
+        </div>
         <div style="font-size:0.78rem;color:#718096;margin-top:4px">
           <span id="modal-atv-empresa"></span> · 📅 <span id="modal-atv-periodo" style="color:#3498db;font-weight:600"></span>
         </div>
@@ -125,6 +130,7 @@
       <button class="modal-close" id="btn-modal-atv-close">×</button>
     </div>
     <div class="modal-body">
+      <div id="modal-atv-desc-area" style="display:none;margin-bottom:14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px"></div>
       <div style="margin-bottom:12px">
         <label style="font-size:0.8rem;font-weight:600;color:#4a5568;display:block;margin-bottom:6px">
           Observação <span style="color:#a0aec0;font-weight:400">(opcional)</span>
