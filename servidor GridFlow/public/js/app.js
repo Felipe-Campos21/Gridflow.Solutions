@@ -23,6 +23,7 @@ class GridFlowApp {
     this._statusData = null;
     this._statusColabDetalhe = null;
     this._empresasFixadas = [];
+    this._filtroPrazo = '';
   }
 
   async init() {
@@ -530,6 +531,7 @@ class GridFlowApp {
 
   async selecionarEmpresa(empresa) {
     this.empresaSelecionada = empresa;
+    this._filtroPrazo = '';
     try { this.filiais = await this.api(`/api/empresas/${empresa.id}/filiais`); }
     catch { this.filiais = []; }
 
@@ -560,6 +562,7 @@ class GridFlowApp {
               <button id="btn-resetar-checklist" style="font-size:0.75rem;padding:3px 10px;background:#fff5f5;border:1px solid #fed7d7;border-radius:20px;color:#c53030;cursor:pointer;font-weight:600">🔄 Resetar</button>
             </div>
           </div>
+          <div id="db-prazo-filter"></div>
           <div id="db-atividades-container"><div class="loading"></div></div>
         </div>
         <div id="db-filiais-section"><div class="loading">Carregando filiais...</div></div>
@@ -742,6 +745,7 @@ class GridFlowApp {
             <button id="btn-resetar-checklist" style="font-size:0.75rem;padding:3px 10px;background:#fef2f2;border:1px solid #fecaca;border-radius:20px;color:#b91c1c;cursor:pointer;font-weight:600;font-family:inherit">Resetar</button>
           </div>
         </div>
+        <div id="db-prazo-filter"></div>
         <div id="db-atividades-container"><div class="loading"></div></div>
       </div>
       <div class="card">
@@ -768,54 +772,116 @@ class GridFlowApp {
       this.historicoAtual = {};
       historico.forEach(h => { this.historicoAtual[h.atividade_id] = h; });
 
-      const okIds = new Set(historico.filter(h => h.status === 'OK').map(h => h.atividade_id));
-      const naIds = new Set(historico.filter(h => h.status === 'Não Aplicável').map(h => h.atividade_id));
-
       const habilitadas = atividades.filter(a => a.habilitada);
       const grupos = {};
       habilitadas.forEach(a => { (grupos[a.grupo || 'Geral'] = grupos[a.grupo || 'Geral'] || []).push(a); });
 
-      if (!habilitadas.length) {
-        container.innerHTML = '<div class="atividades-vazio">Nenhuma atividade habilitada</div>';
-        return;
-      }
+      this._checklistGrupos = grupos;
+      this._checklistOkIds = new Set(historico.filter(h => h.status === 'OK').map(h => h.atividade_id));
+      this._checklistNaIds = new Set(historico.filter(h => h.status === 'Não Aplicável').map(h => h.atividade_id));
 
-      container.innerHTML = Object.entries(grupos).map(([grupo, atvsGrupo]) => {
-        const integrado = this._gruposIntegrados?.includes(grupo);
-        const concluidas = atvsGrupo.filter(a => okIds.has(a.atividade_id) || naIds.has(a.atividade_id)).length;
-        return `
-          <div class="grupo-section">
-            <div class="grupo-header">
-              <span class="grupo-label">${grupo}</span>
-              <span class="grupo-count ${concluidas === atvsGrupo.length ? 'completo' : ''}">${concluidas}/${atvsGrupo.length}</span>
-              ${integrado ? '<span class="badge-integrado">Integrado</span>' : ''}
-            </div>
-            <div class="atividades-grid">
-              ${atvsGrupo.map(a => {
-                const isOK = okIds.has(a.atividade_id);
-                const isNA = naIds.has(a.atividade_id);
-                const dot = isOK
-                  ? `<svg class="atv-dot" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#22c55e"/><polyline points="5,10 8.5,13.5 15,7" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`
-                  : isNA
-                  ? `<svg class="atv-dot" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#ef4444"/><line x1="6.5" y1="6.5" x2="13.5" y2="13.5" stroke="white" stroke-width="2.5" stroke-linecap="round"/><line x1="13.5" y1="6.5" x2="6.5" y2="13.5" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>`
-                  : `<svg class="atv-dot" viewBox="0 0 20 20"><circle cx="10" cy="10" r="9" fill="none" stroke="#cbd5e0" stroke-width="2" stroke-dasharray="3.5 2"/></svg>`;
-                return `
-                  <button class="atividade-btn ${isOK ? 'concluida' : isNA ? 'na' : ''}"
-                    data-id="${a.atividade_id}"
-                    data-nome="${a.nome.replace(/"/g,'&quot;')}"
-                    data-grupo="${a.grupo || 'Geral'}"
-                    data-status="${isOK ? 'OK' : isNA ? 'NA' : ''}">
-                    ${dot}
-                    <span class="atv-nome">${a.nome}</span>
-                  </button>`;
-              }).join('')}
-            </div>
-          </div>`;
-      }).join('');
-
-      container.querySelectorAll('.atividade-btn').forEach(btn =>
-        btn.addEventListener('click', () => this.abrirModalAtividade(btn, empresaId)));
+      this._renderFiltrosPrazo();
+      this._renderChecklistAtividades();
     } catch (e) { console.error(e); }
+  }
+
+  _renderFiltrosPrazo() {
+    const filterEl = document.getElementById('db-prazo-filter');
+    if (!filterEl) return;
+    const cfg = this._carregarGruposConfig();
+    const grupos = this._checklistGrupos || {};
+
+    const prazosPresentes = [...new Set(
+      Object.keys(grupos).map(g => cfg[g]?.prazo || '').filter(Boolean)
+    )];
+
+    if (!prazosPresentes.length) { filterEl.innerHTML = ''; return; }
+
+    const btnStyle = (ativo) => `
+      padding:5px 14px;border-radius:20px;font-size:0.78rem;font-weight:600;cursor:pointer;border:1px solid;
+      ${ativo
+        ? 'background:#2b6cb0;color:#fff;border-color:#2b6cb0;'
+        : 'background:#f0f4f8;color:#4a5568;border-color:#e2e8f0;'}`;
+
+    filterEl.innerHTML = `
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
+        <button class="prazo-btn" data-prazo="" style="${btnStyle(!this._filtroPrazo)}">Todos</button>
+        ${prazosPresentes.map(p =>
+          `<button class="prazo-btn" data-prazo="${p}" style="${btnStyle(this._filtroPrazo === p)}">${p}</button>`
+        ).join('')}
+      </div>`;
+
+    filterEl.querySelectorAll('.prazo-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this._filtroPrazo = btn.dataset.prazo;
+        this._renderFiltrosPrazo();
+        this._renderChecklistAtividades();
+      });
+    });
+  }
+
+  _renderChecklistAtividades() {
+    const container = document.getElementById('db-atividades-container');
+    if (!container) return;
+    const grupos = this._checklistGrupos || {};
+    const okIds  = this._checklistOkIds  || new Set();
+    const naIds  = this._checklistNaIds  || new Set();
+    const cfg    = this._carregarGruposConfig();
+
+    const habilitadas = Object.values(grupos).flat();
+    if (!habilitadas.length) {
+      container.innerHTML = '<div class="atividades-vazio">Nenhuma atividade habilitada</div>';
+      return;
+    }
+
+    const gruposFiltrados = Object.entries(grupos).filter(([grupo]) => {
+      if (!this._filtroPrazo) return true;
+      return (cfg[grupo]?.prazo || '') === this._filtroPrazo;
+    });
+
+    if (!gruposFiltrados.length) {
+      container.innerHTML = `<div class="atividades-vazio">Nenhum grupo com prazo "${this._filtroPrazo}"</div>`;
+      return;
+    }
+
+    const empresaId = this.empresaSelecionada?.id;
+    container.innerHTML = gruposFiltrados.map(([grupo, atvsGrupo]) => {
+      const integrado  = this._gruposIntegrados?.includes(grupo);
+      const concluidas = atvsGrupo.filter(a => okIds.has(a.atividade_id) || naIds.has(a.atividade_id)).length;
+      const prazo      = cfg[grupo]?.prazo || '';
+      return `
+        <div class="grupo-section">
+          <div class="grupo-header">
+            <span class="grupo-label">${grupo}</span>
+            <span class="grupo-count ${concluidas === atvsGrupo.length ? 'completo' : ''}">${concluidas}/${atvsGrupo.length}</span>
+            ${prazo ? `<span style="font-size:0.7rem;font-weight:700;color:#2b6cb0;background:#ebf8ff;border:1px solid #bee3f8;padding:1px 8px;border-radius:10px">${prazo}</span>` : ''}
+            ${integrado ? '<span class="badge-integrado">Integrado</span>' : ''}
+          </div>
+          <div class="atividades-grid">
+            ${atvsGrupo.map(a => {
+              const isOK = okIds.has(a.atividade_id);
+              const isNA = naIds.has(a.atividade_id);
+              const dot = isOK
+                ? `<svg class="atv-dot" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#22c55e"/><polyline points="5,10 8.5,13.5 15,7" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+                : isNA
+                ? `<svg class="atv-dot" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="#ef4444"/><line x1="6.5" y1="6.5" x2="13.5" y2="13.5" stroke="white" stroke-width="2.5" stroke-linecap="round"/><line x1="13.5" y1="6.5" x2="6.5" y2="13.5" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>`
+                : `<svg class="atv-dot" viewBox="0 0 20 20"><circle cx="10" cy="10" r="9" fill="none" stroke="#cbd5e0" stroke-width="2" stroke-dasharray="3.5 2"/></svg>`;
+              return `
+                <button class="atividade-btn ${isOK ? 'concluida' : isNA ? 'na' : ''}"
+                  data-id="${a.atividade_id}"
+                  data-nome="${a.nome.replace(/"/g,'&quot;')}"
+                  data-grupo="${a.grupo || 'Geral'}"
+                  data-status="${isOK ? 'OK' : isNA ? 'NA' : ''}">
+                  ${dot}
+                  <span class="atv-nome">${a.nome}</span>
+                </button>`;
+            }).join('')}
+          </div>
+        </div>`;
+    }).join('');
+
+    container.querySelectorAll('.atividade-btn').forEach(btn =>
+      btn.addEventListener('click', () => this.abrirModalAtividade(btn, empresaId)));
   }
 
   abrirModalAtividade(btn, empresaId) {
