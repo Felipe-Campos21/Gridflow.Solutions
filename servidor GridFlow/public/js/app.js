@@ -1934,12 +1934,15 @@ class GridFlowApp {
       return `
         <div class="card" style="padding:16px 20px;margin-bottom:12px">
           <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px">
-            <div style="flex:1;position:relative">
-              <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#a0aec0">🔍</span>
+            <div style="flex:1;position:relative;display:flex;align-items:center">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a0aec0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="position:absolute;left:12px;pointer-events:none"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
               <input id="emp-search" type="text" placeholder="Filtrar por nome, código, CNPJ, município..."
                 style="width:100%;padding:9px 12px 9px 36px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem" autocomplete="off">
             </div>
-            <button class="btn btn-primary" id="btn-nova-empresa" style="white-space:nowrap;padding:9px 18px">+ Nova Empresa</button>
+            <button class="btn btn-primary" id="btn-nova-empresa" style="display:flex;align-items:center;gap:6px;white-space:nowrap;padding:9px 18px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Nova Empresa
+            </button>
           </div>
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
             <span style="font-size:0.8rem;color:#718096;font-weight:600">Filtros:</span>
@@ -1947,9 +1950,15 @@ class GridFlowApp {
               <button class="btn btn-sm emp-filtro-mov" data-mov="todos"
                 style="padding:4px 12px;font-size:0.78rem;background:#3498db;color:white;border-color:#3498db">Todos</button>
               <button class="btn btn-sm emp-filtro-mov" data-mov="com"
-                style="padding:4px 12px;font-size:0.78rem">✅ Com movimento</button>
+                style="display:flex;align-items:center;gap:5px;padding:4px 12px;font-size:0.78rem">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                Com movimento
+              </button>
               <button class="btn btn-sm emp-filtro-mov" data-mov="sem"
-                style="padding:4px 12px;font-size:0.78rem">○ Sem movimento</button>
+                style="display:flex;align-items:center;gap:5px;padding:4px 12px;font-size:0.78rem">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>
+                Sem movimento
+              </button>
             </div>
             <select id="emp-filtro-regime" style="padding:5px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.8rem">
               <option value="">Todos os Regimes</option>
@@ -2494,10 +2503,13 @@ class GridFlowApp {
           <div class="card" style="padding:0;overflow:hidden">
             <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #f0f0f0">
               <div style="display:flex;align-items:center;gap:8px">
-                <span style="font-size:1.1rem">👥</span>
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#718096" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                 <span style="font-weight:700;text-transform:uppercase;font-size:0.78rem;color:#718096;letter-spacing:.05em">Colaboradores</span>
               </div>
-              <button class="btn btn-primary" id="btn-novo-col" style="font-size:0.82rem;padding:6px 14px">✦ Novo Colaborador</button>
+              <button class="btn btn-primary" id="btn-novo-col" style="display:flex;align-items:center;gap:6px;font-size:0.82rem;padding:6px 14px">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Novo Colaborador
+              </button>
             </div>
             <div style="display:grid;grid-template-columns:1fr 110px 100px;padding:8px 20px;border-bottom:1px solid #f0f0f0;background:#f8fafc">
               <span style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:#a0aec0">Colaborador</span>
@@ -2518,19 +2530,25 @@ class GridFlowApp {
                 </div>
                 <div>
                   ${c.admin
-                    ? '<span style="background:#fef3c7;color:#d97706;padding:3px 10px;border-radius:20px;font-size:0.73rem;font-weight:600">⭐ Admin</span>'
-                    : '<span style="background:#f0f0f0;color:#718096;padding:3px 10px;border-radius:20px;font-size:0.73rem">👤 Colaborador</span>'}
+                    ? '<span style="display:inline-flex;align-items:center;gap:4px;background:#fef3c7;color:#d97706;padding:3px 10px;border-radius:20px;font-size:0.73rem;font-weight:600"><svg width="10" height="10" viewBox="0 0 24 24" fill="#d97706" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> Admin</span>'
+                    : '<span style="display:inline-flex;align-items:center;gap:4px;background:#f0f0f0;color:#718096;padding:3px 10px;border-radius:20px;font-size:0.73rem"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#718096" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Colaborador</span>'}
                 </div>
                 <div style="display:flex;gap:5px">
                   <button class="btn btn-sm btn-empresas-col" title="Gerenciar empresas"
                     data-id="${c.id}" data-nome="${c.nome}"
-                    style="padding:5px 8px;background:#ebf8ff;border-color:#bee3f8;color:#2b6cb0">🏢</button>
+                    style="padding:5px 8px;background:#ebf8ff;border-color:#bee3f8;color:#2b6cb0">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                  </button>
                   <button class="btn btn-sm btn-editar-col" title="Editar"
                     data-id="${c.id}" data-nome="${c.nome}" data-funcao="${c.funcao||''}" data-admin="${c.admin_conta ?? c.admin ?? 0}" data-foto="${c.foto||''}" data-email="${c.email||''}"
-                    style="padding:5px 8px;background:#fefcbf;border-color:#f6e05e;color:#744210">✏️</button>
+                    style="padding:5px 8px;background:#fefcbf;border-color:#f6e05e;color:#744210">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  </button>
                   <button class="btn btn-sm btn-excluir-col" title="${c.ativo ? 'Desativar' : 'Ativar'}"
                     data-id="${c.id}" data-ativo="${c.ativo}"
-                    style="padding:5px 8px;background:#fff5f5;border-color:#fed7d7;color:#c53030">❌</button>
+                    style="padding:5px 8px;background:#fff5f5;border-color:#fed7d7;color:#c53030">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                  </button>
                 </div>
               </div>`).join('')}
           </div>
@@ -2538,13 +2556,14 @@ class GridFlowApp {
           <!-- Vincular empresa a todos — sempre visível -->
           <div class="card">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-              <span>🔗</span>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#718096" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
               <span style="font-weight:700;text-transform:uppercase;font-size:0.78rem;color:#718096;letter-spacing:.05em">Vincular Empresa a Todos</span>
             </div>
             <p style="font-size:0.8rem;color:#718096;margin-bottom:12px">Adiciona uma empresa para todos os colaboradores ativos de uma vez.</p>
-            <div style="position:relative">
-              <input type="text" id="vincular-search" placeholder="🔍 Buscar empresa..." autocomplete="off"
-                style="width:100%;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem">
+            <div style="position:relative;display:flex;align-items:center">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a0aec0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="position:absolute;left:10px;pointer-events:none"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" id="vincular-search" placeholder="Buscar empresa..." autocomplete="off"
+                style="width:100%;padding:9px 12px 9px 32px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem">
               <div id="vincular-results" class="search-results" style="position:absolute;top:100%;left:0;right:0;z-index:100"></div>
             </div>
           </div>
@@ -3794,19 +3813,32 @@ class GridFlowApp {
       <div class="status-page">
         <div class="card" style="margin-bottom:16px;padding:14px 16px">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
-            <div>
-              <div style="font-size:1.1rem;font-weight:700;color:#2d3748">📊 Relatórios</div>
+            <div style="display:flex;align-items:center;gap:7px">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#3498db" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              <div style="font-size:1.05rem;font-weight:700;color:#2d3748">Relatórios</div>
             </div>
-            <button id="btn-rel-refresh" style="padding:6px 14px;background:#ebf8ff;border:1px solid #bee3f8;border-radius:8px;color:#2b6cb0;font-weight:600;cursor:pointer;font-size:0.82rem">🔄 Atualizar</button>
+            <button id="btn-rel-refresh" style="display:flex;align-items:center;gap:5px;padding:6px 14px;background:#ebf8ff;border:1px solid #bee3f8;border-radius:8px;color:#2b6cb0;font-weight:600;cursor:pointer;font-size:0.82rem">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              Atualizar
+            </button>
           </div>
           <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
-            <button class="rel-subtab-btn active" data-subtab="anotacoes" style="padding:7px 16px;border-radius:8px;border:1.5px solid #3498db;background:#3498db;color:#fff;font-weight:600;cursor:pointer;font-size:0.85rem">📝 Anotações</button>
-            <button class="rel-subtab-btn" data-subtab="historico" style="padding:7px 16px;border-radius:8px;border:1.5px solid #e2e8f0;background:#fff;color:#4a5568;font-weight:600;cursor:pointer;font-size:0.85rem">📋 Histórico de Atividades</button>
+            <button class="rel-subtab-btn active" data-subtab="anotacoes" style="display:flex;align-items:center;gap:6px;padding:7px 16px;border-radius:8px;border:1.5px solid #3498db;background:#3498db;color:#fff;font-weight:600;cursor:pointer;font-size:0.85rem">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              Anotações
+            </button>
+            <button class="rel-subtab-btn" data-subtab="historico" style="display:flex;align-items:center;gap:6px;padding:7px 16px;border-radius:8px;border:1.5px solid #e2e8f0;background:#fff;color:#4a5568;font-weight:600;cursor:pointer;font-size:0.85rem">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+              Histórico de Atividades
+            </button>
           </div>
           <div id="rel-filtros-anotacoes">
             <div style="display:flex;gap:10px;flex-wrap:wrap">
-              <input id="rel-search" type="text" placeholder="🔍 Buscar por empresa, código, texto..."
-                style="flex:1;min-width:180px;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem" autocomplete="off">
+              <div style="flex:1;min-width:180px;position:relative;display:flex;align-items:center">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a0aec0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="position:absolute;left:10px;pointer-events:none"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input id="rel-search" type="text" placeholder="Buscar por empresa, código, texto..."
+                  style="width:100%;padding:8px 12px 8px 32px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem" autocomplete="off">
+              </div>
               <select id="rel-periodo" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;color:#4a5568;background:#fff">
                 <option value="">Todos os períodos</option>
               </select>
@@ -3821,16 +3853,25 @@ class GridFlowApp {
               <div id="rel-summary" style="font-size:0.8rem;color:#718096"></div>
               <div style="display:flex;gap:6px">
                 <button class="btn-rel-view${(this._relatorioView||'empresa')==='empresa'?' active':''}" data-view="empresa"
-                  style="padding:4px 12px;border-radius:7px;border:1.5px solid ${(this._relatorioView||'empresa')==='empresa'?'#3498db':'#e2e8f0'};background:${(this._relatorioView||'empresa')==='empresa'?'#ebf8ff':'#fff'};color:${(this._relatorioView||'empresa')==='empresa'?'#2b6cb0':'#718096'};font-size:0.78rem;font-weight:600;cursor:pointer">🏢 Por Empresa</button>
+                  style="display:flex;align-items:center;gap:5px;padding:4px 12px;border-radius:7px;border:1.5px solid ${(this._relatorioView||'empresa')==='empresa'?'#3498db':'#e2e8f0'};background:${(this._relatorioView||'empresa')==='empresa'?'#ebf8ff':'#fff'};color:${(this._relatorioView||'empresa')==='empresa'?'#2b6cb0':'#718096'};font-size:0.78rem;font-weight:600;cursor:pointer">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                  Por Empresa
+                </button>
                 <button class="btn-rel-view${(this._relatorioView||'empresa')==='lista'?' active':''}" data-view="lista"
-                  style="padding:4px 12px;border-radius:7px;border:1.5px solid ${(this._relatorioView||'empresa')==='lista'?'#3498db':'#e2e8f0'};background:${(this._relatorioView||'empresa')==='lista'?'#ebf8ff':'#fff'};color:${(this._relatorioView||'empresa')==='lista'?'#2b6cb0':'#718096'};font-size:0.78rem;font-weight:600;cursor:pointer">☰ Lista</button>
+                  style="display:flex;align-items:center;gap:5px;padding:4px 12px;border-radius:7px;border:1.5px solid ${(this._relatorioView||'empresa')==='lista'?'#3498db':'#e2e8f0'};background:${(this._relatorioView||'empresa')==='lista'?'#ebf8ff':'#fff'};color:${(this._relatorioView||'empresa')==='lista'?'#2b6cb0':'#718096'};font-size:0.78rem;font-weight:600;cursor:pointer">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                  Lista
+                </button>
               </div>
             </div>
           </div>
           <div id="rel-filtros-historico" style="display:none">
             <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-              <input id="hist-search" type="text" placeholder="🔍 Buscar por empresa, código, atividade..."
-                style="flex:1;min-width:180px;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem" autocomplete="off">
+              <div style="flex:1;min-width:180px;position:relative;display:flex;align-items:center">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a0aec0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="position:absolute;left:10px;pointer-events:none"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input id="hist-search" type="text" placeholder="Buscar por empresa, código, atividade..."
+                  style="width:100%;padding:8px 12px 8px 32px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem" autocomplete="off">
+              </div>
               <div style="position:relative" id="hist-periodo-wrap">
                 <button id="btn-hist-periodo" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;color:#4a5568;background:#fff;cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap">
                   <span id="hist-periodo-label">Todos os períodos</span>
@@ -4422,9 +4463,18 @@ class GridFlowApp {
     return `
       <div class="card" style="margin-bottom:0">
         <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap">
-          <button class="msg-subtab-btn active" data-subtab="templates" style="padding:7px 16px;border-radius:8px;border:1.5px solid #3498db;background:#3498db;color:#fff;font-weight:600;cursor:pointer;font-size:0.85rem">📄 Templates</button>
-          <button class="msg-subtab-btn" data-subtab="agendar" style="padding:7px 16px;border-radius:8px;border:1.5px solid #e2e8f0;background:#fff;color:#4a5568;font-weight:600;cursor:pointer;font-size:0.85rem">📅 Agendar Email</button>
-          <button class="msg-subtab-btn" data-subtab="historico" style="padding:7px 16px;border-radius:8px;border:1.5px solid #e2e8f0;background:#fff;color:#4a5568;font-weight:600;cursor:pointer;font-size:0.85rem">📋 Histórico</button>
+          <button class="msg-subtab-btn active" data-subtab="templates" style="display:flex;align-items:center;gap:6px;padding:7px 16px;border-radius:8px;border:1.5px solid #3498db;background:#3498db;color:#fff;font-weight:600;cursor:pointer;font-size:0.85rem">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            Templates
+          </button>
+          <button class="msg-subtab-btn" data-subtab="agendar" style="display:flex;align-items:center;gap:6px;padding:7px 16px;border-radius:8px;border:1.5px solid #e2e8f0;background:#fff;color:#4a5568;font-weight:600;cursor:pointer;font-size:0.85rem">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            Agendar Email
+          </button>
+          <button class="msg-subtab-btn" data-subtab="historico" style="display:flex;align-items:center;gap:6px;padding:7px 16px;border-radius:8px;border:1.5px solid #e2e8f0;background:#fff;color:#4a5568;font-weight:600;cursor:pointer;font-size:0.85rem">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            Histórico
+          </button>
         </div>
 
         <!-- SubAba: Templates -->
@@ -4471,7 +4521,10 @@ class GridFlowApp {
               <div style="font-size:0.85rem;color:#4a5568;margin-bottom:6px"><strong>Assunto:</strong> <span id="msg-preview-assunto"></span></div>
               <div id="msg-preview-corpo" style="font-size:0.85rem;color:#4a5568;border-top:1px solid #e2e8f0;padding-top:8px;margin-top:6px"></div>
             </div>
-            <button type="submit" style="padding:10px 20px;background:#27ae60;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.92rem;align-self:flex-start">📅 Agendar Email</button>
+            <button type="submit" style="display:flex;align-items:center;gap:7px;padding:10px 20px;background:#27ae60;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.92rem;align-self:flex-start">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              Agendar Email
+            </button>
           </form>
         </div>
 
