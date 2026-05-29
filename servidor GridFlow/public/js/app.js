@@ -1498,16 +1498,25 @@ class GridFlowApp {
   }
 
   // ── Atividades ────────────────────────────────────────────────────────────
+  _carregarGruposConfig() {
+    try { return JSON.parse(localStorage.getItem('gridflow_grupos_' + (this.contaId || 'default')) || '{}'); } catch { return {}; }
+  }
+  _salvarGruposConfig(cfg) {
+    localStorage.setItem('gridflow_grupos_' + (this.contaId || 'default'), JSON.stringify(cfg));
+  }
+
   async renderAtividades() {
     try {
       const atividades = await this.api('/api/atividades');
       this._todasAtividades = atividades.filter(a => a.ativo);
       const grupos = [...new Set(this._todasAtividades.map(a => a.grupo || 'Geral'))].sort();
+      const cfg    = this._carregarGruposConfig();
+      const subtab = this._atvSubtab || 'atividades';
 
-      return `
+      const _PRAZOS = ['Mensal','Trimestral','Semestral','Anual','Eventual'];
+
+      const abaAtividades = `
         <div style="display:grid;grid-template-columns:1fr 320px;gap:16px;align-items:start">
-
-          <!-- Lista agrupada -->
           <div class="card" style="padding:0;overflow:hidden">
             <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #f0f0f0">
               <div style="display:flex;align-items:center;gap:8px">
@@ -1519,24 +1528,27 @@ class GridFlowApp {
             <div id="atv-lista" style="max-height:calc(100vh - 200px);overflow-y:auto">
               ${grupos.map(grupo => {
                 const atvsGrupo = this._todasAtividades.filter(a => (a.grupo || 'Geral') === grupo);
+                const prazo = cfg[grupo]?.prazo || '';
                 return `
                   <div class="atv-grupo-bloco">
                     <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:#f8fafc;border-bottom:1px solid #e2e8f0;border-top:1px solid #e2e8f0">
-                      <span style="font-weight:700;font-size:0.82rem;text-transform:uppercase;letter-spacing:.04em;color:#4a5568">
-                        ${grupo} <span style="color:#a0aec0;font-weight:400">(${atvsGrupo.length})</span>
-                      </span>
+                      <div style="display:flex;align-items:center;gap:8px">
+                        <span style="font-weight:700;font-size:0.82rem;text-transform:uppercase;letter-spacing:.04em;color:#4a5568">${grupo}</span>
+                        <span style="color:#a0aec0;font-weight:400;font-size:0.78rem">(${atvsGrupo.length})</span>
+                        ${prazo ? `<span style="font-size:0.7rem;font-weight:700;color:#2b6cb0;background:#ebf8ff;border:1px solid #bee3f8;padding:1px 8px;border-radius:10px">${prazo}</span>` : ''}
+                      </div>
                       <button class="btn btn-sm btn-excluir-grupo" data-grupo="${grupo}"
                         style="background:#fff5f5;border-color:#fed7d7;color:#c53030;font-size:0.72rem;padding:3px 10px">
                         🗑 Excluir grupo
                       </button>
                     </div>
                     ${atvsGrupo.map(a => `
-                      <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 20px;border-bottom:1px solid #f7f7f7;gap:12px">
-                        <div style="min-width:0">
+                      <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:11px 20px;border-bottom:1px solid #f7f7f7;gap:12px">
+                        <div style="min-width:0;flex:1">
                           <div style="font-size:0.88rem;color:#2d3748">${a.nome}</div>
-                          ${a.descricao ? `<div style="font-size:0.76rem;color:#a0aec0;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px">${a.descricao}</div>` : ''}
+                          ${a.descricao ? `<div style="font-size:0.76rem;color:#a0aec0;margin-top:3px;line-height:1.4;white-space:pre-wrap;word-break:break-word">${a.descricao}</div>` : ''}
                         </div>
-                        <div style="display:flex;gap:5px;flex-shrink:0">
+                        <div style="display:flex;gap:5px;flex-shrink:0;margin-top:2px">
                           <button class="btn btn-sm btn-editar-atv"
                             data-id="${a.id}" data-nome="${a.nome.replace(/"/g,'&quot;')}" data-grupo="${grupo}" data-descricao="${(a.descricao||'').replace(/"/g,'&quot;')}"
                             style="padding:4px 8px;background:#fefcbf;border-color:#f6e05e;color:#744210">✏️</button>
@@ -1558,13 +1570,11 @@ class GridFlowApp {
               <span id="atv-form-titulo" style="font-weight:700;text-transform:uppercase;font-size:0.75rem;color:#718096;letter-spacing:.05em">Nova Atividade</span>
             </div>
             <input type="hidden" id="atv-id">
-
             <div style="margin-bottom:14px">
               <label style="font-size:0.8rem;font-weight:600;color:#4a5568;display:block;margin-bottom:4px">Nome da atividade *</label>
               <input id="atv-nome" type="text" placeholder="Ex: Banco"
                 style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.9rem">
             </div>
-
             <div style="margin-bottom:14px">
               <label style="font-size:0.8rem;font-weight:600;color:#4a5568;display:block;margin-bottom:4px">Grupo</label>
               <input id="atv-grupo" type="text" placeholder="Ex: Conciliação" list="atv-grupos-list"
@@ -1573,7 +1583,6 @@ class GridFlowApp {
                 ${grupos.map(g => `<option value="${g}">`).join('')}
               </datalist>
             </div>
-
             <div style="margin-bottom:20px">
               <label style="font-size:0.8rem;font-weight:600;color:#4a5568;display:block;margin-bottom:4px">
                 Descrição <span style="color:#a0aec0;font-weight:400">(opcional)</span>
@@ -1581,17 +1590,119 @@ class GridFlowApp {
               <textarea id="atv-descricao" rows="3" placeholder="Ex: Conciliar os extratos bancários com o razão contábil do mês..."
                 style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;resize:vertical;font-family:inherit;box-sizing:border-box"></textarea>
             </div>
-
             <div style="display:flex;gap:8px">
               <button class="btn btn-primary" id="btn-salvar-atv" style="flex:1;padding:10px">💾 Salvar</button>
               <button class="btn" id="btn-limpar-atv" style="padding:10px 16px">Limpar</button>
             </div>
           </div>
         </div>`;
+
+      const abaGrupos = `
+        <div class="card" style="padding:0;overflow:hidden">
+          <div style="padding:14px 20px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;gap:8px">
+            <span>⏱</span>
+            <span style="font-weight:700;text-transform:uppercase;font-size:0.75rem;color:#718096;letter-spacing:.05em">Grupos & Prazos</span>
+          </div>
+          ${grupos.length === 0 ? '<div style="padding:40px;text-align:center;color:#718096">Nenhum grupo cadastrado</div>' : ''}
+          ${grupos.map(grupo => {
+            const atvsGrupo = this._todasAtividades.filter(a => (a.grupo || 'Geral') === grupo);
+            const prazo = cfg[grupo]?.prazo || '';
+            return `
+              <div style="display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid #f0f0f0;flex-wrap:wrap">
+                <div style="flex:1;min-width:200px">
+                  <div style="font-size:0.7rem;font-weight:600;color:#a0aec0;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Nome do grupo</div>
+                  <input class="grupo-nome-input" data-original="${grupo}"
+                    value="${grupo}"
+                    style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:7px;font-size:0.88rem;font-weight:600;color:#2d3748">
+                </div>
+                <div style="min-width:150px">
+                  <div style="font-size:0.7rem;font-weight:600;color:#a0aec0;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Prazo / Frequência</div>
+                  <select class="grupo-prazo-select" data-grupo="${grupo}"
+                    style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:7px;font-size:0.85rem;color:#4a5568;background:#fff">
+                    <option value="">— Sem prazo —</option>
+                    ${_PRAZOS.map(p => `<option value="${p}"${prazo === p ? ' selected' : ''}>${p}</option>`).join('')}
+                  </select>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+                  <div style="font-size:0.7rem;color:#a0aec0">${atvsGrupo.length} atividade${atvsGrupo.length !== 1 ? 's' : ''}</div>
+                  <button class="btn btn-primary btn-sm btn-salvar-grupo" data-original="${grupo}"
+                    style="padding:6px 14px;font-size:0.8rem;white-space:nowrap">💾 Salvar</button>
+                </div>
+              </div>`;
+          }).join('')}
+        </div>`;
+
+      return `
+        <div>
+          <div style="display:flex;gap:8px;margin-bottom:16px">
+            <button class="atv-subtab-btn" data-subtab="atividades"
+              style="padding:7px 16px;border-radius:8px;border:1.5px solid ${subtab==='atividades'?'#3498db':'#e2e8f0'};background:${subtab==='atividades'?'#3498db':'#fff'};color:${subtab==='atividades'?'#fff':'#4a5568'};font-weight:600;cursor:pointer;font-size:0.85rem">
+              📋 Atividades
+            </button>
+            <button class="atv-subtab-btn" data-subtab="grupos"
+              style="padding:7px 16px;border-radius:8px;border:1.5px solid ${subtab==='grupos'?'#3498db':'#e2e8f0'};background:${subtab==='grupos'?'#3498db':'#fff'};color:${subtab==='grupos'?'#fff':'#4a5568'};font-weight:600;cursor:pointer;font-size:0.85rem">
+              ⏱ Grupos & Prazos
+            </button>
+          </div>
+          <div id="atv-sub-atividades" style="display:${subtab==='atividades'?'':'none'}">${abaAtividades}</div>
+          <div id="atv-sub-grupos"     style="display:${subtab==='grupos'?'':'none'}">${abaGrupos}</div>
+        </div>`;
     } catch { return `<div class="loading">Erro ao carregar atividades</div>`; }
   }
 
   configurarEventosAtividades() {
+    // Sub-tabs
+    document.querySelectorAll('.atv-subtab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this._atvSubtab = btn.dataset.subtab;
+        document.getElementById('atv-sub-atividades').style.display = this._atvSubtab === 'atividades' ? '' : 'none';
+        document.getElementById('atv-sub-grupos').style.display     = this._atvSubtab === 'grupos'     ? '' : 'none';
+        document.querySelectorAll('.atv-subtab-btn').forEach(b => {
+          const ativo = b.dataset.subtab === this._atvSubtab;
+          b.style.background   = ativo ? '#3498db' : '#fff';
+          b.style.borderColor  = ativo ? '#3498db' : '#e2e8f0';
+          b.style.color        = ativo ? '#fff'    : '#4a5568';
+        });
+      });
+    });
+
+    // Salvar grupo (nome + prazo)
+    document.querySelectorAll('.btn-salvar-grupo').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const original  = btn.dataset.original;
+        const row       = btn.closest('div[style*="border-bottom"]');
+        const novoNome  = row.querySelector('.grupo-nome-input').value.trim();
+        const novoPrazo = row.querySelector('.grupo-prazo-select').value;
+        if (!novoNome) { alert('O nome do grupo não pode ficar vazio'); return; }
+
+        // Prazo: salvar em localStorage
+        const cfg = this._carregarGruposConfig();
+        if (novoPrazo) cfg[novoNome] = { ...(cfg[novoNome] || {}), prazo: novoPrazo };
+        else delete (cfg[novoNome] || {}).prazo;
+        // Se renomeou, migrar chave
+        if (novoNome !== original) {
+          cfg[novoNome] = { ...(cfg[original] || {}), ...(cfg[novoNome] || {}), prazo: novoPrazo || (cfg[original]?.prazo || '') };
+          delete cfg[original];
+        }
+        if (!novoPrazo && cfg[novoNome] && !Object.keys(cfg[novoNome]).length) delete cfg[novoNome];
+        this._salvarGruposConfig(cfg);
+
+        // Renomear: atualizar todas as atividades do grupo
+        if (novoNome !== original) {
+          const atvsGrupo = (this._todasAtividades || []).filter(a => (a.grupo || 'Geral') === original);
+          if (!atvsGrupo.length || confirm(`Renomear "${original}" para "${novoNome}" em ${atvsGrupo.length} atividade(s)?`)) {
+            try {
+              await Promise.all(atvsGrupo.map(a =>
+                this.api(`/api/atividades/${a.id}`, { method: 'PUT', body: JSON.stringify({ grupo: novoNome }) })
+              ));
+            } catch (e) { alert('Erro ao renomear: ' + e.message); return; }
+          } else return;
+        }
+
+        await this.mudarTab('atividades');
+      });
+    });
+
     const limparForm = () => {
       document.getElementById('atv-id').value = '';
       document.getElementById('atv-nome').value = '';
