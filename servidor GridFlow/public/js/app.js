@@ -1015,18 +1015,20 @@ class GridFlowApp {
       const gi = this._gruposIntegrados;
       return `
         <div class="card" style="padding:0;overflow:hidden">
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #f0f0f0">
+          <div id="filiais-header" style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #f0f0f0;cursor:pointer;user-select:none">
             <div style="display:flex;align-items:center;gap:8px">
+              <span id="filiais-chevron" style="color:#a0aec0;font-size:0.7rem">▶</span>
               <span>🏢</span>
               <span style="font-weight:700;text-transform:uppercase;font-size:0.78rem;color:#718096;letter-spacing:.05em">
                 FILIAIS (${this.filiais.length})
               </span>
             </div>
-            <div style="display:flex;gap:8px">
+            <div style="display:flex;gap:8px" onclick="event.stopPropagation()">
               <button class="btn btn-primary btn-sm" id="btn-sincronizar-filiais">⟳ Sincronizar Filiais</button>
               <button class="btn btn-sm" id="btn-configurar-grupos">⚙ Configurar grupos</button>
             </div>
           </div>
+          <div id="filiais-corpo" style="display:none">
           ${gi.length ? `
           <div style="padding:8px 20px;background:#f0fff4;border-bottom:1px solid #c6f6d5;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             <span style="font-size:0.75rem;font-weight:700;color:#276749">Grupos integrados</span>
@@ -1071,11 +1073,23 @@ class GridFlowApp {
                 </div>`;
             }).join('')}
           </div>
+          </div>
         </div>`;
     } catch (e) { return `<div class="loading">Erro ao carregar filiais: ${e.message}</div>`; }
   }
 
   configurarEventosFiliais(matrizId) {
+    const filiaisHeader = document.getElementById('filiais-header');
+    if (filiaisHeader) {
+      filiaisHeader.addEventListener('click', () => {
+        const corpo = document.getElementById('filiais-corpo');
+        const chevron = document.getElementById('filiais-chevron');
+        const aberto = corpo.style.display !== 'none';
+        corpo.style.display = aberto ? 'none' : '';
+        chevron.textContent = aberto ? '▶' : '▼';
+      });
+    }
+
     document.querySelectorAll('.filial-header').forEach(header => {
       header.addEventListener('click', () => {
         const bloco = header.closest('.filial-bloco');
@@ -3859,9 +3873,9 @@ class GridFlowApp {
             </thead>
             <tbody>
               ${emp.itens.map((h, i) => {
-                const statusColor = h.status === 'OK' ? '#27ae60' : '#718096';
-                const statusBg    = h.status === 'OK' ? '#f0fff4' : '#f7fafc';
-                const statusBd    = h.status === 'OK' ? '#9ae6b4' : '#e2e8f0';
+                const statusColor = h.status === 'OK' ? '#27ae60' : h.status === 'Não Aplicável' ? '#c53030' : '#718096';
+                const statusBg    = h.status === 'OK' ? '#f0fff4' : h.status === 'Não Aplicável' ? '#fff5f5' : '#f7fafc';
+                const statusBd    = h.status === 'OK' ? '#9ae6b4' : h.status === 'Não Aplicável' ? '#feb2b2' : '#e2e8f0';
                 const dataFmt     = this._formatarDataHistorico(h.data);
                 const anexosHtml  = Array.isArray(h.anexos) && h.anexos.length
                   ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:${h.observacao ? '4px' : '0'}">
