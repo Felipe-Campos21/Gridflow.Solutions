@@ -3167,9 +3167,23 @@ class GridFlowApp {
     const content   = document.getElementById('status-main-content');
     if (!summaryEl || !content) return;
 
+    // Merge fixadas companies for the current user
+    let empresasToShow = [...col.empresas];
+    const isCurrentUser = String(col.colaborador.id) === String(this.colaborador?.id);
+    if (isCurrentUser && this._empresasFixadas?.length && this._statusData?.geral) {
+      const fixadasExtras = this._empresasFixadas
+        .filter(f => !empresasToShow.some(e => e.empresa.id === f.id))
+        .map(f => {
+          const g = this._statusData.geral.find(g => g.empresa.id === f.id);
+          return g ? { ...g, _fixada: true } : null;
+        })
+        .filter(Boolean);
+      empresasToShow = [...empresasToShow, ...fixadasExtras];
+    }
+
     const cor      = this._statusColor(col.pct);
     const iniciais = col.colaborador.nome.split(' ').filter(Boolean).map(p => p[0]).slice(0, 2).join('').toUpperCase();
-    const completas = col.empresas.filter(e => e.pct === 100).length;
+    const completas = empresasToShow.filter(e => e.pct === 100).length;
     const R = 22, CIRC2 = (2 * Math.PI * R).toFixed(2);
     const offset2 = (2 * Math.PI * R * (1 - col.pct / 100)).toFixed(2);
     const detalheAvatarInner = col.colaborador.foto
@@ -3195,7 +3209,7 @@ class GridFlowApp {
             </div>
           </div>
           <div class="collab-detalhe-stats">
-            <div class="summary-stat"><div class="summary-stat-icon">🏢</div><div class="summary-stat-value" style="color:#2d3748">${col.total_empresas}</div><div class="summary-stat-label">Empresas</div></div>
+            <div class="summary-stat"><div class="summary-stat-icon">🏢</div><div class="summary-stat-value" style="color:#2d3748">${empresasToShow.length}</div><div class="summary-stat-label">Empresas</div></div>
             <div class="summary-stat"><div class="summary-stat-icon">✅</div><div class="summary-stat-value" style="color:#27ae60">${completas}</div><div class="summary-stat-label">100%</div></div>
             <div class="summary-stat summary-stat-blue"><div class="summary-stat-icon">📋</div><div class="summary-stat-value" style="color:#3498db">${col.concluidas}/${col.total_atividades}</div><div class="summary-stat-label">Feitas</div></div>
             <div class="summary-stat summary-stat-pink"><div class="summary-stat-icon">📈</div><div class="summary-stat-value" style="color:${cor}">${col.pct}%</div><div class="summary-stat-label">Progresso</div></div>
@@ -3213,13 +3227,16 @@ class GridFlowApp {
     });
 
     content.innerHTML = `<div class="status-emp-grid">
-      ${col.empresas.map(e => {
+      ${empresasToShow.map(e => {
         const cor2 = this._statusColor(e.pct);
+        const fixadaBadge = e._fixada
+          ? `<span style="font-size:0.65rem;font-weight:700;color:#805ad5;background:#faf5ff;border:1px solid #d6bcfa;padding:1px 7px;border-radius:10px;margin-left:4px">📍 Pesquisada</span>`
+          : '';
         return `
           <div class="emp-status-card">
             <div class="emp-card-top">
               <div style="flex:1;min-width:0">
-                <div class="emp-card-id">${e.empresa.codigo_interno || e.empresa.id}</div>
+                <div class="emp-card-id">${e.empresa.codigo_interno || e.empresa.id}${fixadaBadge}</div>
                 <div class="emp-card-nome">${e.empresa.nome}</div>
               </div>
               <div style="text-align:right;margin-left:8px">
@@ -3397,6 +3414,15 @@ class GridFlowApp {
       const pctAnual  = totalAtv > 0 ? Math.round((totalConc / totalAtv) * 100) : 0;
       const corAnual  = this._statusColor(pctAnual);
 
+      const _pendListHtml = (lista) => {
+        const grupos = {};
+        for (const p of lista) { const g = p.grupo || 'Geral'; (grupos[g] = grupos[g] || []).push(p.nome); }
+        return Object.entries(grupos).map(([g, nomes]) =>
+          `<div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#a0aec0;margin-top:6px;margin-bottom:2px">${g}</div>` +
+          nomes.map(n => `<div style="font-size:0.78rem;color:#4a5568;padding:2px 0">⏳ ${n}</div>`).join('')
+        ).join('');
+      };
+
       anualHtml = `
         <div class="card">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
@@ -3406,31 +3432,39 @@ class GridFlowApp {
           <div class="status-progress-track" style="margin-bottom:16px">
             <div class="status-progress-fill" style="width:${pctAnual}%;background:${corAnual}"></div>
           </div>
-          ${meses.map(([per, m], i) => {
-            if (m.total === 0) return `
-              <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;opacity:.4">
-                <div style="width:80px;font-size:0.75rem;color:#a0aec0;flex-shrink:0">${nomeMes[i]}</div>
-                <div style="flex:1;height:8px;border-radius:4px;background:#edf2f7"></div>
-                <div style="width:38px;font-size:0.75rem;color:#a0aec0;text-align:right">—</div>
-              </div>`;
-            const c = this._statusColor(m.pct);
-            const isPeriodoAtual = per === this.periodo;
-            return `
-              <div style="margin-bottom:10px">
-                <div style="display:flex;align-items:center;gap:10px">
-                  <div style="width:80px;font-size:0.75rem;color:${isPeriodoAtual ? '#3498db' : '#718096'};flex-shrink:0;font-weight:${isPeriodoAtual ? '700' : '400'}">${nomeMes[i]}</div>
-                  <div style="flex:1;height:8px;border-radius:4px;background:#edf2f7;overflow:hidden">
-                    <div style="height:100%;width:${m.pct}%;background:${c};border-radius:4px;transition:width .4s"></div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+            ${meses.map(([per, m], i) => {
+              if (m.total === 0) return `
+                <div style="border:1px solid #edf2f7;border-radius:10px;padding:10px;background:#f9fafb;opacity:.45">
+                  <div style="font-size:0.75rem;font-weight:600;color:#a0aec0;margin-bottom:6px">${nomeMes[i]}</div>
+                  <div style="height:5px;background:#edf2f7;border-radius:3px;margin-bottom:6px"></div>
+                  <div style="font-size:0.72rem;color:#a0aec0">Sem atividades</div>
+                </div>`;
+              const c = this._statusColor(m.pct);
+              const isPeriodoAtual = per === this.periodo;
+              const clicavel = m.pendentes > 0;
+              return `
+                <div class="mes-card-anual${clicavel ? ' mes-clicavel' : ''}" data-mesidx="${i}"
+                  style="border:1px solid ${isPeriodoAtual ? '#bee3f8' : '#e2e8f0'};border-radius:10px;padding:10px;
+                  background:${isPeriodoAtual ? '#ebf8ff' : '#fff'};
+                  cursor:${clicavel ? 'pointer' : 'default'};transition:box-shadow .15s,border-color .15s">
+                  <div style="font-size:0.75rem;font-weight:700;color:${isPeriodoAtual ? '#3498db' : '#4a5568'};margin-bottom:6px">${nomeMes[i]}</div>
+                  <div style="height:5px;background:#edf2f7;border-radius:3px;overflow:hidden;margin-bottom:6px">
+                    <div style="height:100%;width:${m.pct}%;background:${c};border-radius:3px;transition:width .4s"></div>
                   </div>
-                  <div style="width:38px;font-size:0.75rem;font-weight:700;color:${c};text-align:right">${m.pct}%</div>
-                  ${m.pendentes > 0 ? `<div style="font-size:0.7rem;color:#e74c3c;white-space:nowrap">⏳ ${m.pendentes}</div>` : m.total > 0 ? '<div style="font-size:0.7rem;color:#27ae60">✅</div>' : ''}
-                </div>
-                ${m.pendentes > 0 && per !== this.periodo ? `
-                  <div style="margin:4px 0 2px 90px">
-                    ${m.pendentes_lista.map(p => `<div style="font-size:0.72rem;color:#a0aec0;padding:1px 0">· ${p.nome}</div>`).join('')}
-                  </div>` : ''}
-              </div>`;
-          }).join('')}
+                  <div style="display:flex;justify-content:space-between;align-items:center">
+                    <span style="font-weight:700;color:${c};font-size:0.82rem">${m.pct}%</span>
+                    ${clicavel
+                      ? `<span style="color:#e74c3c;font-size:0.7rem">⏳ ${m.pendentes} ▾</span>`
+                      : m.total > 0 ? '<span style="color:#27ae60;font-size:0.7rem">✅</span>' : ''}
+                  </div>
+                  ${clicavel ? `
+                    <div class="mes-pend-detail" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid #e2e8f0">
+                      ${_pendListHtml(m.pendentes_lista)}
+                    </div>` : ''}
+                </div>`;
+            }).join('')}
+          </div>
         </div>`;
     }
 
@@ -3441,6 +3475,22 @@ class GridFlowApp {
     });
     content.querySelectorAll('.pdrop-item').forEach(el => {
       el.style.cssText = 'padding:3px 0;font-size:0.82rem;color:#4a5568;display:flex;align-items:center;gap:6px';
+    });
+
+    content.querySelectorAll('.mes-card-anual.mes-clicavel').forEach(card => {
+      card.addEventListener('click', () => {
+        const detail = card.querySelector('.mes-pend-detail');
+        if (!detail) return;
+        const isOpen = detail.style.display !== 'none';
+        content.querySelectorAll('.mes-pend-detail').forEach(d => { d.style.display = 'none'; });
+        content.querySelectorAll('.mes-card-anual').forEach(c => { c.style.boxShadow = ''; c.style.borderColor = ''; });
+        if (!isOpen) {
+          detail.style.display = 'block';
+          const isPeriodoAtual = card.style.background.includes('ebf8ff');
+          card.style.boxShadow = '0 0 0 2px #e74c3c55';
+          card.style.borderColor = '#e74c3c66';
+        }
+      });
     });
   }
 
