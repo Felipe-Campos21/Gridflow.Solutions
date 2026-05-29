@@ -3107,20 +3107,28 @@ class GridFlowApp {
   _renderStatusShell() {
     const userName = this.usuario || '—';
     if (this._statusView === 'anual') this._statusView = 'empresas';
+    const icoUsers    = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`;
+    const icoBuilding = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>`;
+    const icoRefresh  = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>`;
+    const icoChart    = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3498db" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`;
+    const icoSearch   = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a0aec0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="status-search-icon"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`;
     return `
       <div class="status-page">
         <div class="card status-header-card">
           <div>
-            <div class="status-title">📊 Status de Atividades</div>
+            <div class="status-title">${icoChart} Status de Atividades</div>
             <div class="status-subtitle">${userName} · Período: <span style="color:#3498db;font-weight:700">${this.periodo || '—'}</span></div>
           </div>
           <div class="status-controls">
-            <input id="status-search" class="status-search" placeholder="🔍 Buscar empresa..." value="${this._statusSearch || ''}">
-            <div class="status-view-toggle">
-              <button class="btn-status-view${this._statusView === 'colaboradores' ? ' active' : ''}" data-view="colaboradores">👥 Colaboradores</button>
-              <button class="btn-status-view${this._statusView !== 'colaboradores' ? ' active' : ''}" data-view="empresas">🏢 Empresas</button>
+            <div class="status-search-wrap">
+              ${icoSearch}
+              <input id="status-search" class="status-search" placeholder="Buscar empresa..." value="${this._statusSearch || ''}">
             </div>
-            <button class="btn btn-secondary btn-sm" id="btn-status-refresh">🔄 Atualizar</button>
+            <div class="status-view-toggle">
+              <button class="btn-status-view${this._statusView === 'colaboradores' ? ' active' : ''}" data-view="colaboradores">${icoUsers} Colaboradores</button>
+              <button class="btn-status-view${this._statusView !== 'colaboradores' ? ' active' : ''}" data-view="empresas">${icoBuilding} Empresas</button>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="btn-status-refresh" style="display:flex;align-items:center;gap:5px">${icoRefresh} Atualizar</button>
           </div>
         </div>
         <div id="status-summary-area"></div>
@@ -3185,21 +3193,27 @@ class GridFlowApp {
     const pctGeral  = totalAtv > 0 ? Math.round((totalConc / totalAtv) * 100) : 0;
     const cor = this._statusColor(pctGeral);
 
+    const icoEmp   = `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#4a5568" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>`;
+    const icoCol   = `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`;
+    const icoChk   = `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#3498db" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>`;
+    const icoTrend = `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="${cor}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>`;
+    const icoOk    = `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#27ae60" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+
     let cards;
     if (this._statusView === 'colaboradores') {
       cards = [
-        { icon: '🏢', value: geral.length,                       label: 'Empresas',          style: '' },
-        { icon: '👥', value: colaboradores.length,               label: 'Colaboradores',     style: '' },
-        { icon: '📋', value: `${totalConc}/${totalAtv}`,         label: 'Atividades feitas', style: 'blue' },
-        { icon: '📈', value: `${pctGeral}%`,                     label: 'Progresso geral',   style: 'color' },
+        { ico: icoEmp,   icoClass: '',       value: geral.length,              label: 'Empresas',          valColor: '#2d3748' },
+        { ico: icoCol,   icoClass: 'purple', value: colaboradores.length,      label: 'Colaboradores',     valColor: '#2d3748' },
+        { ico: icoChk,   icoClass: 'blue',   value: `${totalConc}/${totalAtv}`,label: 'Atividades feitas', valColor: '#3498db' },
+        { ico: icoTrend, icoClass: 'pink',   value: `${pctGeral}%`,            label: 'Progresso geral',   valColor: cor       },
       ];
     } else {
       const completas = geral.filter(e => e.pct === 100).length;
       cards = [
-        { icon: '🏢', value: geral.length,                       label: 'Total',             style: '' },
-        { icon: '✅', value: completas,                          label: '100%',              style: '' },
-        { icon: '📋', value: `${totalConc}/${totalAtv}`,         label: 'Feitas',            style: 'blue' },
-        { icon: '📈', value: `${pctGeral}%`,                     label: 'Geral',             style: 'color' },
+        { ico: icoEmp,   icoClass: '',       value: geral.length,              label: 'Total empresas',    valColor: '#2d3748' },
+        { ico: icoOk,    icoClass: 'green',  value: completas,                 label: '100% concluídas',   valColor: '#27ae60' },
+        { ico: icoChk,   icoClass: 'blue',   value: `${totalConc}/${totalAtv}`,label: 'Feitas',            valColor: '#3498db' },
+        { ico: icoTrend, icoClass: 'pink',   value: `${pctGeral}%`,            label: 'Progresso geral',   valColor: cor       },
       ];
     }
 
@@ -3207,9 +3221,9 @@ class GridFlowApp {
       <div class="card status-summary-card">
         <div class="status-summary-cards">
           ${cards.map(c => `
-            <div class="summary-stat${c.style === 'blue' ? ' summary-stat-blue' : c.style === 'color' ? ' summary-stat-pink' : ''}">
-              <div class="summary-stat-icon">${c.icon}</div>
-              <div class="summary-stat-value" style="${c.style === 'blue' ? 'color:#3498db' : c.style === 'color' ? `color:${cor}` : 'color:#2d3748'}">${c.value}</div>
+            <div class="summary-stat">
+              <div class="summary-stat-ico ${c.icoClass}">${c.ico}</div>
+              <div class="summary-stat-value" style="color:${c.valColor}">${c.value}</div>
               <div class="summary-stat-label">${c.label}</div>
             </div>`).join('')}
         </div>

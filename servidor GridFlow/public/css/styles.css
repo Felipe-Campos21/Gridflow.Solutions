@@ -1012,11 +1012,13 @@ body {
   flex-wrap: wrap;
   padding: 14px 20px;
 }
-.status-title { font-size: 1.05rem; font-weight: 700; color: #2d3748; margin: 0 0 2px; }
+.status-title { font-size: 1.05rem; font-weight: 700; color: #2d3748; margin: 0 0 2px; display:flex; align-items:center; gap:6px; }
 .status-subtitle { font-size: 0.79rem; color: #718096; }
 .status-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.status-search-wrap { position: relative; display: flex; align-items: center; }
+.status-search-icon { position: absolute; left: 10px; pointer-events: none; color: #a0aec0; flex-shrink: 0; }
 .status-search {
-  padding: 7px 12px;
+  padding: 7px 12px 7px 32px;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   font-size: 0.84rem;
@@ -1033,6 +1035,9 @@ body {
   gap: 2px;
 }
 .btn-status-view {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   padding: 6px 14px;
   border: none;
   border-radius: 6px;
@@ -1045,6 +1050,7 @@ body {
   white-space: nowrap;
 }
 .btn-status-view.active { background: #2d3748; color: #fff; }
+.btn-status-view.active svg { stroke: #fff; }
 
 .status-summary-card { padding: 16px 20px; }
 .status-summary-cards {
@@ -1057,16 +1063,27 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 14px 10px;
-  border-radius: 10px;
+  padding: 16px 10px 12px;
+  border-radius: 12px;
   background: #f7fafc;
   text-align: center;
 }
-.summary-stat-blue { background: #ebf8ff; }
-.summary-stat-pink { background: #fff5f5; }
-.summary-stat-icon { font-size: 1.4rem; margin-bottom: 4px; }
+.summary-stat-ico {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 10px;
+  background: #edf2f7;
+}
+.summary-stat-ico.purple { background: #ede9fe; }
+.summary-stat-ico.blue   { background: #ebf8ff; }
+.summary-stat-ico.pink   { background: #fff5f5; }
+.summary-stat-ico.green  { background: #f0fff4; }
 .summary-stat-value { font-size: 1.65rem; font-weight: 700; line-height: 1.1; }
-.summary-stat-label { font-size: 0.71rem; color: #718096; margin-top: 3px; }
+.summary-stat-label { font-size: 0.71rem; color: #718096; margin-top: 4px; }
 .status-progress-label { font-size: 0.74rem; color: #718096; margin-bottom: 5px; }
 .status-progress-track { background: #e2e8f0; border-radius: 99px; height: 8px; overflow: hidden; }
 .status-progress-fill { height: 8px; border-radius: 99px; transition: width 0.6s ease; }
