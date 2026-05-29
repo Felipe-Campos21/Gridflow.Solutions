@@ -2923,9 +2923,18 @@ class GridFlowApp {
           </div>
 
           <div class="cfg-grupos">
-            ${Object.entries(grupos).map(([grupo, atvsGrupo]) => `
-              <div class="cfg-grupo-section">
-                <div class="cfg-grupo-header">${grupo.toUpperCase()}</div>
+            ${Object.entries(grupos).map(([grupo, atvsGrupo]) => {
+              const todoHab = atvsGrupo.every(a => a.habilitada);
+              return `
+              <div class="cfg-grupo-section" data-grupo="${grupo}">
+                <div class="cfg-grupo-header" style="display:flex;align-items:center;justify-content:space-between">
+                  <span>${grupo.toUpperCase()}</span>
+                  <label class="toggle-ativo" title="${todoHab ? 'Desabilitar grupo' : 'Habilitar grupo'}">
+                    <input type="checkbox" class="cfg-grupo-toggle" ${todoHab ? 'checked' : ''}
+                      data-empresa="${empresaId}" data-grupo="${grupo}">
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
                 ${atvsGrupo.map(a => `
                   <div class="cfg-atv-row">
                     <span class="cfg-atv-nome">${a.nome}</span>
@@ -2935,7 +2944,8 @@ class GridFlowApp {
                       <span class="toggle-slider"></span>
                     </label>
                   </div>`).join('')}
-              </div>`).join('')}
+              </div>`;
+            }).join('')}
           </div>
         </div>`;
 
@@ -2956,7 +2966,33 @@ class GridFlowApp {
       };
 
       container.querySelectorAll('.cfg-toggle').forEach(toggle => {
-        toggle.addEventListener('change', () => salvarToggle(toggle));
+        toggle.addEventListener('change', () => {
+          salvarToggle(toggle);
+          // Sincroniza o toggle do grupo
+          const section = toggle.closest('.cfg-grupo-section');
+          if (section) {
+            const grupoToggle = section.querySelector('.cfg-grupo-toggle');
+            const todos = [...section.querySelectorAll('.cfg-toggle')];
+            if (grupoToggle) grupoToggle.checked = todos.every(t => t.checked);
+          }
+        });
+      });
+
+      container.querySelectorAll('.cfg-grupo-toggle').forEach(gToggle => {
+        gToggle.addEventListener('change', async () => {
+          const section = gToggle.closest('.cfg-grupo-section');
+          if (!section) return;
+          const toggles = [...section.querySelectorAll('.cfg-toggle')];
+          const habilitar = gToggle.checked;
+          const toChange = toggles.filter(t => t.checked !== habilitar);
+          toChange.forEach(t => { t.checked = habilitar; });
+          await Promise.all(toChange.map(t =>
+            this.api(`/api/empresas/${t.dataset.empresa}/atividades/${t.dataset.atv}`, {
+              method: 'PUT', body: JSON.stringify({ habilitada: habilitar })
+            }).catch(() => { t.checked = !habilitar; })
+          ));
+          atualizarContagem();
+        });
       });
 
       document.getElementById('btn-habilitar-todas')?.addEventListener('click', async () => {
