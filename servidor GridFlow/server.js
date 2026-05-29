@@ -890,13 +890,13 @@ const server = http.createServer(async (req, res) => {
                                    // ================================================================
                                    if (pathname === '/api/relatorio/historico' && method === 'GET') {
                                          const cidQ = contaId ? '&conta_id=eq.' + contaId : '';
-                                         let q = 'historico?select=*,empresas(nome,codigo_interno),atividades(nome,grupo)' + cidQ + '&order=data.desc&limit=1000';
+                                         let q = 'historico?select=*,empresas(nome,codigo_interno,matriz_id),atividades(nome,grupo)' + cidQ + '&order=data.desc&limit=1000';
                                          if (parsed.query.periodo) q += '&periodo=eq.' + encodeURIComponent(parsed.query.periodo);
                                          if (parsed.query.usuario) q += '&usuario=eq.' + encodeURIComponent(parsed.query.usuario);
                                          const r = await sbFetch(q);
                                          const items = (r.body || []).map(h => {
                                                const { empresas, atividades, ...rest } = h;
-                                               return { ...rest, empresa_nome: empresas?.nome || null, empresa_codigo: empresas?.codigo_interno || null, atividade_nome: atividades?.nome || null, atividade_grupo: atividades?.grupo || null };
+                                               return { ...rest, empresa_nome: empresas?.nome || null, empresa_codigo: empresas?.codigo_interno || null, empresa_matriz_id: empresas?.matriz_id || null, atividade_nome: atividades?.nome || null, atividade_grupo: atividades?.grupo || null };
                                          });
                                          return sendJson(res, 200, items);
                                    }

@@ -3841,73 +3841,69 @@ class GridFlowApp {
       return;
     }
 
-    const grupos = {};
+    // Agrupa itens por empresa
+    const empresaMap = {};
     lista.forEach(h => {
-      const key = h.empresa_id;
-      if (!grupos[key]) grupos[key] = { nome: h.empresa_nome || '—', codigo: h.empresa_codigo || '', itens: [] };
-      grupos[key].itens.push(h);
+      if (!empresaMap[h.empresa_id]) empresaMap[h.empresa_id] = {
+        id: h.empresa_id, nome: h.empresa_nome || '—',
+        codigo: h.empresa_codigo || '', matrizId: h.empresa_matriz_id || null, itens: []
+      };
+      empresaMap[h.empresa_id].itens.push(h);
     });
-    const empresas = Object.values(grupos).sort((a, b) => a.nome.localeCompare(b.nome));
 
-    el.innerHTML = empresas.map(emp => `
-      <div class="card rel-empresa-grupo" style="padding:0;overflow:hidden;margin-bottom:2px">
-        <div class="rel-empresa-header" style="display:flex;align-items:center;justify-content:space-between;padding:11px 16px;background:#f8fafc;border-bottom:1px solid #e2e8f0;cursor:pointer;user-select:none">
-          <div style="display:flex;align-items:center;gap:10px">
-            <span style="font-size:0.88rem;font-weight:700;color:#2d3748">${emp.nome}</span>
-            ${emp.codigo ? `<span style="font-size:0.72rem;color:#718096;background:#edf2f7;padding:1px 7px;border-radius:8px">#${emp.codigo}</span>` : ''}
-            <span style="font-size:0.72rem;color:#a0aec0">${emp.itens.length} registro${emp.itens.length !== 1 ? 's' : ''}</span>
+    const empIds = new Set(Object.keys(empresaMap).map(Number));
+
+    // Decide quais filiais ficam agrupadas sob a matriz
+    const blocos = {};
+    const filiaisAgrupadas = new Set();
+
+    Object.values(empresaMap).forEach(emp => {
+      if (emp.matrizId && empIds.has(emp.matrizId)) {
+        if (!blocos[emp.matrizId]) blocos[emp.matrizId] = { ...empresaMap[emp.matrizId], filiais: {} };
+        blocos[emp.matrizId].filiais[emp.id] = emp;
+        filiaisAgrupadas.add(emp.id);
+      }
+    });
+    Object.values(empresaMap).forEach(emp => {
+      if (!filiaisAgrupadas.has(emp.id) && !blocos[emp.id]) blocos[emp.id] = { ...emp, filiais: {} };
+    });
+
+    const sorted = Object.values(blocos).sort((a, b) => a.nome.localeCompare(b.nome));
+
+    el.innerHTML = sorted.map(emp => {
+      const temFiliais = Object.keys(emp.filiais).length > 0;
+      const totalEmp   = emp.itens.length + Object.values(emp.filiais).reduce((s, f) => s + f.itens.length, 0);
+      const filiaisOrdenadas = Object.values(emp.filiais).sort((a, b) => a.nome.localeCompare(b.nome));
+      return `
+        <div class="card rel-empresa-grupo" style="padding:0;overflow:hidden;margin-bottom:2px">
+          <div class="rel-empresa-header" style="display:flex;align-items:center;justify-content:space-between;padding:11px 16px;background:#f8fafc;border-bottom:1px solid #e2e8f0;cursor:pointer;user-select:none">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:0.88rem;font-weight:700;color:#2d3748">${emp.nome}</span>
+              ${emp.codigo ? `<span style="font-size:0.72rem;color:#718096;background:#edf2f7;padding:1px 7px;border-radius:8px">#${emp.codigo}</span>` : ''}
+              <span style="font-size:0.72rem;color:#a0aec0">${totalEmp} registro${totalEmp !== 1 ? 's' : ''}${temFiliais ? ` · ${filiaisOrdenadas.length} filial${filiaisOrdenadas.length !== 1 ? 'is' : ''}` : ''}</span>
+            </div>
+            <span class="rel-grupo-chevron" style="color:#a0aec0;font-size:0.72rem">▶</span>
           </div>
-          <span class="rel-grupo-chevron" style="color:#a0aec0;font-size:0.72rem">▶</span>
-        </div>
-        <div class="rel-grupo-body" style="display:none">
-          <table style="width:100%;border-collapse:collapse;font-size:0.8rem">
-            <thead>
-              <tr style="background:#f8fafc;color:#718096;font-size:0.72rem;text-transform:uppercase;letter-spacing:.04em">
-                <th style="padding:6px 14px;text-align:left;border-bottom:1px solid #e2e8f0">Atividade</th>
-                <th style="padding:6px 10px;text-align:center;border-bottom:1px solid #e2e8f0">Período</th>
-                <th style="padding:6px 10px;text-align:center;border-bottom:1px solid #e2e8f0">Status</th>
-                <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #e2e8f0">Usuário</th>
-                <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #e2e8f0">Data</th>
-                <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #e2e8f0">Obs. / Anexos</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${emp.itens.map((h, i) => {
-                const statusColor = h.status === 'OK' ? '#27ae60' : h.status === 'Não Aplicável' ? '#c53030' : '#718096';
-                const statusBg    = h.status === 'OK' ? '#f0fff4' : h.status === 'Não Aplicável' ? '#fff5f5' : '#f7fafc';
-                const statusBd    = h.status === 'OK' ? '#9ae6b4' : h.status === 'Não Aplicável' ? '#feb2b2' : '#e2e8f0';
-                const dataFmt     = this._formatarDataHistorico(h.data);
-                const anexosHtml  = Array.isArray(h.anexos) && h.anexos.length
-                  ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:${h.observacao ? '4px' : '0'}">
-                      ${h.anexos.map(a => {
-                        const isImg = (a.tipo || '').startsWith('image/');
-                        return isImg
-                          ? `<a href="${a.url}" target="_blank" rel="noopener" style="display:block;border-radius:4px;overflow:hidden;border:1px solid #e2e8f0"><img src="${a.url}" style="width:40px;height:40px;object-fit:cover;display:block" title="${a.nome || 'imagem'}"></a>`
-                          : `<a href="${a.url}" target="_blank" rel="noopener" style="font-size:0.72rem;color:#3498db;background:#ebf8ff;padding:2px 7px;border-radius:5px;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis;display:inline-block">📎 ${a.nome || 'Arquivo'}</a>`;
-                      }).join('')}
-                    </div>`
-                  : '';
-                return `<tr style="background:${i % 2 === 0 ? '#fff' : '#fafbfc'}">
-                  <td style="padding:7px 14px;color:#2d3748">
-                    ${h.atividade_grupo ? `<span style="font-size:0.68rem;color:#a0aec0;margin-right:4px">[${h.atividade_grupo}]</span>` : ''}
-                    ${h.atividade_nome || '—'}
-                  </td>
-                  <td style="padding:7px 10px;text-align:center;color:#718096">${h.periodo || '—'}</td>
-                  <td style="padding:7px 10px;text-align:center">
-                    <span style="font-size:0.72rem;font-weight:700;color:${statusColor};background:${statusBg};border:1px solid ${statusBd};padding:2px 8px;border-radius:8px">${h.status}</span>
-                  </td>
-                  <td style="padding:7px 10px;color:#718096">${h.usuario || '—'}</td>
-                  <td style="padding:7px 10px;color:#a0aec0;white-space:nowrap">${dataFmt}</td>
-                  <td style="padding:7px 10px;color:#718096;max-width:220px;word-break:break-word">
-                    ${h.observacao ? `<span>${h.observacao}</span>` : ''}
-                    ${anexosHtml}
-                  </td>
-                </tr>`;
-              }).join('')}
-            </tbody>
-          </table>
-        </div>
-      </div>`).join('');
+          <div class="rel-grupo-body" style="display:none">
+            ${emp.itens.length ? `
+              ${temFiliais ? `<div style="padding:6px 16px;font-size:0.7rem;font-weight:700;text-transform:uppercase;color:#718096;letter-spacing:.04em;background:#fafbfc;border-bottom:1px solid #edf2f7">📋 Matriz</div>` : ''}
+              ${this._renderHistTabela(emp.itens)}
+            ` : ''}
+            ${temFiliais ? filiaisOrdenadas.map(f => `
+              <div>
+                <div class="rel-filial-header" style="display:flex;align-items:center;gap:8px;padding:8px 16px;background:#f0f4ff;border-top:1px solid #e2e8f0;cursor:pointer;user-select:none">
+                  <span class="rel-filial-chevron" style="color:#a0aec0;font-size:0.68rem">▶</span>
+                  <span style="font-size:0.8rem;font-weight:600;color:#3b4a6b">${f.nome}</span>
+                  ${f.codigo ? `<span style="font-size:0.68rem;color:#718096;background:#e8eaf6;padding:1px 6px;border-radius:6px">#${f.codigo}</span>` : ''}
+                  <span style="font-size:0.68rem;color:#a0aec0">${f.itens.length} registro${f.itens.length !== 1 ? 's' : ''}</span>
+                </div>
+                <div class="rel-filial-body" style="display:none">
+                  ${this._renderHistTabela(f.itens)}
+                </div>
+              </div>`).join('') : ''}
+          </div>
+        </div>`;
+    }).join('');
 
     el.querySelectorAll('.rel-empresa-header').forEach(h => {
       h.addEventListener('click', () => {
@@ -3918,6 +3914,65 @@ class GridFlowApp {
         chevron.textContent = aberto ? '▶' : '▼';
       });
     });
+    el.querySelectorAll('.rel-filial-header').forEach(h => {
+      h.addEventListener('click', () => {
+        const body = h.nextElementSibling;
+        const chevron = h.querySelector('.rel-filial-chevron');
+        const aberto = body.style.display !== 'none';
+        body.style.display = aberto ? 'none' : '';
+        chevron.textContent = aberto ? '▶' : '▼';
+      });
+    });
+  }
+
+  _renderHistTabela(itens) {
+    return `
+      <table style="width:100%;border-collapse:collapse;font-size:0.8rem">
+        <thead>
+          <tr style="background:#f8fafc;color:#718096;font-size:0.72rem;text-transform:uppercase;letter-spacing:.04em">
+            <th style="padding:6px 14px;text-align:left;border-bottom:1px solid #e2e8f0">Atividade</th>
+            <th style="padding:6px 10px;text-align:center;border-bottom:1px solid #e2e8f0">Período</th>
+            <th style="padding:6px 10px;text-align:center;border-bottom:1px solid #e2e8f0">Status</th>
+            <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #e2e8f0">Usuário</th>
+            <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #e2e8f0">Data</th>
+            <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #e2e8f0">Obs. / Anexos</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itens.map((h, i) => {
+            const statusColor = h.status === 'OK' ? '#27ae60' : h.status === 'Não Aplicável' ? '#c53030' : '#718096';
+            const statusBg    = h.status === 'OK' ? '#f0fff4' : h.status === 'Não Aplicável' ? '#fff5f5' : '#f7fafc';
+            const statusBd    = h.status === 'OK' ? '#9ae6b4' : h.status === 'Não Aplicável' ? '#feb2b2' : '#e2e8f0';
+            const dataFmt     = this._formatarDataHistorico(h.data);
+            const anexosHtml  = Array.isArray(h.anexos) && h.anexos.length
+              ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:${h.observacao ? '4px' : '0'}">
+                  ${h.anexos.map(a => {
+                    const isImg = (a.tipo || '').startsWith('image/');
+                    return isImg
+                      ? `<a href="${a.url}" target="_blank" rel="noopener" style="display:block;border-radius:4px;overflow:hidden;border:1px solid #e2e8f0"><img src="${a.url}" style="width:40px;height:40px;object-fit:cover;display:block" title="${a.nome || 'imagem'}"></a>`
+                      : `<a href="${a.url}" target="_blank" rel="noopener" style="font-size:0.72rem;color:#3498db;background:#ebf8ff;padding:2px 7px;border-radius:5px;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis;display:inline-block">📎 ${a.nome || 'Arquivo'}</a>`;
+                  }).join('')}
+                </div>`
+              : '';
+            return `<tr style="background:${i % 2 === 0 ? '#fff' : '#fafbfc'}">
+              <td style="padding:7px 14px;color:#2d3748">
+                ${h.atividade_grupo ? `<span style="font-size:0.68rem;color:#a0aec0;margin-right:4px">[${h.atividade_grupo}]</span>` : ''}
+                ${h.atividade_nome || '—'}
+              </td>
+              <td style="padding:7px 10px;text-align:center;color:#718096">${h.periodo || '—'}</td>
+              <td style="padding:7px 10px;text-align:center">
+                <span style="font-size:0.72rem;font-weight:700;color:${statusColor};background:${statusBg};border:1px solid ${statusBd};padding:2px 8px;border-radius:8px">${h.status}</span>
+              </td>
+              <td style="padding:7px 10px;color:#718096">${h.usuario || '—'}</td>
+              <td style="padding:7px 10px;color:#a0aec0;white-space:nowrap">${dataFmt}</td>
+              <td style="padding:7px 10px;color:#718096;max-width:220px;word-break:break-word">
+                ${h.observacao ? `<span>${h.observacao}</span>` : ''}
+                ${anexosHtml}
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>`;
   }
 
   _renderHistPeriodoDropdown(periodos) {
