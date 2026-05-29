@@ -3023,12 +3023,12 @@ class GridFlowApp {
   }
 
   _renderStatusContent() {
-    if (this._statusColabDetalhe) {
-      this._renderCollabDetalhe(this._statusColabDetalhe);
-      return;
-    }
     if (this._statusEmpresaDetalhe) {
       this._renderEmpresaDetalhe(this._statusEmpresaDetalhe);
+      return;
+    }
+    if (this._statusColabDetalhe) {
+      this._renderCollabDetalhe(this._statusColabDetalhe);
       return;
     }
     this._renderStatusSummary();
@@ -3226,50 +3226,43 @@ class GridFlowApp {
       this._renderStatusContent();
     });
 
-    content.innerHTML = `<div class="status-emp-grid">
+    const CIRC = 201.06;
+    content.innerHTML = `<div class="status-collab-grid">
       ${empresasToShow.map(e => {
-        const cor2 = this._statusColor(e.pct);
+        const cor2   = this._statusColor(e.pct);
+        const offset = (CIRC * (1 - e.pct / 100)).toFixed(2);
         const fixadaBadge = e._fixada
-          ? `<span style="font-size:0.65rem;font-weight:700;color:#805ad5;background:#faf5ff;border:1px solid #d6bcfa;padding:1px 7px;border-radius:10px;margin-left:4px">📍 Pesquisada</span>`
+          ? `<div style="font-size:0.65rem;font-weight:700;color:#805ad5;background:#faf5ff;border:1px solid #d6bcfa;padding:1px 7px;border-radius:10px;margin-top:2px;display:inline-block">📍 Pesquisada</div>`
           : '';
         return `
-          <div class="emp-status-card">
-            <div class="emp-card-top">
-              <div style="flex:1;min-width:0">
-                <div class="emp-card-id">${e.empresa.codigo_interno || e.empresa.id}${fixadaBadge}</div>
-                <div class="emp-card-nome">${e.empresa.nome}</div>
+          <div class="collab-status-card collab-clicavel" data-empid="${e.empresa.id}" style="cursor:pointer">
+            <div class="collab-ring-wrap">
+              <svg width="80" height="80" viewBox="0 0 80 80" style="transform:rotate(-90deg)">
+                <circle cx="40" cy="40" r="32" fill="none" stroke="#e2e8f0" stroke-width="7"/>
+                <circle cx="40" cy="40" r="32" fill="none" stroke="${cor2}" stroke-width="7"
+                  stroke-dasharray="${CIRC}" stroke-dashoffset="${offset}" stroke-linecap="round"/>
+              </svg>
+              <div class="collab-ring-avatar" style="background:#f8fafc;color:#4a5568;font-size:0.72rem;font-weight:700">
+                ${e.empresa.codigo_interno || '—'}
               </div>
-              <div style="text-align:right;margin-left:8px">
-                <div class="emp-card-pct" style="color:${cor2}">${e.pct}%</div>
-                <div class="emp-card-pct-label">concluído</div>
-              </div>
             </div>
-            <div class="status-progress-track" style="margin-bottom:10px">
-              <div class="status-progress-fill" style="width:${e.pct}%;background:${cor2}"></div>
-            </div>
-            <div class="emp-card-badges">
-              <div class="badge-ok">✅ ${e.ok} OK</div>
-              ${e.nao_aplicavel > 0 ? `<div class="badge-na">✗ ${e.nao_aplicavel} N/A</div>` : ''}
-              ${e.pendentes > 0 ? `
-                <div class="badge-pendente" data-empid="d${e.empresa.id}">
-                  ⏳ ${e.pendentes} pendentes ▾
-                  <div class="pendente-dropdown" id="cd-drop-${e.empresa.id}">
-                    ${this._renderPendentesDropdown(e.pendentes_lista)}
-                  </div>
-                </div>` : `<div class="badge-ok" style="background:#f0fff4;border-color:#9ae6b4;color:#22543d">✅ Concluído</div>`}
-            </div>
+            <div class="collab-card-name">${e.empresa.nome}</div>
+            ${e.empresa.regime_tributario ? `<div class="collab-card-role">${e.empresa.regime_tributario}</div>` : '<div class="collab-card-role">&nbsp;</div>'}
+            <div class="collab-card-pct" style="color:${cor2}">${e.pct}%</div>
+            <div class="collab-card-info">${e.concluidas}/${e.total} atividades · ${e.pendentes} pendente${e.pendentes !== 1 ? 's' : ''}</div>
+            ${fixadaBadge}
+            <div class="collab-card-detail">Ver detalhes →</div>
           </div>`;
       }).join('')}
     </div>`;
 
-    content.querySelectorAll('.badge-pendente').forEach(badge => {
-      badge.addEventListener('click', ev => {
-        ev.stopPropagation();
-        const empId = badge.dataset.empid.replace('d', '');
-        const drop = document.getElementById(`cd-drop-${empId}`);
-        if (drop) {
-          content.querySelectorAll('.pendente-dropdown.open').forEach(d => { if (d !== drop) d.classList.remove('open'); });
-          drop.classList.toggle('open');
+    content.querySelectorAll('.collab-clicavel[data-empid]').forEach(card => {
+      card.addEventListener('click', () => {
+        const empId   = parseInt(card.dataset.empid);
+        const empData = this._statusData?.geral?.find(e => e.empresa.id === empId);
+        if (empData) {
+          this._statusEmpresaDetalhe = empData;
+          this._renderStatusContent();
         }
       });
     });
