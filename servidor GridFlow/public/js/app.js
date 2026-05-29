@@ -3475,14 +3475,9 @@ class GridFlowApp {
         const detail = card.querySelector('.mes-pend-detail');
         if (!detail) return;
         const isOpen = detail.style.display !== 'none';
-        content.querySelectorAll('.mes-pend-detail').forEach(d => { d.style.display = 'none'; });
-        content.querySelectorAll('.mes-card-anual').forEach(c => { c.style.boxShadow = ''; c.style.borderColor = ''; });
-        if (!isOpen) {
-          detail.style.display = 'block';
-          const isPeriodoAtual = card.style.background.includes('ebf8ff');
-          card.style.boxShadow = '0 0 0 2px #e74c3c55';
-          card.style.borderColor = '#e74c3c66';
-        }
+        detail.style.display = isOpen ? 'none' : 'block';
+        card.style.boxShadow = isOpen ? '' : '0 0 0 2px #e74c3c55';
+        card.style.borderColor = isOpen ? '' : '#e74c3c66';
       });
     });
   }
