@@ -3161,8 +3161,22 @@ class GridFlowApp {
 
     content.innerHTML = `<div class="status-collab-grid">
       ${filtered.map(col => {
-        const cor = this._statusColor(col.pct);
-        const offset = (CIRC * (1 - col.pct / 100)).toFixed(2);
+        // Para o usuário atual, incluir fixadas no cálculo de progresso
+        let pct = col.pct, concluidas = col.concluidas, totalAtv = col.total_atividades, totalEmpresas = col.total_empresas;
+        if (String(col.colaborador.id) === String(this.colaborador?.id) && this._empresasFixadas?.length && this._statusData?.geral) {
+          const fixadasExtras = this._empresasFixadas
+            .filter(f => !col.empresas.some(e => e.empresa.id === f.id))
+            .map(f => this._statusData.geral.find(g => g.empresa.id === f.id))
+            .filter(Boolean);
+          if (fixadasExtras.length) {
+            concluidas   += fixadasExtras.reduce((s, e) => s + e.concluidas, 0);
+            totalAtv     += fixadasExtras.reduce((s, e) => s + e.total, 0);
+            totalEmpresas += fixadasExtras.length;
+            pct = totalAtv > 0 ? Math.round((concluidas / totalAtv) * 100) : 0;
+          }
+        }
+        const cor = this._statusColor(pct);
+        const offset = (CIRC * (1 - pct / 100)).toFixed(2);
         const iniciais = col.colaborador.nome.split(' ').filter(Boolean).map(p => p[0]).slice(0, 2).join('').toUpperCase();
         const fotoAvatar = col.colaborador.foto
           ? `<img src="${col.colaborador.foto}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`
@@ -3179,8 +3193,8 @@ class GridFlowApp {
             </div>
             <div class="collab-card-name">${col.colaborador.nome}</div>
             <div class="collab-card-role">${col.colaborador.funcao || 'Usuário'}</div>
-            <div class="collab-card-pct" style="color:${cor}">${col.pct}%</div>
-            <div class="collab-card-info">${col.concluidas}/${col.total_atividades} atividades · ${col.total_empresas} empresa${col.total_empresas !== 1 ? 's' : ''}</div>
+            <div class="collab-card-pct" style="color:${cor}">${pct}%</div>
+            <div class="collab-card-info">${concluidas}/${totalAtv} atividades · ${totalEmpresas} empresa${totalEmpresas !== 1 ? 's' : ''}</div>
             <div class="collab-card-detail">Ver detalhes →</div>
           </div>`;
       }).join('')}
