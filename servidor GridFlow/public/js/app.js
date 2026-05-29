@@ -3454,12 +3454,19 @@ class GridFlowApp {
             </div>
           </div>
           <div id="rel-filtros-historico" style="display:none">
-            <div style="display:flex;gap:10px;flex-wrap:wrap">
-              <input id="hist-search" type="text" placeholder="🔍 Buscar por empresa, atividade..."
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+              <input id="hist-search" type="text" placeholder="🔍 Buscar por empresa, código, atividade..."
                 style="flex:1;min-width:180px;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem" autocomplete="off">
-              <select id="hist-periodo" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;color:#4a5568;background:#fff">
-                <option value="">Todos os períodos</option>
-              </select>
+              <div style="position:relative" id="hist-periodo-wrap">
+                <button id="btn-hist-periodo" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;color:#4a5568;background:#fff;cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap">
+                  <span id="hist-periodo-label">Todos os períodos</span>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                <div id="hist-periodo-dropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:300;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.12);min-width:200px;padding:6px 0;max-height:320px;overflow-y:auto">
+                  <div class="hist-per-item" data-value="" style="padding:7px 14px;font-size:0.85rem;color:#4a5568;cursor:pointer">Todos os períodos</div>
+                  <div id="hist-periodo-anos"></div>
+                </div>
+              </div>
               <select id="hist-usuario" style="padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;color:#4a5568;background:#fff">
                 <option value="">Todos os usuários</option>
               </select>
@@ -3481,6 +3488,8 @@ class GridFlowApp {
   _configurarEventosRelatorio() {
     this._relatorioSubtab = this._relatorioSubtab || 'anotacoes';
     this._relatorioView   = this._relatorioView   || 'empresa';
+    this._histPeriodo     = '';
+    this._histAnoAtivo    = null;
 
     document.getElementById('btn-rel-refresh')?.addEventListener('click', () => {
       if (this._relatorioSubtab === 'historico') this._carregarHistorico();
@@ -3521,9 +3530,20 @@ class GridFlowApp {
     document.getElementById('hist-search')?.addEventListener('input', () => {
       clearTimeout(toH); toH = setTimeout(() => this._filtrarHistorico(), 200);
     });
-    document.getElementById('hist-periodo')?.addEventListener('change', () => this._filtrarHistorico());
     document.getElementById('hist-usuario')?.addEventListener('change', () => this._filtrarHistorico());
     document.getElementById('hist-status')?.addEventListener('change', () => this._filtrarHistorico());
+
+    document.getElementById('btn-hist-periodo')?.addEventListener('click', e => {
+      e.stopPropagation();
+      const dd = document.getElementById('hist-periodo-dropdown');
+      if (dd) dd.style.display = dd.style.display === 'none' ? '' : 'none';
+    });
+    document.addEventListener('click', e => {
+      if (!e.target.closest('#hist-periodo-wrap')) {
+        const dd = document.getElementById('hist-periodo-dropdown');
+        if (dd) dd.style.display = 'none';
+      }
+    });
   }
 
   _filtrarRelatorio() {
@@ -3757,15 +3777,13 @@ class GridFlowApp {
     try {
       this._historicoRel = await this.api('/api/relatorio/historico');
 
-      const periodoSel = document.getElementById('hist-periodo');
-      if (periodoSel) {
-        const periodos = [...new Set(this._historicoRel.map(h => h.periodo).filter(Boolean))].sort((a, b) => {
-          const [ma, aa] = a.split('/').map(Number);
-          const [mb, ab] = b.split('/').map(Number);
-          return (ab - aa) || (mb - ma);
-        });
-        periodoSel.innerHTML = '<option value="">Todos os períodos</option>' + periodos.map(p => `<option value="${p}">${p}</option>`).join('');
-      }
+      const periodos = [...new Set(this._historicoRel.map(h => h.periodo).filter(Boolean))].sort((a, b) => {
+        const [ma, aa] = a.split('/').map(Number);
+        const [mb, ab] = b.split('/').map(Number);
+        return (ab - aa) || (mb - ma);
+      });
+      this._renderHistPeriodoDropdown(periodos);
+
       const usuarioSel = document.getElementById('hist-usuario');
       if (usuarioSel) {
         const usuarios = [...new Set(this._historicoRel.map(h => h.usuario).filter(Boolean))].sort();
@@ -3780,11 +3798,11 @@ class GridFlowApp {
   _filtrarHistorico() {
     if (!this._historicoRel) return;
     const q       = (document.getElementById('hist-search')?.value || '').toLowerCase();
-    const periodo = document.getElementById('hist-periodo')?.value || '';
+    const periodo = this._histPeriodo || '';
     const usuario = document.getElementById('hist-usuario')?.value || '';
     const status  = document.getElementById('hist-status')?.value  || '';
     let lista = this._historicoRel;
-    if (q)       lista = lista.filter(h => (h.empresa_nome || '').toLowerCase().includes(q) || (h.atividade_nome || '').toLowerCase().includes(q));
+    if (q)       lista = lista.filter(h => (h.empresa_nome || '').toLowerCase().includes(q) || (h.empresa_codigo || '').toLowerCase().includes(q) || (h.atividade_nome || '').toLowerCase().includes(q));
     if (periodo) lista = lista.filter(h => h.periodo === periodo);
     if (usuario) lista = lista.filter(h => h.usuario === usuario);
     if (status)  lista = lista.filter(h => h.status === status);
@@ -3825,9 +3843,9 @@ class GridFlowApp {
             ${emp.codigo ? `<span style="font-size:0.72rem;color:#718096;background:#edf2f7;padding:1px 7px;border-radius:8px">#${emp.codigo}</span>` : ''}
             <span style="font-size:0.72rem;color:#a0aec0">${emp.itens.length} registro${emp.itens.length !== 1 ? 's' : ''}</span>
           </div>
-          <span class="rel-grupo-chevron" style="color:#a0aec0;font-size:0.72rem">▼</span>
+          <span class="rel-grupo-chevron" style="color:#a0aec0;font-size:0.72rem">▶</span>
         </div>
-        <div class="rel-grupo-body">
+        <div class="rel-grupo-body" style="display:none">
           <table style="width:100%;border-collapse:collapse;font-size:0.8rem">
             <thead>
               <tr style="background:#f8fafc;color:#718096;font-size:0.72rem;text-transform:uppercase;letter-spacing:.04em">
@@ -3836,7 +3854,7 @@ class GridFlowApp {
                 <th style="padding:6px 10px;text-align:center;border-bottom:1px solid #e2e8f0">Status</th>
                 <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #e2e8f0">Usuário</th>
                 <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #e2e8f0">Data</th>
-                <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #e2e8f0">Obs.</th>
+                <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #e2e8f0">Obs. / Anexos</th>
               </tr>
             </thead>
             <tbody>
@@ -3844,6 +3862,17 @@ class GridFlowApp {
                 const statusColor = h.status === 'OK' ? '#27ae60' : '#718096';
                 const statusBg    = h.status === 'OK' ? '#f0fff4' : '#f7fafc';
                 const statusBd    = h.status === 'OK' ? '#9ae6b4' : '#e2e8f0';
+                const dataFmt     = this._formatarDataHistorico(h.data);
+                const anexosHtml  = Array.isArray(h.anexos) && h.anexos.length
+                  ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:${h.observacao ? '4px' : '0'}">
+                      ${h.anexos.map(a => {
+                        const isImg = (a.tipo || '').startsWith('image/');
+                        return isImg
+                          ? `<a href="${a.url}" target="_blank" rel="noopener" style="display:block;border-radius:4px;overflow:hidden;border:1px solid #e2e8f0"><img src="${a.url}" style="width:40px;height:40px;object-fit:cover;display:block" title="${a.nome || 'imagem'}"></a>`
+                          : `<a href="${a.url}" target="_blank" rel="noopener" style="font-size:0.72rem;color:#3498db;background:#ebf8ff;padding:2px 7px;border-radius:5px;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis;display:inline-block">📎 ${a.nome || 'Arquivo'}</a>`;
+                      }).join('')}
+                    </div>`
+                  : '';
                 return `<tr style="background:${i % 2 === 0 ? '#fff' : '#fafbfc'}">
                   <td style="padding:7px 14px;color:#2d3748">
                     ${h.atividade_grupo ? `<span style="font-size:0.68rem;color:#a0aec0;margin-right:4px">[${h.atividade_grupo}]</span>` : ''}
@@ -3854,8 +3883,11 @@ class GridFlowApp {
                     <span style="font-size:0.72rem;font-weight:700;color:${statusColor};background:${statusBg};border:1px solid ${statusBd};padding:2px 8px;border-radius:8px">${h.status}</span>
                   </td>
                   <td style="padding:7px 10px;color:#718096">${h.usuario || '—'}</td>
-                  <td style="padding:7px 10px;color:#a0aec0;white-space:nowrap">${h.data || '—'}</td>
-                  <td style="padding:7px 10px;color:#718096;max-width:200px;word-break:break-word">${h.observacao || ''}</td>
+                  <td style="padding:7px 10px;color:#a0aec0;white-space:nowrap">${dataFmt}</td>
+                  <td style="padding:7px 10px;color:#718096;max-width:220px;word-break:break-word">
+                    ${h.observacao ? `<span>${h.observacao}</span>` : ''}
+                    ${anexosHtml}
+                  </td>
                 </tr>`;
               }).join('')}
             </tbody>
@@ -3872,6 +3904,87 @@ class GridFlowApp {
         chevron.textContent = aberto ? '▶' : '▼';
       });
     });
+  }
+
+  _renderHistPeriodoDropdown(periodos) {
+    const anosEl = document.getElementById('hist-periodo-anos');
+    if (!anosEl) return;
+
+    if (!this._histPeriodo) this._histPeriodo = '';
+    if (!this._histAnoAtivo) this._histAnoAtivo = null;
+
+    const porAno = {};
+    periodos.forEach(p => {
+      const ano = p.split('/')[1];
+      if (!porAno[ano]) porAno[ano] = [];
+      porAno[ano].push(p);
+    });
+
+    const anos = Object.keys(porAno).sort((a, b) => b - a);
+    if (anos.length && !this._histAnoAtivo) this._histAnoAtivo = anos[0];
+
+    anosEl.innerHTML = anos.map(ano => `
+      <div>
+        <div class="hist-ano-header" data-ano="${ano}"
+          style="padding:6px 14px;font-size:0.78rem;font-weight:700;color:#2d3748;cursor:pointer;display:flex;align-items:center;justify-content:space-between;background:#f8fafc;border-top:1px solid #edf2f7">
+          <span>${ano}</span>
+          <span style="color:#a0aec0;font-size:0.7rem">${this._histAnoAtivo == ano ? '▼' : '▶'}</span>
+        </div>
+        <div class="hist-ano-meses" data-ano="${ano}" style="display:${this._histAnoAtivo == ano ? '' : 'none'}">
+          ${porAno[ano].map(p => `
+            <div class="hist-per-item" data-value="${p}"
+              style="padding:6px 22px;font-size:0.83rem;cursor:pointer;color:${this._histPeriodo === p ? '#3498db' : '#4a5568'};font-weight:${this._histPeriodo === p ? '700' : '400'};background:${this._histPeriodo === p ? '#ebf8ff' : 'transparent'}">
+              ${p}
+            </div>`).join('')}
+        </div>
+      </div>`).join('');
+
+    anosEl.querySelectorAll('.hist-ano-header').forEach(h => {
+      h.addEventListener('click', e => {
+        e.stopPropagation();
+        const ano = h.dataset.ano;
+        this._histAnoAtivo = this._histAnoAtivo == ano ? null : ano;
+        this._renderHistPeriodoDropdown(periodos);
+      });
+    });
+
+    const itemTodos = document.querySelector('#hist-periodo-dropdown .hist-per-item[data-value=""]');
+    if (itemTodos) {
+      itemTodos.style.color = this._histPeriodo === '' ? '#3498db' : '#4a5568';
+      itemTodos.style.fontWeight = this._histPeriodo === '' ? '700' : '400';
+      itemTodos.style.background = this._histPeriodo === '' ? '#ebf8ff' : 'transparent';
+      itemTodos.onclick = e => {
+        e.stopPropagation();
+        this._histPeriodo = '';
+        document.getElementById('hist-periodo-label').textContent = 'Todos os períodos';
+        document.getElementById('hist-periodo-dropdown').style.display = 'none';
+        this._renderHistPeriodoDropdown(periodos);
+        this._filtrarHistorico();
+      };
+    }
+
+    anosEl.querySelectorAll('.hist-per-item[data-value]').forEach(item => {
+      if (!item.dataset.value) return;
+      item.addEventListener('click', e => {
+        e.stopPropagation();
+        this._histPeriodo = item.dataset.value;
+        document.getElementById('hist-periodo-label').textContent = item.dataset.value;
+        document.getElementById('hist-periodo-dropdown').style.display = 'none';
+        this._renderHistPeriodoDropdown(periodos);
+        this._filtrarHistorico();
+      });
+    });
+  }
+
+  _formatarDataHistorico(data) {
+    if (!data) return '—';
+    if (data.includes('T') || data.match(/^\d{4}-\d{2}-\d{2}/)) {
+      try {
+        const d = new Date(data);
+        return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      } catch {}
+    }
+    return data;
   }
 
   // ── Mensagens & Emails ───────────────────────────────────────────────────

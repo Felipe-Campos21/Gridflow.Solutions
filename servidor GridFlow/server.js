@@ -759,6 +759,10 @@ const server = http.createServer(async (req, res) => {
                                    if (pathname === '/api/historico' && method === 'POST') {
                                          const body = await readBody(req);
                                          if (contaId) body.conta_id = contaId;
+                                         if (!body.data) {
+                                               const now = new Date();
+                                               body.data = now.toLocaleDateString('pt-BR') + ' ' + now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                                         }
                                          const r = await sbFetch('historico', { method: 'POST', body, prefer: 'return=representation' });
                                          return sendJson(res, 201, r.body && r.body[0] ? r.body[0] : {});
                                    }
