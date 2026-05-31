@@ -49,15 +49,16 @@ function sbFetch(endpoint, options = {}) {
 }
 
 // ------------------------------------------------------------------
-// Email: Nodemailer (Outlook SMTP)
+// Email: Nodemailer (Hostinger SMTP)
 // ------------------------------------------------------------------
+const HOSTINGER_EMAIL = process.env.HOSTINGER_EMAIL || 'contato@gridflow.solutions';
 const emailTransporter = nodemailer.createTransport({
-    host: 'smtp-mail.outlook.com',
-    port: 587,
-    secure: false,
+    host: 'smtp.hostinger.com',
+    port: 465,
+    secure: true,
     auth: {
-        user: process.env.OUTLOOK_EMAIL,
-        pass: process.env.OUTLOOK_SENHA
+        user: HOSTINGER_EMAIL,
+        pass: process.env.HOSTINGER_SENHA
     }
 });
 
@@ -73,7 +74,7 @@ function processarTemplate(bodyHtml, variaveis) {
 async function enviarEmailSmtp(emailObj) {
     try {
         const info = await emailTransporter.sendMail({
-            from: process.env.OUTLOOK_EMAIL,
+            from: `"GridFlow Solutions" <${HOSTINGER_EMAIL}>`,
             to: emailObj.email_destino,
             subject: emailObj.assunto,
             html: emailObj.corpo_processado
@@ -86,7 +87,7 @@ async function enviarEmailSmtp(emailObj) {
 
 // Cron: processa emails pendentes a cada CRON_INTERVAL ms (padrão: 5 min)
 setInterval(async () => {
-    if (!process.env.OUTLOOK_EMAIL) return;
+    if (!process.env.HOSTINGER_SENHA) return;
     try {
         const now = new Date().toISOString();
         const pendentes = await sbFetch(
@@ -123,6 +124,38 @@ setInterval(async () => {
         console.error('[Email Cron] Erro:', error.message);
     }
 }, parseInt(process.env.CRON_INTERVAL) || 300000);
+
+// ------------------------------------------------------------------
+// Tokens temporários de recuperação de senha (em memória, 15 min)
+// ------------------------------------------------------------------
+const resetTokens = new Map(); // email → { codigo, expiry }
+
+function gerarCodigoReset() {
+    return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function emailResetHtml(codigo) {
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,sans-serif">
+<div style="max-width:480px;margin:40px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
+  <div style="background:linear-gradient(135deg,#1e40af,#0ea5e9);padding:32px;text-align:center">
+    <div style="font-size:26px;font-weight:800;color:#fff">Grid<span style="font-weight:400">Flow</span></div>
+    <div style="font-size:11px;color:#bfdbfe;letter-spacing:2px;margin-top:2px">SOLUTIONS</div>
+  </div>
+  <div style="padding:40px 32px">
+    <h2 style="margin:0 0 8px;font-size:20px;color:#1e293b;font-weight:700">Recuperação de senha</h2>
+    <p style="margin:0 0 24px;color:#64748b;font-size:15px">Use o código abaixo para redefinir sua senha. Ele é válido por <strong>15 minutos</strong>.</p>
+    <div style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:12px;padding:24px;text-align:center;margin-bottom:24px">
+      <div style="font-size:44px;font-weight:800;letter-spacing:14px;color:#1e40af">${codigo}</div>
+    </div>
+    <p style="margin:0;color:#94a3b8;font-size:12px">Se você não solicitou a recuperação de senha, ignore este email.</p>
+  </div>
+  <div style="background:#f8fafc;padding:20px 32px;text-align:center;border-top:1px solid #e2e8f0">
+    <p style="margin:0;color:#94a3b8;font-size:12px">© 2026 GridFlow Solutions. Todos os direitos reservados.</p>
+  </div>
+</div>
+</body></html>`;
+}
 
 // ------------------------------------------------------------------
 // Helper: hash de senha (SHA-256)
@@ -537,6 +570,69 @@ const server = http.createServer(async (req, res) => {
                                          });
                                          if (!novoColab.body || !novoColab.body[0]) return sendJson(res, 500, { erro:'Erro ao criar colaborador' });
                                          return sendJson(res, 201, { ok:true, colaborador:{ id:novoColab.body[0].id, nome, email:emailLower, funcao:funcao||'Colaborador' } });
+                                   }
+
+                                   // ================================================================
+                                   // AUTH: Esqueci minha senha — envia código por email
+                                   // ================================================================
+                                   if (pathname === '/api/auth/esqueci-senha' && method === 'POST') {
+                                         const body = await readBody(req);
+                                         const { email } = body;
+                                         if (!email) return sendJson(res, 400, { erro: 'Informe o email' });
+
+                                         const emailLower = email.toLowerCase().trim();
+                                         const check = await sbFetch('colaboradores?email=eq.' + encodeURIComponent(emailLower) + '&ativo=eq.1&select=id,nome');
+                                         if (!check.body || check.body.length === 0)
+                                               return sendJson(res, 200, { ok: true }); // não revelar se email existe
+
+                                         const codigo = gerarCodigoReset();
+                                         const expiry = Date.now() + 15 * 60 * 1000; // 15 minutos
+                                         resetTokens.set(emailLower, { codigo, expiry });
+
+                                         const enviado = await enviarEmailSmtp({
+                                               email_destino: emailLower,
+                                               assunto: 'Código de recuperação de senha — GridFlow',
+                                               corpo_processado: emailResetHtml(codigo)
+                                         });
+
+                                         if (!enviado.ok) {
+                                               console.error('[Reset Senha] Falha ao enviar email para', emailLower, ':', enviado.erro);
+                                               return sendJson(res, 500, { erro: 'Não foi possível enviar o email. Tente novamente.' });
+                                         }
+
+                                         return sendJson(res, 200, { ok: true });
+                                   }
+
+                                   // ================================================================
+                                   // AUTH: Redefinir senha — valida código e salva nova senha
+                                   // ================================================================
+                                   if (pathname === '/api/auth/redefinir-senha' && method === 'POST') {
+                                         const body = await readBody(req);
+                                         const { email, codigo, nova_senha } = body;
+                                         if (!email || !codigo || !nova_senha)
+                                               return sendJson(res, 400, { erro: 'email, codigo e nova_senha são obrigatórios' });
+                                         if (nova_senha.length < 6)
+                                               return sendJson(res, 400, { erro: 'A senha deve ter pelo menos 6 caracteres' });
+
+                                         const emailLower = email.toLowerCase().trim();
+                                         const entrada = resetTokens.get(emailLower);
+
+                                         if (!entrada || Date.now() > entrada.expiry)
+                                               return sendJson(res, 400, { erro: 'Código expirado. Solicite um novo.' });
+                                         if (entrada.codigo !== String(codigo).trim())
+                                               return sendJson(res, 400, { erro: 'Código inválido.' });
+
+                                         const senhaHash = hashSenha(nova_senha);
+                                         const upd = await sbFetch('colaboradores?email=eq.' + encodeURIComponent(emailLower), {
+                                               method: 'PATCH',
+                                               body: { senha_hash: senhaHash }
+                                         });
+
+                                         if (upd.status >= 400)
+                                               return sendJson(res, 500, { erro: 'Erro ao atualizar a senha. Tente novamente.' });
+
+                                         resetTokens.delete(emailLower);
+                                         return sendJson(res, 200, { ok: true });
                                    }
 
                                    // ================================================================

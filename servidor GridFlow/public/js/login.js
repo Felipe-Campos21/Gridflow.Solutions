@@ -161,14 +161,12 @@ document.getElementById('login-senha').addEventListener('keydown', e => {
 
 // ── Criar nova conta (Email + Senha + Nome + Nome Empresa) ────────────────────
 document.getElementById('btn-criar-toggle').addEventListener('click', () => {
-  document.getElementById('form-login').style.display = 'none';
-  document.getElementById('form-criar').style.display = 'flex';
+  mostrarForm('form-criar');
   document.getElementById('criar-email').focus();
 });
 
 document.getElementById('btn-criar-cancelar').addEventListener('click', () => {
-  document.getElementById('form-criar').style.display = 'none';
-  document.getElementById('form-login').style.display = 'flex';
+  mostrarForm('form-login');
   clearError('criar-error');
   document.getElementById('login-email').value = '';
   document.getElementById('login-senha').value = '';
@@ -250,4 +248,118 @@ document.getElementById('criar-nome').addEventListener('keydown', e => {
 
 document.getElementById('criar-nome-empresa').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('btn-criar-salvar').click();
+});
+
+// ── Recuperação de senha ──────────────────────────────────────────────────────
+
+let emailRecuperacao = '';
+
+function mostrarForm(id) {
+  ['form-login','form-criar','form-recuperar','form-nova-senha'].forEach(f => {
+    document.getElementById(f).style.display = 'none';
+  });
+  document.getElementById(id).style.display = 'flex';
+}
+
+document.querySelector('.login-forgot').addEventListener('click', () => {
+  clearError('recuperar-error');
+  document.getElementById('recuperar-email').value = document.getElementById('login-email').value || '';
+  mostrarForm('form-recuperar');
+  document.getElementById('recuperar-email').focus();
+});
+
+document.getElementById('btn-recuperar-cancelar').addEventListener('click', () => {
+  mostrarForm('form-login');
+});
+
+document.getElementById('btn-nova-senha-voltar').addEventListener('click', () => {
+  mostrarForm('form-login');
+});
+
+document.getElementById('btn-enviar-codigo').addEventListener('click', async () => {
+  clearError('recuperar-error');
+  const email = document.getElementById('recuperar-email').value.trim();
+  if (!email) { showError('Informe seu email', 'recuperar-error'); return; }
+
+  const btn = document.getElementById('btn-enviar-codigo');
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+
+  try {
+    const r = await fetch(API + '/api/auth/esqueci-senha', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+
+    if (!r.ok) {
+      const err = await r.json();
+      showError(err.erro || 'Erro ao enviar email', 'recuperar-error');
+      return;
+    }
+
+    emailRecuperacao = email;
+    document.getElementById('nova-senha-codigo').value = '';
+    document.getElementById('nova-senha-senha').value = '';
+    clearError('nova-senha-error');
+    mostrarForm('form-nova-senha');
+    document.getElementById('nova-senha-codigo').focus();
+  } catch {
+    showError('Erro ao conectar ao servidor', 'recuperar-error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Enviar código';
+  }
+});
+
+document.getElementById('recuperar-email').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('btn-enviar-codigo').click();
+});
+
+document.getElementById('btn-confirmar-nova-senha').addEventListener('click', async () => {
+  clearError('nova-senha-error');
+  const codigo = document.getElementById('nova-senha-codigo').value.trim();
+  const nova_senha = document.getElementById('nova-senha-senha').value.trim();
+
+  if (!codigo) { showError('Informe o código recebido por email', 'nova-senha-error'); return; }
+  if (codigo.length !== 6) { showError('O código deve ter 6 dígitos', 'nova-senha-error'); return; }
+  if (!nova_senha) { showError('Informe a nova senha', 'nova-senha-error'); return; }
+  if (nova_senha.length < 6) { showError('A senha deve ter pelo menos 6 caracteres', 'nova-senha-error'); return; }
+
+  const btn = document.getElementById('btn-confirmar-nova-senha');
+  btn.disabled = true;
+  btn.textContent = 'Salvando...';
+
+  try {
+    const r = await fetch(API + '/api/auth/redefinir-senha', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: emailRecuperacao, codigo, nova_senha })
+    });
+
+    if (!r.ok) {
+      const err = await r.json();
+      showError(err.erro || 'Erro ao redefinir senha', 'nova-senha-error');
+      return;
+    }
+
+    // Sucesso: voltar ao login com mensagem
+    mostrarForm('form-login');
+    document.getElementById('login-email').value = emailRecuperacao;
+    showError('Senha redefinida com sucesso! Faça login com sua nova senha.', 'login-error');
+    document.getElementById('login-error').style.color = '#16a34a';
+  } catch {
+    showError('Erro ao conectar ao servidor', 'nova-senha-error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> Redefinir senha';
+  }
+});
+
+document.getElementById('nova-senha-codigo').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('nova-senha-senha').focus();
+});
+
+document.getElementById('nova-senha-senha').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('btn-confirmar-nova-senha').click();
 });
