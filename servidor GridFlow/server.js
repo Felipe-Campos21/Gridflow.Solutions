@@ -54,8 +54,12 @@ function sbFetch(endpoint, options = {}) {
 const HOSTINGER_EMAIL = process.env.HOSTINGER_EMAIL || 'contato@gridflow.solutions';
 const emailTransporter = nodemailer.createTransport({
     host: 'smtp.hostinger.com',
-    port: 465,
-    secure: true,
+    port: 587,
+    secure: false,
+    requireTLS: true,
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
     auth: {
         user: HOSTINGER_EMAIL,
         pass: process.env.HOSTINGER_SENHA
