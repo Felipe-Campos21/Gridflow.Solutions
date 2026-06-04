@@ -1242,7 +1242,8 @@ const server = http.createServer(async (req, res) => {
                                    // ================================================================
                                    // Arquivo estático / 404
                                    // ================================================================
-                                   const arquivo = path.join(PUBLIC, pathname === '/' ? 'login.html' : pathname);
+                                   let arquivo = path.join(PUBLIC, pathname === '/' ? 'login.html' : pathname);
+    if (fs.existsSync(arquivo) && fs.statSync(arquivo).isDirectory()) arquivo = path.join(arquivo, 'index.html');
     if (fs.existsSync(arquivo)) return serveFile(res, arquivo);
     return sendJson(res, 404, { erro: 'Endpoint não encontrado' });
 });

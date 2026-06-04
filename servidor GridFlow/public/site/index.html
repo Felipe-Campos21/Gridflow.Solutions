@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GridFlow Solutions — Gestão de Atividades para Escritórios Contábeis</title>
+  <meta name="description" content="GridFlow organiza todas as atividades do seu escritório contábil em um único sistema. Checklist por empresa, controle de prazos, relatórios e muito mais.">
+  <link rel="icon" type="image/png" href="../logo3.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:   #0f1c3a;
+      --blue:   #2563eb;
+      --blue2:  #3b82f6;
+      --light:  #eff6ff;
+      --text:   #1e293b;
+      --muted:  #64748b;
+      --border: #e2e8f0;
+      --white:  #ffffff;
+    }
+
+    body { font-family: 'Inter', sans-serif; color: var(--text); background: var(--white); }
+
+    /* ── Nav ── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(255,255,255,.92); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 6%; height: 64px;
+    }
+    .nav-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .nav-logo img { width: 36px; height: 36px; border-radius: 8px; }
+    .nav-logo-text { font-weight: 800; font-size: 1.1rem; color: var(--navy); line-height: 1; }
+    .nav-logo-sub  { font-size: 0.6rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+    .nav-cta {
+      display: flex; align-items: center; gap: 12px;
+    }
+    .btn-outline {
+      padding: 8px 18px; border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: 0.85rem; font-weight: 600; color: var(--muted); background: transparent;
+      cursor: pointer; text-decoration: none; transition: all .15s;
+    }
+    .btn-outline:hover { border-color: var(--blue); color: var(--blue); }
+    .btn-primary {
+      padding: 9px 20px; border: none; border-radius: 8px;
+      font-size: 0.85rem; font-weight: 700; color: #fff; background: var(--blue);
+      cursor: pointer; text-decoration: none; transition: background .15s;
+    }
+    .btn-primary:hover { background: #1d4ed8; }
+
+    /* ── Hero ── */
+    .hero {
+      background: linear-gradient(160deg, var(--navy) 0%, #1a3060 60%, #0f2550 100%);
+      padding: 100px 6% 90px;
+      display: flex; align-items: center; gap: 60px; flex-wrap: wrap;
+    }
+    .hero-text { flex: 1; min-width: 280px; }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(59,130,246,.2); border: 1px solid rgba(59,130,246,.4);
+      color: #93c5fd; padding: 4px 12px; border-radius: 20px;
+      font-size: 0.75rem; font-weight: 600; margin-bottom: 22px;
+    }
+    .hero h1 {
+      font-size: clamp(2rem, 4vw, 3rem); font-weight: 900; color: #fff;
+      line-height: 1.15; margin-bottom: 18px;
+    }
+    .hero h1 span { color: #60a5fa; }
+    .hero p {
+      font-size: 1.05rem; color: #94a3b8; line-height: 1.7;
+      max-width: 520px; margin-bottom: 36px;
+    }
+    .hero-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+    .btn-hero {
+      padding: 14px 28px; border: none; border-radius: 10px;
+      font-size: 0.95rem; font-weight: 700; cursor: pointer; text-decoration: none;
+      transition: all .15s; display: inline-flex; align-items: center; gap: 8px;
+    }
+    .btn-hero-primary { background: var(--blue2); color: #fff; }
+    .btn-hero-primary:hover { background: #2563eb; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(59,130,246,.35); }
+    .btn-hero-ghost { background: rgba(255,255,255,.08); color: #cbd5e1; border: 1.5px solid rgba(255,255,255,.15); }
+    .btn-hero-ghost:hover { background: rgba(255,255,255,.14); color: #fff; }
+
+    .hero-visual {
+      flex: 1; min-width: 260px; max-width: 520px;
+      background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1);
+      border-radius: 16px; overflow: hidden;
+    }
+    .hero-mockup-bar {
+      background: rgba(255,255,255,.07); padding: 10px 16px;
+      display: flex; align-items: center; gap: 8px; border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .dot-r { background: #ef4444; } .dot-y { background: #f59e0b; } .dot-g { background: #22c55e; }
+    .mockup-url {
+      flex: 1; background: rgba(255,255,255,.08); border-radius: 6px;
+      padding: 4px 10px; font-size: 0.72rem; color: #94a3b8; font-family: monospace;
+    }
+    .hero-mockup-content { padding: 20px; }
+    .mockup-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; border-radius: 8px; margin-bottom: 8px;
+      background: rgba(255,255,255,.06);
+    }
+    .mockup-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      display: flex; align-items: center; justify-content:center; flex-shrink: 0;
+    }
+    .mockup-text-block { flex: 1; }
+    .mockup-line { height: 8px; border-radius: 4px; background: rgba(255,255,255,.15); margin-bottom: 4px; }
+    .mockup-line.short { width: 55%; }
+    .mockup-badge {
+      padding: 3px 10px; border-radius: 20px; font-size: 0.65rem; font-weight: 700;
+    }
+    .badge-ok  { background: #dcfce7; color: #166534; }
+    .badge-pend{ background: #fef3c7; color: #92400e; }
+    .badge-na  { background: #fee2e2; color: #991b1b; }
+
+    /* ── Stats ── */
+    .stats {
+      background: var(--light); padding: 48px 6%;
+      display: flex; justify-content: center; gap: 60px; flex-wrap: wrap;
+    }
+    .stat { text-align: center; }
+    .stat-num { font-size: 2.2rem; font-weight: 900; color: var(--blue); line-height: 1; }
+    .stat-label { font-size: 0.82rem; color: var(--muted); margin-top: 4px; font-weight: 500; }
+
+    /* ── Features ── */
+    .features { padding: 90px 6%; }
+    .section-header { text-align: center; margin-bottom: 60px; }
+    .section-tag {
+      display: inline-block; background: var(--light); color: var(--blue);
+      font-size: 0.75rem; font-weight: 700; padding: 4px 14px; border-radius: 20px;
+      text-transform: uppercase; letter-spacing: .06em; margin-bottom: 14px;
+    }
+    .section-header h2 { font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 800; color: var(--text); margin-bottom: 12px; }
+    .section-header p { font-size: 1rem; color: var(--muted); max-width: 520px; margin: 0 auto; line-height: 1.7; }
+
+    .features-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 24px;
+    }
+    .feature-card {
+      border: 1.5px solid var(--border); border-radius: 16px; padding: 28px;
+      transition: all .2s;
+    }
+    .feature-card:hover {
+      border-color: var(--blue2); box-shadow: 0 8px 32px rgba(59,130,246,.12);
+      transform: translateY(-2px);
+    }
+    .feature-icon {
+      width: 48px; height: 48px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 16px; flex-shrink: 0;
+    }
+    .feature-card h3 { font-size: 1rem; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+    .feature-card p  { font-size: 0.875rem; color: var(--muted); line-height: 1.65; }
+
+    /* ── Como funciona ── */
+    .how {
+      background: var(--navy); padding: 90px 6%;
+    }
+    .how .section-tag  { background: rgba(59,130,246,.2); color: #93c5fd; }
+    .how .section-header h2 { color: #fff; }
+    .how .section-header p  { color: #94a3b8; }
+    .steps {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 32px; margin-top: 56px;
+    }
+    .step { text-align: center; }
+    .step-num {
+      width: 48px; height: 48px; border-radius: 50%;
+      background: var(--blue2); color: #fff;
+      font-size: 1.1rem; font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 16px;
+    }
+    .step h3 { font-size: 0.95rem; font-weight: 700; color: #e2e8f0; margin-bottom: 8px; }
+    .step p  { font-size: 0.83rem; color: #64748b; line-height: 1.6; }
+
+    /* ── CTA ── */
+    .cta-section {
+      padding: 90px 6%; text-align: center;
+      background: linear-gradient(135deg, var(--light) 0%, #dbeafe 100%);
+    }
+    .cta-section h2 { font-size: clamp(1.5rem, 3vw, 2.1rem); font-weight: 800; color: var(--text); margin-bottom: 14px; }
+    .cta-section p  { font-size: 1rem; color: var(--muted); margin-bottom: 36px; max-width: 480px; margin-left: auto; margin-right: auto; }
+    .cta-actions { display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; }
+    .btn-cta-primary {
+      padding: 14px 32px; background: var(--blue); color: #fff; border: none;
+      border-radius: 10px; font-size: 0.95rem; font-weight: 700; cursor: pointer;
+      text-decoration: none; transition: all .15s; display: inline-flex; align-items: center; gap: 8px;
+    }
+    .btn-cta-primary:hover { background: #1d4ed8; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(37,99,235,.3); }
+    .btn-cta-outline {
+      padding: 14px 28px; background: transparent; color: var(--blue);
+      border: 1.5px solid var(--blue); border-radius: 10px;
+      font-size: 0.95rem; font-weight: 600; cursor: pointer; text-decoration: none; transition: all .15s;
+    }
+    .btn-cta-outline:hover { background: var(--blue); color: #fff; }
+
+    /* ── Footer ── */
+    footer {
+      background: var(--navy); padding: 40px 6%;
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;
+    }
+    footer .nav-logo-text { color: #e2e8f0; }
+    footer .nav-logo-sub  { color: #64748b; }
+    footer p { font-size: 0.78rem; color: #475569; }
+    footer a { color: #3b82f6; text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    @media (max-width: 700px) {
+      .hero { padding: 70px 5% 60px; }
+      .stats { gap: 32px; }
+      nav { padding: 0 5%; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Nav ─────────────────────────────────────────────────────────────── -->
+<nav>
+  <a href="#" class="nav-logo">
+    <img src="../logo3.png" alt="GridFlow">
+    <div>
+      <div class="nav-logo-text">GridFlow</div>
+      <div class="nav-logo-sub">Solutions</div>
+    </div>
+  </a>
+  <div class="nav-cta">
+    <a href="../login.html" class="btn-outline">Entrar</a>
+    <a href="mailto:contato@gridflow.solutions?subject=Quero conhecer o GridFlow" class="btn-primary">Solicitar demo</a>
+  </div>
+</nav>
+
+<!-- ── Hero ─────────────────────────────────────────────────────────────── -->
+<section class="hero">
+  <div class="hero-text">
+    <div class="hero-badge">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      Para escritórios contábeis
+    </div>
+    <h1>Gestão de atividades<br><span>simples e eficiente</span></h1>
+    <p>Organize todos os processos do seu escritório em um só lugar. Checklist por empresa, controle de prazos, anotações e relatórios — tudo integrado e acessível para toda a equipe.</p>
+    <div class="hero-actions">
+      <a href="mailto:contato@gridflow.solutions?subject=Quero conhecer o GridFlow" class="btn-hero btn-hero-primary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13.5 19.79 19.79 0 0 1 1.61 4.93 2 2 0 0 1 3.6 2.73h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 10a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 21.73 17"/></svg>
+        Solicitar demonstração
+      </a>
+      <a href="../login.html" class="btn-hero btn-hero-ghost">
+        Já tenho acesso →
+      </a>
+    </div>
+  </div>
+
+  <div class="hero-visual">
+    <div class="mockup-bar">
+      <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
+      <div class="mockup-url">gridflow.solutions</div>
+    </div>
+    <div class="hero-mockup-content">
+      <div style="font-size:.65rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Checklist — 05/2025</div>
+      <div class="mockup-row">
+        <div class="mockup-icon" style="background:#dcfce720">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div class="mockup-text-block">
+          <div class="mockup-line" style="width:70%"></div>
+          <div class="mockup-line short"></div>
+        </div>
+        <span class="mockup-badge badge-ok">OK</span>
+      </div>
+      <div class="mockup-row">
+        <div class="mockup-icon" style="background:#fef3c720">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div class="mockup-text-block">
+          <div class="mockup-line" style="width:80%"></div>
+          <div class="mockup-line short"></div>
+        </div>
+        <span class="mockup-badge badge-pend">Pendente</span>
+      </div>
+      <div class="mockup-row">
+        <div class="mockup-icon" style="background:#fee2e220">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </div>
+        <div class="mockup-text-block">
+          <div class="mockup-line" style="width:60%"></div>
+          <div class="mockup-line short"></div>
+        </div>
+        <span class="mockup-badge badge-na">N/A</span>
+      </div>
+      <div class="mockup-row">
+        <div class="mockup-icon" style="background:#dcfce720">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <div class="mockup-text-block">
+          <div class="mockup-line" style="width:75%"></div>
+          <div class="mockup-line short"></div>
+        </div>
+        <span class="mockup-badge badge-ok">OK</span>
+      </div>
+      <div style="margin-top:14px;padding:10px 12px;border-radius:8px;background:rgba(59,130,246,.15);display:flex;align-items:center;gap:8px">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        <span style="font-size:.7rem;color:#93c5fd;font-weight:600">72% concluído · 8 pendentes</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Stats ─────────────────────────────────────────────────────────────── -->
+<div class="stats">
+  <div class="stat">
+    <div class="stat-num">100%</div>
+    <div class="stat-label">Baseado em nuvem</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num">Multi</div>
+    <div class="stat-label">empresa & filiais</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num">Real</div>
+    <div class="stat-label">time para a equipe</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num">Zero</div>
+    <div class="stat-label">papel ou planilha</div>
+  </div>
+</div>
+
+<!-- ── Features ─────────────────────────────────────────────────────────── -->
+<section class="features">
+  <div class="section-header">
+    <span class="section-tag">Funcionalidades</span>
+    <h2>Tudo que seu escritório precisa</h2>
+    <p>Do controle de atividades ao acompanhamento da equipe, o GridFlow cobre todo o fluxo operacional do escritório contábil.</p>
+  </div>
+
+  <div class="features-grid">
+
+    <div class="feature-card">
+      <div class="feature-icon" style="background:#eff6ff">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      </div>
+      <h3>Checklist por Empresa</h3>
+      <p>Cada cliente tem seu próprio checklist de atividades organizado por grupo e período. Marque como OK, N/A ou adicione observações diretamente no item.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon" style="background:#fef3c7">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      </div>
+      <h3>Controle de Períodos</h3>
+      <p>Trabalhe com múltiplos períodos simultaneamente. Selecione o mês/ano, preencha períodos em lote como OK ou N/A e acompanhe o histórico completo.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon" style="background:#f0fdf4">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      </div>
+      <h3>Status Geral</h3>
+      <p>Visão consolidada de todas as empresas: percentual de conclusão, atividades pendentes por empresa e evolução mensal em um único painel.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon" style="background:#fdf4ff">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9333ea" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+      </div>
+      <h3>Anotações por Empresa</h3>
+      <p>Registre informações importantes por empresa e período. Adicione etiquetas, anexe arquivos e filtre por assunto. Histórico completo acessível a toda equipe.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon" style="background:#fff7ed">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ea580c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      </div>
+      <h3>Gestão de Colaboradores</h3>
+      <p>Crie usuários por setor, defina permissões de administrador e cada colaborador acessa apenas as atividades do seu departamento.</p>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon" style="background:#ecfeff">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0891b2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      </div>
+      <h3>Multi-empresa & Filiais</h3>
+      <p>Suporte a empresas com filiais vinculadas à matriz. Grupos integrados sincronizam atividades automaticamente entre matriz e filial.</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ── Como funciona ─────────────────────────────────────────────────────── -->
+<section class="how">
+  <div class="section-header">
+    <span class="section-tag">Como funciona</span>
+    <h2>Em produção em minutos</h2>
+    <p>Sem instalação, sem infraestrutura. O GridFlow roda 100% na nuvem — seu escritório começa a usar no mesmo dia.</p>
+  </div>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <h3>Cadastre as empresas</h3>
+      <p>Importe ou cadastre seus clientes com código, regime tributário e filiais.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <h3>Configure as atividades</h3>
+      <p>Monte o checklist do escritório por setor (Contabilidade, Fiscal, DP) com prazos e grupos.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <h3>Habilite por empresa</h3>
+      <p>Defina quais atividades cada cliente precisa. Cada um tem seu checklist personalizado.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <h3>A equipe executa</h3>
+      <p>Colaboradores marcam atividades, adicionam anotações e anexos em tempo real.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA ───────────────────────────────────────────────────────────────── -->
+<section class="cta-section">
+  <h2>Pronto para organizar seu escritório?</h2>
+  <p>Entre em contato e agende uma demonstração gratuita. Mostramos o sistema funcionando com os processos do seu escritório.</p>
+  <div class="cta-actions">
+    <a href="mailto:contato@gridflow.solutions?subject=Quero conhecer o GridFlow" class="btn-cta-primary">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+      Entrar em contato
+    </a>
+    <a href="../login.html" class="btn-cta-outline">Acessar o sistema</a>
+  </div>
+</section>
+
+<!-- ── Footer ────────────────────────────────────────────────────────────── -->
+<footer>
+  <a href="#" class="nav-logo">
+    <img src="../logo3.png" alt="GridFlow" style="width:30px;height:30px;border-radius:6px">
+    <div>
+      <div class="nav-logo-text">GridFlow</div>
+      <div class="nav-logo-sub">Solutions</div>
+    </div>
+  </a>
+  <p>© 2025 GridFlow Solutions. Todos os direitos reservados.</p>
+  <p><a href="../login.html">Acessar sistema</a></p>
+</footer>
+
+</body>
+</html>
