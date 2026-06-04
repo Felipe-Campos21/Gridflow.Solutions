@@ -4491,14 +4491,15 @@ class GridFlowApp {
     const cat     = n.assunto ? n.assunto.trim().split(/\s+/)[0] : '';
     const cores   = (this._relAssuntoColors || {})[cat] || { border: '#3498db', bg: '#eff6ff' };
     const id      = n.id;
+    const anexosJson = JSON.stringify(n.anexos || []).replace(/"/g, '&quot;');
     return `
-      <div class="rel-nota-card" data-nota-id="${id}" style="display:flex;border-bottom:1px solid #f0f4f8">
+      <div class="rel-nota-card" data-nota-id="${id}" data-assunto="${(n.assunto||'').replace(/"/g,'&quot;')}" data-anexos="${anexosJson}" style="display:flex;border-bottom:1px solid #f0f4f8">
         <div style="width:4px;background:${cores.border};flex-shrink:0"></div>
         <div style="flex:1;padding:11px 14px;min-width:0">
           <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
             <div style="flex:1;min-width:0">
-              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px">
-                ${n.assunto ? `<span style="font-size:0.72rem;font-weight:700;color:${cores.border};background:${cores.bg};border:1px solid ${cores.border}40;padding:2px 8px;border-radius:8px;display:flex;align-items:center;gap:3px;flex-shrink:0">
+              <div class="rel-view-meta" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+                ${n.assunto ? `<span class="rel-badge-assunto" style="font-size:0.72rem;font-weight:700;color:${cores.border};background:${cores.bg};border:1px solid ${cores.border}40;padding:2px 8px;border-radius:8px;display:flex;align-items:center;gap:3px;flex-shrink:0">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="${cores.border}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
                   ${n.assunto}
                 </span>` : ''}
@@ -4508,13 +4509,25 @@ class GridFlowApp {
                 </span>` : ''}
               </div>
               <div class="rel-nota-texto" style="font-size:0.86rem;color:#374151;line-height:1.55;white-space:pre-wrap">${n.texto || ''}</div>
-              ${this._renderAnexosMini(n.anexos)}
-              <textarea class="rel-nota-edit" rows="3" style="display:none;width:100%;padding:7px 9px;border:1px solid #3498db;border-radius:6px;font-size:0.86rem;resize:vertical;font-family:inherit;box-sizing:border-box;margin-top:6px">${n.texto || ''}</textarea>
-              <div class="rel-edit-btns" style="display:none;gap:8px;margin-top:7px">
-                <button class="btn-rel-salvar" data-id="${id}" style="padding:5px 14px;background:#3498db;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;font-weight:600">Salvar</button>
-                <button class="btn-rel-cancelar" style="padding:5px 14px;background:#f7fafc;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.82rem">Cancelar</button>
+              <div class="rel-view-anexos">${this._renderAnexosMini(n.anexos)}</div>
+              <!-- Formulário de edição (oculto) -->
+              <div class="rel-edit-form" style="display:none;margin-top:8px">
+                <input class="rel-edit-assunto" type="text" placeholder="Etiqueta (assunto)..."
+                  style="width:100%;padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.83rem;box-sizing:border-box;margin-bottom:6px">
+                <textarea class="rel-nota-edit" rows="3" style="width:100%;padding:7px 9px;border:1px solid #3498db;border-radius:6px;font-size:0.86rem;resize:vertical;font-family:inherit;box-sizing:border-box;margin-bottom:8px">${n.texto || ''}</textarea>
+                <div class="rel-edit-anexos-lista" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px"></div>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <button class="btn-rel-salvar" data-id="${id}" style="padding:5px 14px;background:#3498db;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;font-weight:600">Salvar</button>
+                  <button class="btn-rel-cancelar" style="padding:5px 14px;background:#f7fafc;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.82rem">Cancelar</button>
+                  <label style="display:inline-flex;align-items:center;gap:4px;padding:5px 10px;background:#f0f4ff;border:1px solid #c7d7ff;border-radius:7px;cursor:pointer;font-size:0.78rem;font-weight:600;color:#2563eb">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                    Anexar
+                    <input class="rel-edit-file" type="file" accept="image/*,.pdf" multiple style="display:none">
+                  </label>
+                  <span class="rel-edit-file-status" style="font-size:0.75rem;color:#718096"></span>
+                </div>
               </div>
-              <div style="display:flex;align-items:center;gap:10px;margin-top:7px;flex-wrap:wrap">
+              <div style="display:flex;align-items:center;gap:10px;margin-top:7px;flex-wrap:wrap" class="rel-view-footer">
                 ${n.usuario ? `<span style="display:flex;align-items:center;gap:3px;font-size:0.74rem;color:#6b7280">
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                   ${n.usuario}
@@ -4538,23 +4551,36 @@ class GridFlowApp {
   _relNotaCard(n, showEmpresa = false) {
     const data = n.atualizado_em || n.criado_em || '';
     const dataFmt = data ? (data.length > 10 ? data.slice(0, 16) : data) : '—';
+    const anexosJson = JSON.stringify(n.anexos || []).replace(/"/g, '&quot;');
     return `
-      <div class="rel-nota-card" data-nota-id="${n.id}" style="padding:12px 16px;border-bottom:1px solid #f0f4f8">
+      <div class="rel-nota-card" data-nota-id="${n.id}" data-assunto="${(n.assunto||'').replace(/"/g,'&quot;')}" data-anexos="${anexosJson}" style="padding:12px 16px;border-bottom:1px solid #f0f4f8">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px">
           <div style="flex:1;min-width:0">
-            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:5px">
+            <div class="rel-view-meta" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:5px">
               ${showEmpresa && n.empresa_nome ? `<span style="font-size:0.78rem;font-weight:700;color:#2b6cb0;background:#ebf8ff;padding:1px 8px;border-radius:10px">${n.empresa_nome}${n.empresa_codigo ? ` #${n.empresa_codigo}` : ''}</span>` : ''}
-              ${n.assunto ? `<span style="font-size:0.75rem;font-weight:700;color:#744210;background:#fefcbf;border:1px solid #f6e05e;padding:1px 7px;border-radius:10px">📌 ${n.assunto}</span>` : ''}
+              ${n.assunto ? `<span class="rel-badge-assunto" style="font-size:0.75rem;font-weight:700;color:#744210;background:#fefcbf;border:1px solid #f6e05e;padding:1px 7px;border-radius:10px">📌 ${n.assunto}</span>` : ''}
               ${n.periodo ? `<span style="font-size:0.72rem;color:#718096;background:#f7fafc;border:1px solid #e2e8f0;padding:1px 7px;border-radius:10px">📅 ${n.periodo}</span>` : ''}
               ${n.usuario ? `<span style="font-size:0.72rem;color:#718096">por <strong>${n.usuario}</strong></span>` : ''}
               <span style="font-size:0.7rem;color:#a0aec0;margin-left:auto">${dataFmt}</span>
             </div>
             <div class="rel-nota-texto" style="font-size:0.87rem;color:#2d3748;line-height:1.5;white-space:pre-wrap">${n.texto || ''}</div>
-            ${this._renderAnexosMini(n.anexos)}
-            <textarea class="rel-nota-edit" style="display:none;width:100%;padding:8px 10px;border:1px solid #3498db;border-radius:6px;font-size:0.87rem;resize:vertical;font-family:inherit;box-sizing:border-box;margin-top:6px" rows="3">${n.texto || ''}</textarea>
-            <div class="rel-edit-btns" style="display:none;gap:8px;margin-top:8px">
-              <button class="btn-rel-salvar" data-id="${n.id}" style="padding:5px 14px;background:#3498db;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;font-weight:600">Salvar</button>
-              <button class="btn-rel-cancelar" style="padding:5px 14px;background:#f7fafc;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.82rem">Cancelar</button>
+            <div class="rel-view-anexos">${this._renderAnexosMini(n.anexos)}</div>
+            <div class="rel-view-footer"></div>
+            <!-- Formulário de edição (oculto) -->
+            <div class="rel-edit-form" style="display:none;margin-top:8px">
+              <input class="rel-edit-assunto" type="text" placeholder="Etiqueta (assunto)..."
+                style="width:100%;padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.83rem;box-sizing:border-box;margin-bottom:6px">
+              <textarea class="rel-nota-edit" rows="3" style="width:100%;padding:8px 10px;border:1px solid #3498db;border-radius:6px;font-size:0.87rem;resize:vertical;font-family:inherit;box-sizing:border-box;margin-bottom:8px">${n.texto || ''}</textarea>
+              <div class="rel-edit-anexos-lista" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px"></div>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                <button class="btn-rel-salvar" data-id="${n.id}" style="padding:5px 14px;background:#3498db;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;font-weight:600">Salvar</button>
+                <button class="btn-rel-cancelar" style="padding:5px 14px;background:#f7fafc;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.82rem">Cancelar</button>
+                <label style="display:inline-flex;align-items:center;gap:4px;padding:5px 10px;background:#f0f4ff;border:1px solid #c7d7ff;border-radius:7px;cursor:pointer;font-size:0.78rem;font-weight:600;color:#2563eb">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                  Anexar<input class="rel-edit-file" type="file" accept="image/*,.pdf" multiple style="display:none">
+                </label>
+                <span class="rel-edit-file-status" style="font-size:0.75rem;color:#718096"></span>
+              </div>
             </div>
           </div>
           <div style="display:flex;gap:5px;flex-shrink:0">
@@ -4566,39 +4592,115 @@ class GridFlowApp {
   }
 
   _ligarEventosNotasRel(el) {
+    const mostrarVisualizacao = (card) => {
+      card.querySelector('.rel-view-meta')?.style.setProperty('display', 'flex');
+      card.querySelector('.rel-nota-texto').style.display = '';
+      card.querySelector('.rel-view-anexos').style.display = '';
+      card.querySelector('.rel-view-footer').style.display = 'flex';
+      card.querySelector('.rel-edit-form').style.display = 'none';
+    };
+
     el.querySelectorAll('.btn-rel-editar').forEach(btn => {
       btn.addEventListener('click', () => {
         const card = btn.closest('.rel-nota-card');
+        const assunto = card.dataset.assunto || '';
+        let savedAnexos = [];
+        try { savedAnexos = JSON.parse(card.dataset.anexos || '[]'); } catch {}
+        let pendingAnexos = [];
+
+        // Oculta visualização, mostra form
+        card.querySelector('.rel-view-meta').style.display = 'none';
         card.querySelector('.rel-nota-texto').style.display = 'none';
-        card.querySelector('.rel-nota-edit').style.display = 'block';
-        card.querySelector('.rel-edit-btns').style.display = 'flex';
-        card.querySelector('.rel-nota-edit').focus();
+        card.querySelector('.rel-view-anexos').style.display = 'none';
+        card.querySelector('.rel-view-footer').style.display = 'none';
+        const form = card.querySelector('.rel-edit-form');
+        form.style.display = '';
+
+        // Preenche campos
+        const assuntoInput = form.querySelector('.rel-edit-assunto');
+        assuntoInput.value = assunto;
+        form.querySelector('.rel-nota-edit').value = card.querySelector('.rel-nota-texto').textContent;
+        form.querySelector('.rel-nota-edit').focus();
+
+        // Renderiza anexos salvos
+        const renderSaved = () => {
+          const lista = form.querySelector('.rel-edit-anexos-lista');
+          lista.innerHTML = savedAnexos.map((a, i) =>
+            `<span class="rel-saved-tag" style="display:inline-flex;align-items:center;gap:4px;background:#f7fafc;border:1px solid #e2e8f0;border-radius:6px;padding:2px 8px;font-size:0.74rem">
+              ${a.nome || 'Arquivo'}
+              <button class="btn-rm-saved" data-i="${i}" style="background:none;border:none;color:#fc8181;cursor:pointer;font-size:1rem;padding:0;line-height:1">×</button>
+            </span>`
+          ).join('');
+          lista.querySelectorAll('.btn-rm-saved').forEach(b =>
+            b.addEventListener('click', () => { savedAnexos.splice(parseInt(b.dataset.i), 1); renderSaved(); })
+          );
+        };
+        renderSaved();
+
+        // Input de arquivo
+        const fileInput = form.querySelector('.rel-edit-file');
+        fileInput.value = '';
+        const statusEl = form.querySelector('.rel-edit-file-status');
+        fileInput.onchange = (e) => {
+          Array.from(e.target.files).forEach(f => pendingAnexos.push(f));
+          e.target.value = '';
+          statusEl.textContent = pendingAnexos.length ? `${pendingAnexos.length} arquivo(s) pendente(s)` : '';
+        };
+
+        // Guarda estado para o save handler
+        card._rldSaved   = () => savedAnexos;
+        card._rldPending = () => pendingAnexos;
       });
     });
+
     el.querySelectorAll('.btn-rel-cancelar').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const card = btn.closest('.rel-nota-card');
-        card.querySelector('.rel-nota-texto').style.display = '';
-        card.querySelector('.rel-nota-edit').style.display = 'none';
-        card.querySelector('.rel-edit-btns').style.display = 'none';
-      });
+      btn.addEventListener('click', () => mostrarVisualizacao(btn.closest('.rel-nota-card')));
     });
+
     el.querySelectorAll('.btn-rel-salvar').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const id = parseInt(btn.dataset.id);
+        const id   = parseInt(btn.dataset.id);
         const card = btn.closest('.rel-nota-card');
-        const novo = card.querySelector('.rel-nota-edit').value.trim();
-        if (!novo) { alert('O texto não pode ficar vazio.'); return; }
+        const form = card.querySelector('.rel-edit-form');
+        const novoTexto   = form.querySelector('.rel-nota-edit').value.trim();
+        const novoAssunto = form.querySelector('.rel-edit-assunto').value.trim();
+        if (!novoTexto) { alert('O texto não pode ficar vazio.'); return; }
+
+        const statusEl = form.querySelector('.rel-edit-file-status');
+        const orig = statusEl.textContent;
+        statusEl.textContent = 'Salvando...';
+        btn.disabled = true;
+
         try {
-          await this.api('/api/notas', { method: 'PUT', body: JSON.stringify({ id, texto: novo, usuario: this.usuario }) });
-          if (this._relatorioNotas) { const nota = this._relatorioNotas.find(n => n.id === id); if (nota) nota.texto = novo; }
-          card.querySelector('.rel-nota-texto').textContent = novo;
-          card.querySelector('.rel-nota-texto').style.display = '';
-          card.querySelector('.rel-nota-edit').style.display = 'none';
-          card.querySelector('.rel-edit-btns').style.display = 'none';
-        } catch (e) { alert('Erro ao salvar: ' + e.message); }
+          const saved   = card._rldSaved?.() || [];
+          const pending = card._rldPending?.() || [];
+          const novos   = await this._uploadPendentes(pending, `nota_rel_${id}`);
+          const anexosFinal = [...saved, ...novos];
+
+          await this.api('/api/notas', { method: 'PUT', body: JSON.stringify({
+            id, texto: novoTexto, assunto: novoAssunto, usuario: this.usuario, anexos: anexosFinal
+          })});
+
+          // Atualiza data-* e visual do card
+          card.dataset.assunto = novoAssunto;
+          card.dataset.anexos  = JSON.stringify(anexosFinal);
+          card.querySelector('.rel-nota-texto').textContent = novoTexto;
+          const badgeEl = card.querySelector('.rel-badge-assunto');
+          if (badgeEl) badgeEl.childNodes[badgeEl.childNodes.length - 1].textContent = novoAssunto || '';
+          card.querySelector('.rel-view-anexos').innerHTML = this._renderAnexosMini(anexosFinal);
+
+          if (this._relatorioNotas) {
+            const n = this._relatorioNotas.find(n => n.id === id);
+            if (n) { n.texto = novoTexto; n.assunto = novoAssunto; n.anexos = anexosFinal; }
+          }
+          mostrarVisualizacao(card);
+        } catch (e) {
+          statusEl.textContent = orig;
+          alert('Erro ao salvar: ' + e.message);
+        } finally { btn.disabled = false; }
       });
     });
+
     el.querySelectorAll('.btn-rel-excluir').forEach(btn => {
       btn.addEventListener('click', async () => {
         if (!confirm('Excluir esta anotação?')) return;
