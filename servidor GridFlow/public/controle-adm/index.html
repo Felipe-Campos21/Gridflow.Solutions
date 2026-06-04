@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GridFlow — Controle ADM</title>
+  <link rel="icon" type="image/png" href="../logo3.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy: #0f1c3a; --blue: #2563eb; --light: #eff6ff;
+      --text: #1e293b; --muted: #64748b; --border: #e2e8f0;
+    }
+    body { font-family: 'Inter', sans-serif; background: #f1f5f9; color: var(--text); min-height: 100vh; }
+
+    /* ── Login ── */
+    #tela-login {
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; padding: 24px;
+    }
+    .login-card {
+      background: #fff; border-radius: 16px; padding: 40px 36px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.1); width: 100%; max-width: 380px;
+    }
+    .login-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; }
+    .login-logo img { width: 40px; height: 40px; border-radius: 10px; }
+    .login-logo-text { font-weight: 800; font-size: 1.1rem; color: var(--navy); }
+    .login-logo-badge {
+      font-size: 0.62rem; font-weight: 700; color: #dc2626;
+      background: #fee2e2; border: 1px solid #fecaca;
+      padding: 1px 7px; border-radius: 6px; text-transform: uppercase; letter-spacing: .04em;
+    }
+    .login-card h2 { font-size: 1.2rem; font-weight: 700; margin-bottom: 6px; }
+    .login-card p  { font-size: 0.83rem; color: var(--muted); margin-bottom: 24px; }
+    .form-group { margin-bottom: 14px; }
+    .form-group label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--muted); margin-bottom: 5px; }
+    .form-group input {
+      width: 100%; padding: 10px 12px; border: 1.5px solid var(--border);
+      border-radius: 8px; font-size: 0.9rem; font-family: inherit;
+      transition: border-color .15s; outline: none;
+    }
+    .form-group input:focus { border-color: var(--blue); }
+    #login-erro { font-size: 0.8rem; color: #dc2626; margin-bottom: 12px; display: none; }
+    .btn-login {
+      width: 100%; padding: 11px; background: var(--navy); color: #fff;
+      border: none; border-radius: 8px; font-size: 0.9rem; font-weight: 700;
+      cursor: pointer; transition: background .15s; font-family: inherit;
+    }
+    .btn-login:hover { background: #1a3060; }
+    .btn-login:disabled { opacity: .6; cursor: default; }
+
+    /* ── Dashboard ── */
+    #tela-dashboard { display: none; }
+    .adm-nav {
+      background: var(--navy); padding: 0 28px; height: 56px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .adm-nav-logo { display: flex; align-items: center; gap: 10px; }
+    .adm-nav-logo img { width: 30px; height: 30px; border-radius: 7px; }
+    .adm-nav-logo span { font-weight: 800; color: #e2e8f0; font-size: 0.95rem; }
+    .adm-nav-badge {
+      font-size: 0.6rem; font-weight: 700; color: #fca5a5;
+      background: rgba(239,68,68,.2); border: 1px solid rgba(239,68,68,.3);
+      padding: 2px 8px; border-radius: 6px; text-transform: uppercase; letter-spacing: .04em;
+    }
+    .adm-nav-right { display: flex; align-items: center; gap: 14px; }
+    .adm-nav-user { font-size: 0.78rem; color: #94a3b8; }
+    #btn-logout {
+      padding: 5px 14px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.15);
+      color: #cbd5e1; border-radius: 6px; font-size: 0.78rem; cursor: pointer; font-family: inherit;
+    }
+    #btn-logout:hover { background: rgba(255,255,255,.14); }
+    #btn-atualizar {
+      padding: 5px 14px; background: rgba(59,130,246,.2); border: 1px solid rgba(59,130,246,.4);
+      color: #93c5fd; border-radius: 6px; font-size: 0.78rem; cursor: pointer; font-family: inherit;
+      display: flex; align-items: center; gap: 5px;
+    }
+
+    .adm-content { padding: 28px; }
+
+    .totais-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 14px; margin-bottom: 28px;
+    }
+    .total-card {
+      background: #fff; border-radius: 12px; padding: 20px;
+      border: 1.5px solid var(--border);
+    }
+    .total-card .num { font-size: 2rem; font-weight: 800; color: var(--navy); line-height: 1; }
+    .total-card .lbl { font-size: 0.78rem; color: var(--muted); margin-top: 4px; font-weight: 500; }
+    .total-card .ico {
+      width: 36px; height: 36px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center; margin-bottom: 10px;
+    }
+
+    .section-title {
+      font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--muted); margin-bottom: 12px;
+    }
+
+    .contas-table {
+      background: #fff; border-radius: 12px; border: 1.5px solid var(--border);
+      overflow: hidden;
+    }
+    .contas-table table { width: 100%; border-collapse: collapse; }
+    .contas-table th {
+      background: #f8fafc; padding: 10px 16px; text-align: left;
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .04em; color: var(--muted); border-bottom: 1px solid var(--border);
+    }
+    .contas-table td {
+      padding: 12px 16px; font-size: 0.84rem; border-bottom: 1px solid #f8fafc;
+      vertical-align: middle;
+    }
+    .contas-table tr:last-child td { border-bottom: none; }
+    .contas-table tr:hover td { background: #fafbfc; }
+    .badge-plano {
+      display: inline-block; padding: 2px 9px; border-radius: 8px;
+      font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    }
+    .badge-gratuito { background: #f1f5f9; color: #64748b; }
+    .badge-pago     { background: #dcfce7; color: #166534; }
+    .badge-tipo-corp { background: #eff6ff; color: #1d4ed8; font-size: 0.68rem; padding: 1px 7px; border-radius: 6px; }
+    .badge-tipo-pes  { background: #fdf4ff; color: #7e22ce; font-size: 0.68rem; padding: 1px 7px; border-radius: 6px; }
+    .num-cell { font-weight: 700; color: var(--text); }
+    .zero-cell { color: #cbd5e1; }
+    .loading-adm { text-align: center; padding: 48px; color: var(--muted); font-size: 0.88rem; }
+  </style>
+</head>
+<body>
+
+<!-- ── Tela de Login ──────────────────────────────────────────────────────── -->
+<div id="tela-login">
+  <div class="login-card">
+    <div class="login-logo">
+      <img src="../logo3.png" alt="GridFlow">
+      <span class="login-logo-text">GridFlow</span>
+      <span class="login-logo-badge">ADM</span>
+    </div>
+    <h2>Acesso restrito</h2>
+    <p>Área exclusiva do administrador do sistema.</p>
+    <div class="form-group">
+      <label>E-mail</label>
+      <input id="inp-email" type="email" placeholder="seu@email.com" autocomplete="email">
+    </div>
+    <div class="form-group">
+      <label>Senha</label>
+      <input id="inp-senha" type="password" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <div id="login-erro"></div>
+    <button class="btn-login" id="btn-entrar">Entrar</button>
+  </div>
+</div>
+
+<!-- ── Dashboard ─────────────────────────────────────────────────────────── -->
+<div id="tela-dashboard">
+  <nav class="adm-nav">
+    <div class="adm-nav-logo">
+      <img src="../logo3.png" alt="">
+      <span>GridFlow</span>
+      <span class="adm-nav-badge">Controle ADM</span>
+    </div>
+    <div class="adm-nav-right">
+      <span class="adm-nav-user" id="adm-user-label"></span>
+      <button id="btn-atualizar">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        Atualizar
+      </button>
+      <button id="btn-logout">Sair</button>
+    </div>
+  </nav>
+
+  <div class="adm-content">
+    <div id="adm-data">
+      <div class="loading-adm">Carregando dados...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = window.location.origin;
+let _token = sessionStorage.getItem('adm_token') || '';
+
+function renderDados(d) {
+  const t = d.totais;
+  const cards = [
+    { num: t.contas,        lbl: 'Contas ativas',    cor: '#eff6ff', icoCor: '#2563eb',
+      ico: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>` },
+    { num: t.colaboradores, lbl: 'Colaboradores',    cor: '#f0fdf4', icoCor: '#16a34a',
+      ico: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>` },
+    { num: t.empresas,      lbl: 'Empresas geridas', cor: '#fef3c7', icoCor: '#d97706',
+      ico: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>` },
+    { num: t.anotacoes,     lbl: 'Anotações criadas',cor: '#fdf4ff', icoCor: '#9333ea',
+      ico: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>` },
+  ];
+
+  const linhas = d.contas.map(c => {
+    const nome  = c.nome_empresa || c.email_dono || `Conta #${c.id}`;
+    const ident = c.dominio || c.email_dono || '—';
+    const tipo  = c.tipo === 'corporativo'
+      ? `<span class="badge-tipo-corp">Corporativo</span>`
+      : `<span class="badge-tipo-pes">Pessoal</span>`;
+    const plano = (c.plano && c.plano !== 'gratuito')
+      ? `<span class="badge-plano badge-pago">${c.plano}</span>`
+      : `<span class="badge-plano badge-gratuito">Gratuito</span>`;
+    const n = v => v > 0 ? `<span class="num-cell">${v}</span>` : `<span class="zero-cell">0</span>`;
+    const data = c.criado_em ? c.criado_em.slice(0, 10) : '—';
+    return `<tr>
+      <td><strong style="font-size:.86rem">${nome}</strong><br><span style="font-size:.73rem;color:#94a3b8">${ident}</span></td>
+      <td>${tipo}</td>
+      <td>${plano}</td>
+      <td>${n(c.colaboradores)}</td>
+      <td>${n(c.empresas)}</td>
+      <td>${n(c.anotacoes)}</td>
+      <td style="font-size:.78rem;color:#94a3b8">${data}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('adm-data').innerHTML = `
+    <div class="totais-grid">
+      ${cards.map(c => `
+        <div class="total-card">
+          <div class="ico" style="background:${c.cor};color:${c.icoCor}">${c.ico}</div>
+          <div class="num">${c.num}</div>
+          <div class="lbl">${c.lbl}</div>
+        </div>`).join('')}
+    </div>
+    <div class="section-title">Contas cadastradas</div>
+    <div class="contas-table">
+      <table>
+        <thead><tr>
+          <th>Nome / Identificador</th>
+          <th>Tipo</th>
+          <th>Plano</th>
+          <th>Colaboradores</th>
+          <th>Empresas</th>
+          <th>Anotações</th>
+          <th>Cadastro</th>
+        </tr></thead>
+        <tbody>${linhas || '<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:32px">Nenhuma conta encontrada</td></tr>'}</tbody>
+      </table>
+    </div>`;
+}
+
+async function carregarDados() {
+  document.getElementById('adm-data').innerHTML = '<div class="loading-adm">Carregando dados...</div>';
+  try {
+    const r = await fetch('/api/admin/dados', { headers: { 'x-admin-key': _token } });
+    if (r.status === 401) { sair(); return; }
+    const d = await r.json();
+    renderDados(d);
+  } catch (e) {
+    document.getElementById('adm-data').innerHTML = `<div class="loading-adm" style="color:#dc2626">Erro: ${e.message}</div>`;
+  }
+}
+
+function entrarNoDashboard(email) {
+  document.getElementById('tela-login').style.display = 'none';
+  document.getElementById('tela-dashboard').style.display = '';
+  document.getElementById('adm-user-label').textContent = email;
+  carregarDados();
+}
+
+function sair() {
+  sessionStorage.removeItem('adm_token');
+  sessionStorage.removeItem('adm_email');
+  _token = '';
+  document.getElementById('tela-dashboard').style.display = 'none';
+  document.getElementById('tela-login').style.display = 'flex';
+}
+
+// Auto-login se já tem token salvo
+if (_token) {
+  const savedEmail = sessionStorage.getItem('adm_email') || 'luizfelipedemc@gmail.com';
+  entrarNoDashboard(savedEmail);
+}
+
+// Login
+document.getElementById('btn-entrar').addEventListener('click', async () => {
+  const email = document.getElementById('inp-email').value.trim();
+  const senha = document.getElementById('inp-senha').value;
+  const erroEl = document.getElementById('login-erro');
+  const btn    = document.getElementById('btn-entrar');
+  erroEl.style.display = 'none';
+  if (!email || !senha) { erroEl.textContent = 'Preencha e-mail e senha.'; erroEl.style.display = 'block'; return; }
+  btn.disabled = true; btn.textContent = 'Entrando...';
+  try {
+    const r = await fetch('/api/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, senha })
+    });
+    const d = await r.json();
+    if (!r.ok) { erroEl.textContent = d.erro || 'Credenciais inválidas.'; erroEl.style.display = 'block'; return; }
+    _token = d.token;
+    sessionStorage.setItem('adm_token', _token);
+    sessionStorage.setItem('adm_email', email);
+    entrarNoDashboard(email);
+  } catch (e) {
+    erroEl.textContent = 'Erro de conexão.'; erroEl.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Entrar';
+  }
+});
+
+document.getElementById('inp-senha').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('btn-entrar').click();
+});
+
+document.getElementById('btn-logout').addEventListener('click', sair);
+document.getElementById('btn-atualizar').addEventListener('click', carregarDados);
+</script>
+</body>
+</html>

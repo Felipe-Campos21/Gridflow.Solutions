@@ -1051,6 +1051,55 @@ const server = http.createServer(async (req, res) => {
                                    }
 
                                    // ================================================================
+                                   // CONTROLE ADM — exclusivo do dono
+                                   // ================================================================
+                                   const ADMIN_EMAIL = 'luizfelipedemc@gmail.com';
+                                   const ADMIN_SENHA = process.env.ADMIN_SENHA || '';
+
+                                   if (pathname === '/api/admin/login' && method === 'POST') {
+                                         try {
+                                               const body = await readBody(req);
+                                               if (!ADMIN_SENHA) return sendJson(res, 503, { erro: 'Senha admin não configurada no servidor.' });
+                                               if (body.email !== ADMIN_EMAIL || body.senha !== ADMIN_SENHA)
+                                                     return sendJson(res, 401, { erro: 'E-mail ou senha incorretos.' });
+                                               return sendJson(res, 200, { ok: true, token: ADMIN_SENHA });
+                                         } catch (e) { return sendJson(res, 500, { erro: e.message }); }
+                                   }
+
+                                   if (pathname === '/api/admin/dados') {
+                                         const token = req.headers['x-admin-key'];
+                                         if (!ADMIN_SENHA || token !== ADMIN_SENHA)
+                                               return sendJson(res, 401, { erro: 'Não autorizado.' });
+                                         try {
+                                               const [rContas, rColabs, rEmpresas, rNotas] = await Promise.all([
+                                                     sbFetch('contas?select=id,nome_empresa,tipo,plano,dominio,email_dono,criado_em&order=id.desc'),
+                                                     sbFetch('colaboradores?select=id,conta_id,nome,email,admin_conta,ativo&ativo=eq.1'),
+                                                     sbFetch('empresas?select=id,conta_id,razao_social,ativo&ativo=eq.true'),
+                                                     sbFetch('notas?select=id,conta_id'),
+                                               ]);
+                                               const contas  = rContas.body  || [];
+                                               const colabs  = rColabs.body  || [];
+                                               const emprs   = rEmpresas.body || [];
+                                               const notas   = rNotas.body   || [];
+                                               return sendJson(res, 200, {
+                                                     totais: {
+                                                           contas:        contas.length,
+                                                           colaboradores: colabs.length,
+                                                           empresas:      emprs.length,
+                                                           anotacoes:     notas.length,
+                                                     },
+                                                     contas: contas.map(c => ({
+                                                           ...c,
+                                                           colaboradores: colabs.filter(x => x.conta_id === c.id).length,
+                                                           empresas:      emprs.filter(x  => x.conta_id === c.id).length,
+                                                           anotacoes:     notas.filter(x  => x.conta_id === c.id).length,
+                                                           admins:        colabs.filter(x => x.conta_id === c.id && x.admin_conta).length,
+                                                     })),
+                                               });
+                                         } catch (e) { return sendJson(res, 500, { erro: e.message }); }
+                                   }
+
+                                   // ================================================================
                                    // CONFIG
                                    // ================================================================
                                    if (pathname === '/api/config') {
@@ -1243,7 +1292,7 @@ const server = http.createServer(async (req, res) => {
                                    // Arquivo estático / 404
                                    // ================================================================
                                    // URLs limpas
-                                   const urlMap = { '/login': 'login.html', '/logado': 'index.html' };
+                                   const urlMap = { '/login': 'login.html', '/logado': 'index.html', '/controle.adm': 'controle-adm/index.html' };
                                    if (urlMap[pathname]) return serveFile(res, path.join(PUBLIC, urlMap[pathname]));
                                    // Redireciona URLs antigas para limpas
                                    if (pathname === '/login.html') { res.writeHead(301, { Location: '/login' }); res.end(); return; }
