@@ -1226,6 +1226,18 @@ body {
 }
 .btn-regime.active { background: #3498db; border-color: #3498db; color: #fff; }
 
+/* ── Atividades: grid de setores ─────────────────────────────────────────── */
+.atv-setor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+.atv-setor-card:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,.08);
+  transform: translateY(-1px);
+  transition: all .15s;
+}
+
 /* ── Relatório Detalhe Empresa ───────────────────────────────────────────── */
 .rel-detalhe-grid {
   display: grid;

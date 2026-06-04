@@ -1717,14 +1717,100 @@ class GridFlowApp {
   _salvarGruposConfig(cfg) {
     localStorage.setItem('gridflow_grupos_' + (this.contaId || 'default'), JSON.stringify(cfg));
   }
+  _getSetoresPersonalizados() {
+    try { return JSON.parse(localStorage.getItem('gridflow_setores_' + (this.contaId || 'default')) || '[]'); } catch { return []; }
+  }
+  _saveSetoresPersonalizados(lista) {
+    localStorage.setItem('gridflow_setores_' + (this.contaId || 'default'), JSON.stringify(lista));
+  }
 
   async renderAtividades() {
     try {
       const atividades = await this.api('/api/atividades');
       this._todasAtividades = atividades.filter(a => a.ativo);
-      const grupos = [...new Set(this._todasAtividades.map(a => a.grupo || 'Geral'))].sort();
+      const todosGrupos = [...new Set(this._todasAtividades.map(a => a.grupo || 'Geral'))].sort();
       const cfg    = this._carregarGruposConfig();
       const subtab = this._atvSubtab || 'atividades';
+      const setor  = this._atvSetor ?? null;
+
+      // ── Nível 1: seleção de setor ──────────────────────────────────────────
+      if (setor === null) {
+        const setoresPersonalizados = this._getSetoresPersonalizados();
+        const setoresCfg = [...new Set(Object.values(cfg).map(c => c.setor).filter(Boolean))];
+        const todosSetores = [...new Set([...setoresPersonalizados, ...setoresCfg])].sort();
+        const semSetor = todosGrupos.filter(g => !cfg[g]?.setor);
+        const paleta = [
+          { bg: '#eff6ff', brd: '#bfdbfe', cor: '#1d4ed8' },
+          { bg: '#fef3c7', brd: '#fde68a', cor: '#92400e' },
+          { bg: '#f0fdf4', brd: '#bbf7d0', cor: '#166534' },
+          { bg: '#fdf4ff', brd: '#e9d5ff', cor: '#7e22ce' },
+          { bg: '#fff7ed', brd: '#fed7aa', cor: '#c2410c' },
+          { bg: '#ecfeff', brd: '#a5f3fc', cor: '#0e7490' },
+          { bg: '#fef2f2', brd: '#fecaca', cor: '#b91c1c' },
+          { bg: '#f7fee7', brd: '#d9f99d', cor: '#3f6212' },
+        ];
+        const icones = [
+          `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>`,
+          `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`,
+          `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>`,
+          `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+          `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
+        ];
+
+        const cards = todosSetores.map((s, i) => {
+          const p   = paleta[i % paleta.length];
+          const ico = icones[i % icones.length];
+          const nGrupos = todosGrupos.filter(g => cfg[g]?.setor === s).length;
+          const nAtvs   = this._todasAtividades.filter(a => cfg[a.grupo||'Geral']?.setor === s).length;
+          return `
+            <button class="atv-setor-card" data-setor="${s}"
+              style="text-align:left;border:1.5px solid ${p.brd};background:${p.bg};border-radius:14px;padding:18px 20px;cursor:pointer;transition:box-shadow .15s;width:100%">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+                <div style="width:38px;height:38px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:${p.cor}">
+                  ${ico}
+                </div>
+                <span style="font-weight:800;font-size:1rem;color:#1e293b">${s}</span>
+              </div>
+              <div style="display:flex;gap:14px">
+                <span style="font-size:0.78rem;color:#6b7280">${nGrupos} grupo${nGrupos!==1?'s':''}</span>
+                <span style="font-size:0.78rem;color:#6b7280">${nAtvs} atividade${nAtvs!==1?'s':''}</span>
+              </div>
+            </button>`;
+        });
+
+        if (semSetor.length > 0) {
+          const ns = semSetor.length, na = this._todasAtividades.filter(a => !cfg[a.grupo||'Geral']?.setor).length;
+          cards.push(`
+            <button class="atv-setor-card" data-setor="__sem_setor__"
+              style="text-align:left;border:1.5px solid #e2e8f0;background:#f8fafc;border-radius:14px;padding:18px 20px;cursor:pointer;transition:box-shadow .15s;width:100%">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+                <div style="width:38px;height:38px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#94a3b8">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+                </div>
+                <span style="font-weight:800;font-size:1rem;color:#64748b">Sem setor</span>
+              </div>
+              <div style="display:flex;gap:14px">
+                <span style="font-size:0.78rem;color:#6b7280">${ns} grupo${ns!==1?'s':''}</span>
+                <span style="font-size:0.78rem;color:#6b7280">${na} atividade${na!==1?'s':''}</span>
+              </div>
+            </button>`);
+        }
+
+        cards.push(`
+          <button id="btn-novo-setor"
+            style="border:1.5px dashed #cbd5e1;background:#f8fafc;border-radius:14px;padding:18px 20px;cursor:pointer;width:100%;display:flex;align-items:center;justify-content:center;gap:8px;color:#94a3b8;font-weight:600;font-size:0.88rem;transition:all .15s">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Novo setor
+          </button>`);
+
+        return `<div class="atv-setor-grid">${cards.join('')}</div>`;
+      }
+
+      // ── Nível 2: dentro de um setor ────────────────────────────────────────
+      const labelSetor = setor === '__sem_setor__' ? 'Sem setor' : setor;
+      const grupos = setor === '__sem_setor__'
+        ? todosGrupos.filter(g => !cfg[g]?.setor)
+        : todosGrupos.filter(g => cfg[g]?.setor === setor);
 
       const _PRAZOS = ['Mensal','Trimestral','Semestral','Anual','Eventual'];
 
@@ -1733,8 +1819,12 @@ class GridFlowApp {
           <div class="card" style="padding:0;overflow:hidden">
             <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #f0f0f0">
               <div style="display:flex;align-items:center;gap:8px">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#718096" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-                <span style="font-weight:700;text-transform:uppercase;font-size:0.75rem;color:#718096;letter-spacing:.05em">Atividades</span>
+                <button id="btn-voltar-setor" style="display:flex;align-items:center;gap:4px;background:none;border:none;color:#3498db;cursor:pointer;font-size:0.82rem;font-weight:600;padding:0">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                  Setores
+                </button>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#a0aec0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                <span style="font-weight:700;font-size:0.88rem;color:#1e293b">${labelSetor}</span>
               </div>
               <button class="btn btn-primary" id="btn-nova-atv" style="display:flex;align-items:center;gap:5px;font-size:0.82rem;padding:6px 14px">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -1897,6 +1987,30 @@ class GridFlowApp {
   }
 
   configurarEventosAtividades() {
+    // ── Navegação de setores ───────────────────────────────────────────────
+    document.querySelectorAll('.atv-setor-card').forEach(card => {
+      card.addEventListener('click', () => {
+        this._atvSetor = card.dataset.setor;
+        this._atvSubtab = 'atividades';
+        this.renderizarConteudo();
+      });
+      card.addEventListener('mouseenter', () => { card.style.boxShadow = '0 4px 16px rgba(0,0,0,.08)'; });
+      card.addEventListener('mouseleave', () => { card.style.boxShadow = ''; });
+    });
+
+    document.getElementById('btn-novo-setor')?.addEventListener('click', () => {
+      const nome = prompt('Nome do novo setor (ex: Fiscal, Laboral):')?.trim();
+      if (!nome) return;
+      const lista = this._getSetoresPersonalizados();
+      if (!lista.includes(nome)) { lista.push(nome); this._saveSetoresPersonalizados(lista); }
+      this.renderizarConteudo();
+    });
+
+    document.getElementById('btn-voltar-setor')?.addEventListener('click', () => {
+      this._atvSetor = null;
+      this.renderizarConteudo();
+    });
+
     // Sub-tabs
     document.querySelectorAll('.atv-subtab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -1975,6 +2089,14 @@ class GridFlowApp {
           await this.api(`/api/atividades/${id}`, { method: 'PUT', body: JSON.stringify({ nome, grupo, descricao }) });
         } else {
           await this.api('/api/atividades', { method: 'POST', body: JSON.stringify({ nome, grupo, descricao }) });
+        }
+        // Herda setor do contexto atual para o grupo (se novo grupo ou sem setor)
+        if (this._atvSetor && this._atvSetor !== '__sem_setor__') {
+          const cfg = this._carregarGruposConfig();
+          if (!cfg[grupo]?.setor) {
+            cfg[grupo] = { ...(cfg[grupo] || {}), setor: this._atvSetor };
+            this._salvarGruposConfig(cfg);
+          }
         }
         await this.mudarTab('atividades');
       } catch (e) { alert('Erro ao salvar: ' + e.message); }
