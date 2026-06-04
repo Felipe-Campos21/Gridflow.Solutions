@@ -1226,6 +1226,25 @@ body {
 }
 .btn-regime.active { background: #3498db; border-color: #3498db; color: #fff; }
 
+/* ── Relatório Detalhe Empresa ───────────────────────────────────────────── */
+.rel-detalhe-grid {
+  display: grid;
+  grid-template-columns: 1fr 272px;
+  gap: 14px;
+  align-items: start;
+}
+.rel-detalhe-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: sticky;
+  top: 16px;
+}
+@media (max-width: 860px) {
+  .rel-detalhe-grid { grid-template-columns: 1fr; }
+  .rel-detalhe-sidebar { position: static; }
+}
+
 /* ── Context Menu Período ────────────────────────────────────────────────── */
 .pcm-btn {
   width: 100%;

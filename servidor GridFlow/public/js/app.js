@@ -4209,29 +4209,13 @@ class GridFlowApp {
     el.querySelectorAll('.rel-emp-card').forEach(card => {
       card.addEventListener('click', () => {
         const empId = parseInt(card.dataset.empid);
-        const emp = empresas.find(e => e.id === empId);
+        const emp   = empresas.find(e => e.id === empId);
         if (!emp) return;
-        const grid = document.getElementById('rel-emp-grid');
+        const grid   = document.getElementById('rel-emp-grid');
         const detalhe = document.getElementById('rel-notas-detalhe');
-        grid.style.display = 'none';
+        grid.style.display   = 'none';
         detalhe.style.display = 'block';
-        detalhe.innerHTML = `
-          <div style="margin-bottom:12px;display:flex;align-items:center;gap:10px">
-            <button id="btn-rel-voltar" style="padding:5px 14px;background:#f7fafc;border:1px solid #e2e8f0;border-radius:7px;cursor:pointer;font-size:0.82rem;font-weight:600;color:#4a5568">← Voltar</button>
-            <div>
-              <span style="font-weight:700;color:#2d3748">${emp.nome}</span>
-              ${emp.codigo ? `<span style="font-size:0.75rem;color:#a0aec0;margin-left:6px">#${emp.codigo}</span>` : ''}
-              <span style="font-size:0.75rem;color:#a0aec0;margin-left:8px">${emp.notas.length} anotação${emp.notas.length !== 1 ? 'ões' : ''}</span>
-            </div>
-          </div>
-          <div class="card" style="padding:0;overflow:hidden">
-            ${emp.notas.map(n => this._relNotaCard(n)).join('')}
-          </div>`;
-        document.getElementById('btn-rel-voltar')?.addEventListener('click', () => {
-          detalhe.style.display = 'none';
-          grid.style.display = '';
-        });
-        this._ligarEventosNotasRel(detalhe);
+        this._renderEmpresaDetalheNotas(emp, detalhe);
       });
     });
   }
@@ -4239,6 +4223,283 @@ class GridFlowApp {
   _renderRelatorioFlat(lista, el) {
     el.innerHTML = `<div style="display:flex;flex-direction:column;gap:10px">${lista.map(n => `<div class="card" style="padding:0;overflow:hidden">${this._relNotaCard(n, true)}</div>`).join('')}</div>`;
     this._ligarEventosNotasRel(el);
+  }
+
+  // ── Detalhe de empresa: novo layout ───────────────────────────────────────
+  _renderEmpresaDetalheNotas(emp, container) {
+    const todasNotas = emp.notas;
+
+    // Paleta de cores por assunto
+    const paleta = [
+      { border: '#f59e0b', bg: '#fffbeb' }, { border: '#3b82f6', bg: '#eff6ff' },
+      { border: '#10b981', bg: '#f0fdf4' }, { border: '#8b5cf6', bg: '#faf5ff' },
+      { border: '#ef4444', bg: '#fff1f2' }, { border: '#f97316', bg: '#fff7ed' },
+      { border: '#06b6d4', bg: '#ecfeff' }, { border: '#84cc16', bg: '#f7fee7' },
+    ];
+    const assuntosUnicos = [...new Set(todasNotas.map(n => n.assunto).filter(Boolean))].sort();
+    const colorMap = {};
+    assuntosUnicos.forEach((a, i) => { colorMap[a] = paleta[i % paleta.length]; });
+    this._relAssuntoColors = colorMap;
+
+    // Stats por período
+    const recentPeriods = (n) => {
+      const list = []; const d = new Date();
+      for (let i = 0; i < n; i++) {
+        list.push(`${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`);
+        d.setMonth(d.getMonth() - 1);
+      }
+      return new Set(list);
+    };
+    const periodoAtual = `${String(new Date().getMonth()+1).padStart(2,'0')}/${new Date().getFullYear()}`;
+    const p3  = recentPeriods(3);
+    const p12 = recentPeriods(12);
+    const esteMes = todasNotas.filter(n => n.periodo === periodoAtual).length;
+    const tres    = todasNotas.filter(n => p3.has(n.periodo)).length;
+    const doze    = todasNotas.filter(n => p12.has(n.periodo)).length;
+
+    // Última anotação
+    const ultData = todasNotas.map(n => n.criado_em || n.atualizado_em || '').filter(Boolean).sort().at(-1)?.slice(0,10) || null;
+
+    // Avatar
+    const iniciais = emp.nome.split(' ').filter(Boolean).slice(0,2).map(w => w[0]).join('').toUpperCase();
+    const avatarCores = ['#3498db','#27ae60','#e67e22','#9b59b6','#e74c3c','#1abc9c','#f39c12','#2980b9'];
+    const avatarCor   = avatarCores[emp.id % avatarCores.length];
+
+    // Sidebar: assuntos e usuários
+    const cntAssunto = {}; todasNotas.forEach(n => { if (n.assunto) cntAssunto[n.assunto] = (cntAssunto[n.assunto]||0)+1; });
+    const topAssuntos = Object.entries(cntAssunto).sort((a,b)=>b[1]-a[1]).slice(0,5);
+    const maxA = topAssuntos[0]?.[1] || 1;
+
+    const cntUsuario = {}; todasNotas.forEach(n => { if (n.usuario) cntUsuario[n.usuario] = (cntUsuario[n.usuario]||0)+1; });
+    const topUsuarios = Object.entries(cntUsuario).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+    // Filtros locais
+    const periodos = [...new Set(todasNotas.map(n=>n.periodo).filter(Boolean))].sort((a,b)=>{
+      const [ma,ya]=a.split('/').map(Number), [mb,yb]=b.split('/').map(Number);
+      return (yb-ya)||(mb-ma);
+    });
+    const usuarios = [...new Set(todasNotas.map(n=>n.usuario).filter(Boolean))].sort();
+    const assuntos = assuntosUnicos;
+
+    container.innerHTML = `
+      <!-- Breadcrumb -->
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:14px;font-size:0.8rem">
+        <button id="btn-rel-voltar" style="background:none;border:none;color:#3498db;cursor:pointer;font-size:0.8rem;padding:0;font-weight:600;display:flex;align-items:center;gap:4px">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          Anotações
+        </button>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#a0aec0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        <span style="color:#2d3748;font-weight:600">${emp.nome}</span>
+      </div>
+
+      <!-- Header empresa -->
+      <div class="card" style="margin-bottom:12px;padding:16px 20px">
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+          <div style="width:50px;height:50px;border-radius:12px;background:${avatarCor};color:#fff;font-weight:800;font-size:1.1rem;display:flex;align-items:center;justify-content:center;flex-shrink:0">${iniciais}</div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+              <span style="font-size:1.05rem;font-weight:800;color:#1e293b">${emp.nome}</span>
+              <span style="font-size:0.7rem;font-weight:700;color:#16a34a;background:#f0fdf4;border:1px solid #86efac;padding:2px 8px;border-radius:10px">Ativa</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:0.76rem;color:#718096">
+              ${emp.codigo ? `<span style="display:flex;align-items:center;gap:3px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Código: ${emp.codigo}</span>` : ''}
+              <span style="display:flex;align-items:center;gap:3px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>${todasNotas.length} anotaç${todasNotas.length!==1?'ões':'ão'}</span>
+              ${ultData ? `<span style="display:flex;align-items:center;gap:3px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Última: ${ultData}</span>` : ''}
+            </div>
+          </div>
+          <div style="display:flex;gap:22px;flex-shrink:0">
+            <div style="text-align:center"><div style="font-size:1.55rem;font-weight:800;color:#1e293b;line-height:1">${esteMes}</div><div style="font-size:0.67rem;color:#94a3b8;margin-top:2px">Este mês</div></div>
+            <div style="text-align:center"><div style="font-size:1.55rem;font-weight:800;color:#1e293b;line-height:1">${tres}</div><div style="font-size:0.67rem;color:#94a3b8;margin-top:2px">3 meses</div></div>
+            <div style="text-align:center"><div style="font-size:1.55rem;font-weight:800;color:#1e293b;line-height:1">${doze}</div><div style="font-size:0.67rem;color:#94a3b8;margin-top:2px">12 meses</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filtros locais -->
+      <div class="card" style="margin-bottom:12px;padding:10px 14px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <div style="flex:1;min-width:150px;position:relative;display:flex;align-items:center">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a0aec0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="position:absolute;left:9px;pointer-events:none"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input id="rld-search" type="text" placeholder="Buscar nas anotações..." autocomplete="off"
+              style="width:100%;padding:7px 10px 7px 30px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.82rem">
+          </div>
+          <select id="rld-periodo" style="padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.82rem;color:#4a5568;background:#fff">
+            <option value="">Todos os períodos</option>
+            ${periodos.map(p=>`<option value="${p}">${p}</option>`).join('')}
+          </select>
+          <select id="rld-usuario" style="padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.82rem;color:#4a5568;background:#fff">
+            <option value="">Todos os usuários</option>
+            ${usuarios.map(u=>`<option value="${u}">${u}</option>`).join('')}
+          </select>
+          <select id="rld-assunto" style="padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.82rem;color:#4a5568;background:#fff">
+            <option value="">Todos os assuntos</option>
+            ${assuntos.map(a=>`<option value="${a}">${a}</option>`).join('')}
+          </select>
+          <button id="rld-limpar" style="display:flex;align-items:center;gap:4px;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.82rem;background:#fff;color:#718096;cursor:pointer;white-space:nowrap">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            Limpar
+          </button>
+        </div>
+      </div>
+
+      <!-- Conteúdo: lista + sidebar -->
+      <div class="rel-detalhe-grid">
+        <div>
+          <div class="card" style="padding:0;overflow:hidden">
+            <div style="display:flex;align-items:center;gap:8px;padding:11px 16px;border-bottom:1px solid #f0f4f8">
+              <span style="font-size:0.92rem;font-weight:700;color:#1e293b">Anotações</span>
+              <span id="rld-count" style="font-size:0.72rem;font-weight:700;color:#fff;background:#3498db;padding:1px 8px;border-radius:10px">${todasNotas.length}</span>
+            </div>
+            <div id="rld-lista"></div>
+            <div id="rld-mais" style="display:none;padding:10px;text-align:center;border-top:1px solid #f0f4f8">
+              <button id="btn-rld-mais" style="padding:6px 20px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;color:#4a5568;font-size:0.82rem;cursor:pointer;font-weight:600">
+                Carregar mais
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="rel-detalhe-sidebar">
+          ${topAssuntos.length ? `
+          <div class="card" style="padding:14px">
+            <div style="font-size:0.8rem;font-weight:700;color:#1e293b;margin-bottom:10px">Assuntos mais frequentes</div>
+            <div style="display:flex;flex-direction:column;gap:9px">
+              ${topAssuntos.map(([assunto, count]) => {
+                const cor = (colorMap[assunto] || paleta[0]).border;
+                const pct = Math.round((count / maxA) * 100);
+                return `<div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
+                    <div style="display:flex;align-items:center;gap:5px;font-size:0.78rem;color:#374151;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="${cor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                      ${assunto}
+                    </div>
+                    <span style="font-size:0.75rem;font-weight:700;color:#6b7280;flex-shrink:0;margin-left:6px">${count}</span>
+                  </div>
+                  <div style="height:4px;background:#f1f5f9;border-radius:2px"><div style="height:100%;width:${pct}%;background:${cor};border-radius:2px"></div></div>
+                </div>`;
+              }).join('')}
+            </div>
+          </div>` : ''}
+
+          ${topUsuarios.length ? `
+          <div class="card" style="padding:14px">
+            <div style="font-size:0.8rem;font-weight:700;color:#1e293b;margin-bottom:10px">Top usuários</div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              ${topUsuarios.map(([usuario, count]) => {
+                const ini = usuario.split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+                const uc  = avatarCores[usuario.charCodeAt(0) % avatarCores.length];
+                return `<div style="display:flex;align-items:center;gap:8px">
+                  <div style="width:27px;height:27px;border-radius:50%;background:${uc};color:#fff;font-size:0.62rem;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${ini}</div>
+                  <span style="font-size:0.78rem;color:#374151;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${usuario}</span>
+                  <span style="font-size:0.75rem;font-weight:700;color:#6b7280">${count}</span>
+                </div>`;
+              }).join('')}
+            </div>
+          </div>` : ''}
+        </div>
+      </div>`;
+
+    // Back button
+    document.getElementById('btn-rel-voltar')?.addEventListener('click', () => {
+      container.style.display = 'none';
+      document.getElementById('rel-emp-grid').style.display = '';
+    });
+
+    // Paginação e filtro
+    const PER_PAGE = 10;
+    let pagina = PER_PAGE;
+
+    const renderLista = () => {
+      const search  = (document.getElementById('rld-search')?.value || '').toLowerCase();
+      const periodo = document.getElementById('rld-periodo')?.value || '';
+      const usuario = document.getElementById('rld-usuario')?.value || '';
+      const assunto = document.getElementById('rld-assunto')?.value || '';
+
+      const filtradas = todasNotas.filter(n =>
+        (!search  || (n.texto||'').toLowerCase().includes(search) || (n.assunto||'').toLowerCase().includes(search) || (n.usuario||'').toLowerCase().includes(search)) &&
+        (!periodo || n.periodo === periodo) &&
+        (!usuario || n.usuario === usuario) &&
+        (!assunto || n.assunto === assunto)
+      );
+
+      const visiveis = filtradas.slice(0, pagina);
+      const listaEl  = document.getElementById('rld-lista');
+      const countEl  = document.getElementById('rld-count');
+      const maisDiv  = document.getElementById('rld-mais');
+      if (!listaEl) return;
+
+      if (countEl) countEl.textContent = filtradas.length;
+
+      if (!filtradas.length) {
+        listaEl.innerHTML = `<div style="text-align:center;color:#a0aec0;padding:32px;font-size:0.88rem">Nenhuma anotação encontrada</div>`;
+        if (maisDiv) maisDiv.style.display = 'none';
+        return;
+      }
+      listaEl.innerHTML = visiveis.map(n => this._relNotaCardNovo(n)).join('');
+      this._ligarEventosNotasRel(listaEl);
+      if (maisDiv) maisDiv.style.display = filtradas.length > pagina ? '' : 'none';
+    };
+
+    let st;
+    document.getElementById('rld-search')?.addEventListener('input', () => { pagina = PER_PAGE; clearTimeout(st); st = setTimeout(renderLista, 200); });
+    ['rld-periodo','rld-usuario','rld-assunto'].forEach(id =>
+      document.getElementById(id)?.addEventListener('change', () => { pagina = PER_PAGE; renderLista(); }));
+    document.getElementById('rld-limpar')?.addEventListener('click', () => {
+      ['rld-search','rld-periodo','rld-usuario','rld-assunto'].forEach(id => { const e = document.getElementById(id); if(e) e.value=''; });
+      pagina = PER_PAGE; renderLista();
+    });
+    document.getElementById('btn-rld-mais')?.addEventListener('click', () => { pagina += PER_PAGE; renderLista(); });
+
+    renderLista();
+  }
+
+  _relNotaCardNovo(n) {
+    const data   = n.atualizado_em || n.criado_em || '';
+    const dataFmt = data ? data.slice(0,16).replace('T',' ') : '—';
+    const cores  = (this._relAssuntoColors || {})[n.assunto] || { border: '#3498db', bg: '#eff6ff' };
+    const id     = n.id;
+    return `
+      <div class="rel-nota-card" data-nota-id="${id}" style="display:flex;border-bottom:1px solid #f0f4f8">
+        <div style="width:4px;background:${cores.border};flex-shrink:0"></div>
+        <div style="flex:1;padding:11px 14px;min-width:0">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+                ${n.assunto ? `<span style="font-size:0.72rem;font-weight:700;color:${cores.border};background:${cores.bg};border:1px solid ${cores.border}40;padding:2px 8px;border-radius:8px;display:flex;align-items:center;gap:3px;flex-shrink:0">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="${cores.border}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                  ${n.assunto}
+                </span>` : ''}
+                ${n.periodo ? `<span style="font-size:0.71rem;font-weight:600;color:#2563eb;background:#eff6ff;border:1px solid #bfdbfe;padding:2px 7px;border-radius:8px;display:flex;align-items:center;gap:3px;flex-shrink:0">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  ${n.periodo}
+                </span>` : ''}
+              </div>
+              <div class="rel-nota-texto" style="font-size:0.86rem;color:#374151;line-height:1.55;white-space:pre-wrap">${n.texto || ''}</div>
+              ${this._renderAnexosMini(n.anexos)}
+              <textarea class="rel-nota-edit" rows="3" style="display:none;width:100%;padding:7px 9px;border:1px solid #3498db;border-radius:6px;font-size:0.86rem;resize:vertical;font-family:inherit;box-sizing:border-box;margin-top:6px">${n.texto || ''}</textarea>
+              <div class="rel-edit-btns" style="display:none;gap:8px;margin-top:7px">
+                <button class="btn-rel-salvar" data-id="${id}" style="padding:5px 14px;background:#3498db;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.82rem;font-weight:600">Salvar</button>
+                <button class="btn-rel-cancelar" style="padding:5px 14px;background:#f7fafc;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:0.82rem">Cancelar</button>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;margin-top:7px;flex-wrap:wrap">
+                ${n.usuario ? `<span style="display:flex;align-items:center;gap:3px;font-size:0.74rem;color:#6b7280">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  ${n.usuario}
+                </span>` : ''}
+                <span style="font-size:0.71rem;color:#9ca3af">${dataFmt}</span>
+              </div>
+            </div>
+            <div style="display:flex;gap:4px;flex-shrink:0;padding-top:1px">
+              <button class="btn-rel-editar" data-id="${id}" title="Editar" style="padding:5px 7px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;color:#4a5568;display:flex;align-items:center">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              </button>
+              <button class="btn-rel-excluir" data-id="${id}" title="Excluir" style="padding:5px 7px;background:#fff5f5;border:1px solid #fed7d7;border-radius:6px;cursor:pointer;color:#c53030;display:flex;align-items:center">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>`;
   }
 
   _relNotaCard(n, showEmpresa = false) {
