@@ -277,5 +277,18 @@
 
 <script src="js/config.js"></script>
 <script src="js/app.js"></script>
+
+<!-- Context menu: preencher período rápido (clique direito no período) -->
+<div id="periodo-ctx-menu" style="display:none;position:fixed;z-index:9999;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);min-width:218px;overflow:hidden;user-select:none">
+  <div id="pcm-label" style="padding:8px 14px 6px;font-size:0.7rem;font-weight:700;color:#a0aec0;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid #f0f4f8;pointer-events:none"></div>
+  <button id="pcm-ok" class="pcm-btn" style="color:#166534">
+    <svg width="16" height="16" viewBox="0 0 20 20" style="flex-shrink:0"><circle cx="10" cy="10" r="10" fill="#22c55e"/><polyline points="5,10 8.5,13.5 15,7" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Preencher período como OK
+  </button>
+  <button id="pcm-na" class="pcm-btn" style="color:#991b1b">
+    <svg width="16" height="16" viewBox="0 0 20 20" style="flex-shrink:0"><circle cx="10" cy="10" r="10" fill="#ef4444"/><line x1="6.5" y1="6.5" x2="13.5" y2="13.5" stroke="white" stroke-width="2.5" stroke-linecap="round"/><line x1="13.5" y1="6.5" x2="6.5" y2="13.5" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg>
+    Preencher período como N/A
+  </button>
+</div>
 </body>
 </html>

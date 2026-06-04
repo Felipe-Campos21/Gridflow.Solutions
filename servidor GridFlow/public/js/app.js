@@ -235,6 +235,12 @@ class GridFlowApp {
         dropdown.classList.remove('show');
         this.atualizarConteudo();
       });
+      item.addEventListener('contextmenu', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropdown.classList.remove('show');
+        this._showPeriodoContextMenu(e, item.dataset.value);
+      });
     });
 
     dropdown.querySelectorAll('.ano-header').forEach(header => {
@@ -303,6 +309,7 @@ class GridFlowApp {
     document.querySelectorAll('.nav-item').forEach(item =>
       item.addEventListener('click', () => { if (item.dataset.tab) this.mudarTab(item.dataset.tab); }));
 
+    this._initPeriodoContextMenu();
   }
 
   mudarTab(tab) {
@@ -2020,13 +2027,14 @@ class GridFlowApp {
         <div id="emp-lista-wrapper" class="card" style="padding:0;overflow:hidden">
           <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid #f0f0f0">
             <div style="display:flex;align-items:center;gap:8px">
-              <span>🏢</span>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#718096" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="15" rx="1"/><path d="M16 3H8a1 1 0 0 0-1 1v3h10V4a1 1 0 0 0-1-1z"/></svg>
               <span style="font-weight:700;text-transform:uppercase;font-size:0.75rem;color:#718096;letter-spacing:.05em">Empresas Cadastradas</span>
             </div>
             <div style="display:flex;align-items:center;gap:10px">
               <button id="btn-excluir-selecionadas" class="btn btn-sm"
-                style="display:none;background:#fff5f5;border-color:#fed7d7;color:#c53030;font-size:0.78rem">
-                🗑 Excluir selecionadas (<span id="count-sel">0</span>)
+                style="display:none;background:#fff5f5;border-color:#fed7d7;color:#c53030;font-size:0.78rem;display:none;align-items:center;gap:5px">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                Excluir selecionadas (<span id="count-sel">0</span>)
               </button>
               <span id="emp-count" style="font-size:0.8rem;color:#718096">-- de ${empresas.length}</span>
             </div>
@@ -2141,8 +2149,9 @@ class GridFlowApp {
             </div>
 
             <div style="display:flex;gap:10px">
-              <button class="btn btn-primary" id="btn-salvar-empresa" style="padding:10px 24px">
-                🏢 <span id="btn-emp-txt">Criar Empresa</span>
+              <button class="btn btn-primary" id="btn-salvar-empresa" style="padding:10px 24px;display:flex;align-items:center;gap:6px">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="15" rx="1"/><path d="M16 3H8a1 1 0 0 0-1 1v3h10V4a1 1 0 0 0-1-1z"/></svg>
+                <span id="btn-emp-txt">Criar Empresa</span>
               </button>
               <button class="btn" id="btn-cancelar-empresa" style="padding:10px 24px">Cancelar</button>
             </div>
@@ -2166,9 +2175,13 @@ class GridFlowApp {
         <div style="font-size:0.8rem">${e.com_movimento ? '<span style="color:#27ae60">● Com mov.</span>' : '<span style="color:#a0aec0">○ Sem mov.</span>'}</div>
         <div style="display:flex;gap:4px">
           <button class="btn btn-sm btn-editar-emp" data-id="${e.id}"
-            style="padding:4px 8px;background:#fefcbf;border-color:#f6e05e;color:#744210" title="Editar">✏️</button>
+            style="padding:4px 8px;background:#fefcbf;border-color:#f6e05e;color:#744210;display:flex;align-items:center" title="Editar">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
           <button class="btn btn-sm btn-excluir-emp" data-id="${e.id}" data-nome="${e.nome.replace(/"/g,'')}"
-            style="padding:4px 8px;background:#fff5f5;border-color:#fed7d7;color:#c53030" title="Excluir">❌</button>
+            style="padding:4px 8px;background:#fff5f5;border-color:#fed7d7;color:#c53030;display:flex;align-items:center" title="Excluir">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </div>
       </div>`;
   }
@@ -3263,7 +3276,7 @@ class GridFlowApp {
     }
     return Object.entries(grupos).map(([grupo, atividades]) => `
       <div class="pdrop-grupo">${grupo.toUpperCase()}</div>
-      ${atividades.map(nome => `<div class="pdrop-item">⏳ ${nome}</div>`).join('')}
+      ${atividades.map(nome => `<div class="pdrop-item" style="display:flex;align-items:center;gap:4px"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ${nome}</div>`).join('')}
     `).join('');
   }
 
@@ -3444,10 +3457,10 @@ class GridFlowApp {
             </div>
           </div>
           <div class="collab-detalhe-stats">
-            <div class="summary-stat"><div class="summary-stat-icon">🏢</div><div class="summary-stat-value" style="color:#2d3748">${empresasToShow.length}</div><div class="summary-stat-label">Empresas</div></div>
-            <div class="summary-stat"><div class="summary-stat-icon">✅</div><div class="summary-stat-value" style="color:#27ae60">${completas}</div><div class="summary-stat-label">100%</div></div>
-            <div class="summary-stat summary-stat-blue"><div class="summary-stat-icon">📋</div><div class="summary-stat-value" style="color:#3498db">${col.concluidas}/${col.total_atividades}</div><div class="summary-stat-label">Feitas</div></div>
-            <div class="summary-stat summary-stat-pink"><div class="summary-stat-icon">📈</div><div class="summary-stat-value" style="color:${cor}">${col.pct}%</div><div class="summary-stat-label">Progresso</div></div>
+            <div class="summary-stat"><div class="summary-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4a5568" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="15" rx="1"/><path d="M16 3H8a1 1 0 0 0-1 1v3h10V4a1 1 0 0 0-1-1z"/></svg></div><div class="summary-stat-value" style="color:#2d3748">${empresasToShow.length}</div><div class="summary-stat-label">Empresas</div></div>
+            <div class="summary-stat"><div class="summary-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#27ae60" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><div class="summary-stat-value" style="color:#27ae60">${completas}</div><div class="summary-stat-label">100%</div></div>
+            <div class="summary-stat summary-stat-blue"><div class="summary-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3498db" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="4" rx="1"/><path d="M14 4h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h3"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg></div><div class="summary-stat-value" style="color:#3498db">${col.concluidas}/${col.total_atividades}</div><div class="summary-stat-label">Feitas</div></div>
+            <div class="summary-stat summary-stat-pink"><div class="summary-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${cor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></div><div class="summary-stat-value" style="color:${cor}">${col.pct}%</div><div class="summary-stat-label">Progresso</div></div>
           </div>
         </div>
         <div class="status-progress-label" style="margin-top:12px">Progresso (${col.pct}%)</div>
@@ -3597,10 +3610,10 @@ class GridFlowApp {
             </div>
           </div>
           <div class="collab-detalhe-stats">
-            <div class="summary-stat"><div class="summary-stat-icon">📋</div><div class="summary-stat-value" style="color:#2d3748">${empData.total}</div><div class="summary-stat-label">Total</div></div>
-            <div class="summary-stat"><div class="summary-stat-icon">✅</div><div class="summary-stat-value" style="color:#27ae60">${empData.ok}</div><div class="summary-stat-label">OK</div></div>
-            ${empData.nao_aplicavel > 0 ? `<div class="summary-stat"><div class="summary-stat-icon">—</div><div class="summary-stat-value" style="color:#718096">${empData.nao_aplicavel}</div><div class="summary-stat-label">N/A</div></div>` : ''}
-            <div class="summary-stat summary-stat-pink"><div class="summary-stat-icon">📈</div><div class="summary-stat-value" style="color:${cor}">${empData.pct}%</div><div class="summary-stat-label">${this.periodo}</div></div>
+            <div class="summary-stat"><div class="summary-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4a5568" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="4" rx="1"/><path d="M14 4h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h3"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg></div><div class="summary-stat-value" style="color:#2d3748">${empData.total}</div><div class="summary-stat-label">Total</div></div>
+            <div class="summary-stat"><div class="summary-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#27ae60" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><div class="summary-stat-value" style="color:#27ae60">${empData.ok}</div><div class="summary-stat-label">OK</div></div>
+            ${empData.nao_aplicavel > 0 ? `<div class="summary-stat"><div class="summary-stat-icon" style="font-size:1rem;color:#718096">—</div><div class="summary-stat-value" style="color:#718096">${empData.nao_aplicavel}</div><div class="summary-stat-label">N/A</div></div>` : ''}
+            <div class="summary-stat summary-stat-pink"><div class="summary-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="${cor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></div><div class="summary-stat-value" style="color:${cor}">${empData.pct}%</div><div class="summary-stat-label">${this.periodo}</div></div>
           </div>
         </div>
         <div class="status-progress-label" style="margin-top:12px">Progresso em ${this.periodo} (${empData.pct}%)</div>
@@ -3626,11 +3639,11 @@ class GridFlowApp {
 
     const pendentesHtml = empData.pendentes > 0 ? `
       <div class="card" style="margin-bottom:14px">
-        <div style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#e74c3c;margin-bottom:10px">⏳ Pendências em ${this.periodo}</div>
+        <div style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#e74c3c;margin-bottom:10px;display:flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Pendências em ${this.periodo}</div>
         ${this._renderPendentesDropdown(empData.pendentes_lista).replace(/class="pdrop-/g, 'class="pdrop-inline pdrop-')}
       </div>` : `
       <div class="card" style="margin-bottom:14px;text-align:center;padding:20px">
-        <div style="color:#27ae60;font-size:1.1rem;font-weight:700">✅ Tudo concluído em ${this.periodo}</div>
+        <div style="color:#27ae60;font-size:1.1rem;font-weight:700;display:flex;align-items:center;justify-content:center;gap:6px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#27ae60" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Tudo concluído em ${this.periodo}</div>
         <div style="color:#a0aec0;font-size:0.82rem;margin-top:4px">Todas as atividades estão OK ou N/A</div>
       </div>`;
 
@@ -3647,7 +3660,7 @@ class GridFlowApp {
         for (const p of lista) { const g = p.grupo || 'Geral'; (grupos[g] = grupos[g] || []).push(p.nome); }
         return Object.entries(grupos).map(([g, nomes]) =>
           `<div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#a0aec0;margin-top:6px;margin-bottom:2px">${g}</div>` +
-          nomes.map(n => `<div style="font-size:0.78rem;color:#4a5568;padding:2px 0">⏳ ${n}</div>`).join('')
+          nomes.map(n => `<div style="font-size:0.78rem;color:#4a5568;padding:2px 0;display:flex;align-items:center;gap:4px"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ${n}</div>`).join('')
         ).join('');
       };
 
@@ -3683,8 +3696,8 @@ class GridFlowApp {
                   <div style="display:flex;justify-content:space-between;align-items:center">
                     <span style="font-weight:700;color:${c};font-size:0.82rem">${m.pct}%</span>
                     ${clicavel
-                      ? `<span style="color:#e74c3c;font-size:0.7rem">⏳ ${m.pendentes} ▾</span>`
-                      : m.total > 0 ? '<span style="color:#27ae60;font-size:0.7rem">✅</span>' : ''}
+                      ? `<span style="color:#e74c3c;font-size:0.7rem;display:flex;align-items:center;gap:2px"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>${m.pendentes} ▾</span>`
+                      : m.total > 0 ? '<span style="color:#27ae60;font-size:0.7rem;display:flex;align-items:center"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#27ae60" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>' : ''}
                   </div>
                   ${clicavel ? `
                     <div class="mes-pend-detail" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid #e2e8f0">
@@ -3795,14 +3808,14 @@ class GridFlowApp {
     if (sumEl) sumEl.innerHTML = `
       <div class="card status-summary-card" style="margin-bottom:12px">
         <div class="status-summary-cards">
-          <div class="summary-stat"><div class="summary-stat-icon">🏢</div><div class="summary-stat-value" style="color:#2d3748">${lista.length}</div><div class="summary-stat-label">Empresas</div></div>
-          <div class="summary-stat summary-stat-blue"><div class="summary-stat-icon">✅</div><div class="summary-stat-value" style="color:#27ae60">${totalMesesOk}</div><div class="summary-stat-label">Meses 100%</div></div>
-          <div class="summary-stat"><div class="summary-stat-icon">⏳</div><div class="summary-stat-value" style="color:#e67e22">${totalMesesPend}</div><div class="summary-stat-label">Meses pendentes</div></div>
+          <div class="summary-stat"><div class="summary-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4a5568" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="15" rx="1"/><path d="M16 3H8a1 1 0 0 0-1 1v3h10V4a1 1 0 0 0-1-1z"/></svg></div><div class="summary-stat-value" style="color:#2d3748">${lista.length}</div><div class="summary-stat-label">Empresas</div></div>
+          <div class="summary-stat summary-stat-blue"><div class="summary-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#27ae60" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div><div class="summary-stat-value" style="color:#27ae60">${totalMesesOk}</div><div class="summary-stat-label">Meses 100%</div></div>
+          <div class="summary-stat"><div class="summary-stat-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e67e22" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div class="summary-stat-value" style="color:#e67e22">${totalMesesPend}</div><div class="summary-stat-label">Meses pendentes</div></div>
         </div>
       </div>`;
 
     if (!lista.length) {
-      el.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🏢</div><div class="empty-state-text">Nenhuma empresa encontrada</div></div>';
+      el.innerHTML = '<div class="empty-state"><div class="empty-state-icon"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#cbd5e0" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="15" rx="1"/><path d="M16 3H8a1 1 0 0 0-1 1v3h10V4a1 1 0 0 0-1-1z"/></svg></div><div class="empty-state-text">Nenhuma empresa encontrada</div></div>';
       return;
     }
 
@@ -3838,10 +3851,10 @@ class GridFlowApp {
             <div class="status-progress-fill" style="width:${pctAnual}%;background:${cor}"></div>
           </div>
           <div class="emp-card-badges">
-            <div class="badge-ok">✅ ${mesesOk} mes${mesesOk !== 1 ? 'es' : ''} OK</div>
+            <div class="badge-ok" style="display:flex;align-items:center;gap:4px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> ${mesesOk} mes${mesesOk !== 1 ? 'es' : ''} OK</div>
             ${mesesPendentes.length > 0 ? `
-              <div class="badge-pendente" data-dropid="${dropId}">
-                ⏳ ${mesesPend} mes${mesesPend !== 1 ? 'es' : ''} pendentes ▾
+              <div class="badge-pendente" data-dropid="${dropId}" style="display:flex;align-items:center;gap:4px">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ${mesesPend} mes${mesesPend !== 1 ? 'es' : ''} pendentes ▾
                 <div class="pendente-dropdown" id="${dropId}" style="min-width:240px">
                   ${mesesPendentes.map(({ per, m }) => {
                     const mesNome = nomeMes[per.split('/')[0]] || per;
@@ -3853,15 +3866,15 @@ class GridFlowApp {
                     }
                     return `
                       <div style="padding:6px 10px 2px;border-top:1px solid #edf2f7;margin-top:4px">
-                        <div style="font-size:0.7rem;font-weight:700;color:#3498db;margin-bottom:4px">📅 ${mesNome} — ${m.pendentes} pendente${m.pendentes !== 1 ? 's' : ''}</div>
+                        <div style="font-size:0.7rem;font-weight:700;color:#3498db;margin-bottom:4px;display:flex;align-items:center;gap:4px"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#3498db" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> ${mesNome} — ${m.pendentes} pendente${m.pendentes !== 1 ? 's' : ''}</div>
                         ${Object.entries(grupos).map(([g, ativs]) => `
                           <div class="pdrop-grupo">${g.toUpperCase()}</div>
-                          ${ativs.map(nome => `<div class="pdrop-item">⏳ ${nome}</div>`).join('')}
+                          ${ativs.map(nome => `<div class="pdrop-item" style="display:flex;align-items:center;gap:4px"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ${nome}</div>`).join('')}
                         `).join('')}
                       </div>`;
                   }).join('')}
                 </div>
-              </div>` : `<div class="badge-ok" style="background:#f0fff4;border-color:#9ae6b4;color:#22543d">✅ Tudo em dia</div>`}
+              </div>` : `<div class="badge-ok" style="background:#f0fff4;border-color:#9ae6b4;color:#22543d;display:flex;align-items:center;gap:4px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#22543d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Tudo em dia</div>`}
           </div>
         </div>`;
     }).join('')}</div>`;
@@ -4886,6 +4899,85 @@ class GridFlowApp {
       await this.api(`/api/emails-agendados/${id}`, { method: 'DELETE' });
       await this._carregarHistoricoEmails();
     } catch (err) { alert('Erro ao cancelar: ' + err.message); }
+  }
+
+  // ── Preenchimento rápido de período ───────────────────────────────────────
+
+  _initPeriodoContextMenu() {
+    const menu = document.getElementById('periodo-ctx-menu');
+    if (!menu) return;
+
+    document.getElementById('pcm-ok').addEventListener('click', () => {
+      menu.style.display = 'none';
+      if (this._pcmPeriodo) this.preencherPeriodoRapido(this._pcmPeriodo, 'OK');
+    });
+    document.getElementById('pcm-na').addEventListener('click', () => {
+      menu.style.display = 'none';
+      if (this._pcmPeriodo) this.preencherPeriodoRapido(this._pcmPeriodo, 'Não Aplicável');
+    });
+
+    document.addEventListener('click', e => {
+      if (menu.style.display !== 'none' && !menu.contains(e.target))
+        menu.style.display = 'none';
+    });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') menu.style.display = 'none';
+    });
+  }
+
+  _showPeriodoContextMenu(e, periodo) {
+    const menu = document.getElementById('periodo-ctx-menu');
+    if (!menu) return;
+
+    this._pcmPeriodo = periodo;
+    document.getElementById('pcm-label').textContent = periodo;
+
+    menu.style.display = 'block';
+    const x = Math.min(e.clientX, window.innerWidth - 230);
+    const y = Math.min(e.clientY, window.innerHeight - 120);
+    menu.style.left = Math.max(4, x) + 'px';
+    menu.style.top  = Math.max(4, y) + 'px';
+  }
+
+  async preencherPeriodoRapido(periodo, status) {
+    const empresa = this.empresaSelecionada;
+    if (!empresa) { alert('Selecione uma empresa primeiro.'); return; }
+
+    const statusLabel = status === 'OK' ? 'OK' : 'N/A';
+    if (!confirm(`Preencher todas as atividades de\n"${empresa.nome}"\nno período ${periodo} como ${statusLabel}?\n\nRegistros existentes serão substituídos.`)) return;
+
+    try {
+      const [atividades, historico] = await Promise.all([
+        this.api(`/api/empresas/${empresa.id}/atividades`),
+        this.api(`/api/historico?empresa_id=${empresa.id}&periodo=${encodeURIComponent(periodo)}`)
+      ]);
+
+      const habilitadas = atividades.filter(a => a.habilitada);
+      if (!habilitadas.length) { alert('Nenhuma atividade habilitada para esta empresa.'); return; }
+
+      const existente = {};
+      historico.forEach(h => { existente[h.atividade_id] = h; });
+
+      await Promise.all(habilitadas.map(async a => {
+        if (existente[a.atividade_id])
+          await this.api(`/api/historico/${existente[a.atividade_id].id}`, { method: 'DELETE' });
+        await this.api('/api/historico', {
+          method: 'POST',
+          body: JSON.stringify({
+            empresa_id: empresa.id, atividade_id: a.atividade_id,
+            periodo, usuario: this.usuario, status, observacao: '', anexos: []
+          })
+        });
+      }));
+
+      if (periodo === this.periodo)
+        await Promise.all([this.carregarAtividades(), this.carregarHistorico()]);
+
+      alert(`${habilitadas.length} atividade(s) marcada(s) como ${statusLabel} no período ${periodo}.`);
+    } catch (err) {
+      console.error(err);
+      alert('Erro ao preencher período: ' + err.message);
+    }
   }
 }
 

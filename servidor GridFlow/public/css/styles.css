@@ -1226,6 +1226,22 @@ body {
 }
 .btn-regime.active { background: #3498db; border-color: #3498db; color: #fff; }
 
+/* ── Context Menu Período ────────────────────────────────────────────────── */
+.pcm-btn {
+  width: 100%;
+  border: none;
+  background: none;
+  text-align: left;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: background .12s;
+}
+.pcm-btn:hover { background: #f8fafc; }
+
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
   .dashboard-grid { grid-template-columns: 1fr; }
