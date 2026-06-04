@@ -1083,14 +1083,14 @@ const server = http.createServer(async (req, res) => {
                                          try {
                                                const [rContas, rColabs, rEmpresas, rNotas] = await Promise.all([
                                                      sbFetch('contas?select=id,nome_empresa,tipo,plano,dominio,email_dono,criado_em&order=id.desc'),
-                                                     sbFetch('colaboradores?select=id,conta_id,nome,email,admin_conta,ativo&ativo=eq.1'),
-                                                     sbFetch('empresas?select=id,conta_id,razao_social,ativo&ativo=eq.true'),
+                                                     sbFetch('colaboradores?select=id,conta_id,nome,email,admin_conta&ativo=eq.1'),
+                                                     sbFetch('empresas?select=id,conta_id,razao_social&ativo=eq.1'),
                                                      sbFetch('notas?select=id,conta_id'),
                                                ]);
-                                               const contas  = rContas.body  || [];
-                                               const colabs  = rColabs.body  || [];
-                                               const emprs   = rEmpresas.body || [];
-                                               const notas   = rNotas.body   || [];
+                                               const contas  = Array.isArray(rContas.body)  ? rContas.body  : [];
+                                               const colabs  = Array.isArray(rColabs.body)  ? rColabs.body  : [];
+                                               const emprs   = Array.isArray(rEmpresas.body) ? rEmpresas.body : [];
+                                               const notas   = Array.isArray(rNotas.body)   ? rNotas.body   : [];
                                                return sendJson(res, 200, {
                                                      totais: {
                                                            contas:        contas.length,
