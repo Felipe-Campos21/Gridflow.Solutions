@@ -4229,17 +4229,20 @@ class GridFlowApp {
   _renderEmpresaDetalheNotas(emp, container) {
     const todasNotas = emp.notas;
 
-    // Paleta de cores por assunto
+    // Primeira palavra do assunto define a categoria visual
+    const catKey = (assunto) => assunto ? assunto.trim().split(/\s+/)[0] : '';
+
+    // Paleta de cores por categoria (primeira palavra)
     const paleta = [
       { border: '#f59e0b', bg: '#fffbeb' }, { border: '#3b82f6', bg: '#eff6ff' },
       { border: '#10b981', bg: '#f0fdf4' }, { border: '#8b5cf6', bg: '#faf5ff' },
       { border: '#ef4444', bg: '#fff1f2' }, { border: '#f97316', bg: '#fff7ed' },
       { border: '#06b6d4', bg: '#ecfeff' }, { border: '#84cc16', bg: '#f7fee7' },
     ];
-    const assuntosUnicos = [...new Set(todasNotas.map(n => n.assunto).filter(Boolean))].sort();
+    const categoriasUnicas = [...new Set(todasNotas.map(n => catKey(n.assunto)).filter(Boolean))].sort();
     const colorMap = {};
-    assuntosUnicos.forEach((a, i) => { colorMap[a] = paleta[i % paleta.length]; });
-    this._relAssuntoColors = colorMap;
+    categoriasUnicas.forEach((c, i) => { colorMap[c] = paleta[i % paleta.length]; });
+    this._relAssuntoColors = colorMap;  // keyed by catKey now
 
     // Stats por período
     const recentPeriods = (n) => {
@@ -4265,13 +4268,16 @@ class GridFlowApp {
     const avatarCores = ['#3498db','#27ae60','#e67e22','#9b59b6','#e74c3c','#1abc9c','#f39c12','#2980b9'];
     const avatarCor   = avatarCores[emp.id % avatarCores.length];
 
-    // Sidebar: assuntos e usuários
-    const cntAssunto = {}; todasNotas.forEach(n => { if (n.assunto) cntAssunto[n.assunto] = (cntAssunto[n.assunto]||0)+1; });
-    const topAssuntos = Object.entries(cntAssunto).sort((a,b)=>b[1]-a[1]).slice(0,5);
-    const maxA = topAssuntos[0]?.[1] || 1;
+    // Sidebar: categorias (agrupadas pela 1ª palavra) e usuários
+    const cntCat = {}; todasNotas.forEach(n => { const c = catKey(n.assunto); if (c) cntCat[c] = (cntCat[c]||0)+1; });
+    const topCats = Object.entries(cntCat).sort((a,b)=>b[1]-a[1]);
+    const maxA = topCats[0]?.[1] || 1;
 
     const cntUsuario = {}; todasNotas.forEach(n => { if (n.usuario) cntUsuario[n.usuario] = (cntUsuario[n.usuario]||0)+1; });
     const topUsuarios = Object.entries(cntUsuario).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+    // Estado do filtro por categoria (sidebar)
+    this._rldCategoria = '';
 
     // Filtros locais
     const periodos = [...new Set(todasNotas.map(n=>n.periodo).filter(Boolean))].sort((a,b)=>{
@@ -4279,7 +4285,7 @@ class GridFlowApp {
       return (yb-ya)||(mb-ma);
     });
     const usuarios = [...new Set(todasNotas.map(n=>n.usuario).filter(Boolean))].sort();
-    const assuntos = assuntosUnicos;
+    const assuntos = [...new Set(todasNotas.map(n=>n.assunto).filter(Boolean))].sort();
 
     container.innerHTML = `
       <!-- Breadcrumb -->
@@ -4360,23 +4366,26 @@ class GridFlowApp {
         </div>
 
         <div class="rel-detalhe-sidebar">
-          ${topAssuntos.length ? `
+          ${topCats.length ? `
           <div class="card" style="padding:14px">
-            <div style="font-size:0.8rem;font-weight:700;color:#1e293b;margin-bottom:10px">Assuntos mais frequentes</div>
-            <div style="display:flex;flex-direction:column;gap:9px">
-              ${topAssuntos.map(([assunto, count]) => {
-                const cor = (colorMap[assunto] || paleta[0]).border;
+            <div style="font-size:0.8rem;font-weight:700;color:#1e293b;margin-bottom:4px">Categorias</div>
+            <div style="font-size:0.7rem;color:#a0aec0;margin-bottom:10px">Clique para filtrar</div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              ${topCats.map(([cat, count]) => {
+                const cor = (colorMap[cat] || paleta[0]).border;
+                const bg  = (colorMap[cat] || paleta[0]).bg;
                 const pct = Math.round((count / maxA) * 100);
-                return `<div>
-                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
-                    <div style="display:flex;align-items:center;gap:5px;font-size:0.78rem;color:#374151;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="${cor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
-                      ${assunto}
+                return `<button class="rld-cat-item" data-cat="${cat}"
+                  style="width:100%;text-align:left;border:1.5px solid #f0f4f8;border-radius:8px;background:#fff;cursor:pointer;padding:8px 10px;transition:all .15s">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+                    <div style="display:flex;align-items:center;gap:6px;font-size:0.78rem;font-weight:600;color:#374151;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">
+                      <span style="width:10px;height:10px;border-radius:3px;background:${cor};flex-shrink:0;display:inline-block"></span>
+                      ${cat}
                     </div>
                     <span style="font-size:0.75rem;font-weight:700;color:#6b7280;flex-shrink:0;margin-left:6px">${count}</span>
                   </div>
                   <div style="height:4px;background:#f1f5f9;border-radius:2px"><div style="height:100%;width:${pct}%;background:${cor};border-radius:2px"></div></div>
-                </div>`;
+                </button>`;
               }).join('')}
             </div>
           </div>` : ''}
@@ -4410,16 +4419,18 @@ class GridFlowApp {
     let pagina = PER_PAGE;
 
     const renderLista = () => {
-      const search  = (document.getElementById('rld-search')?.value || '').toLowerCase();
-      const periodo = document.getElementById('rld-periodo')?.value || '';
-      const usuario = document.getElementById('rld-usuario')?.value || '';
-      const assunto = document.getElementById('rld-assunto')?.value || '';
+      const search    = (document.getElementById('rld-search')?.value || '').toLowerCase();
+      const periodo   = document.getElementById('rld-periodo')?.value || '';
+      const usuario   = document.getElementById('rld-usuario')?.value || '';
+      const assunto   = document.getElementById('rld-assunto')?.value || '';
+      const categoria = this._rldCategoria || '';
 
       const filtradas = todasNotas.filter(n =>
-        (!search  || (n.texto||'').toLowerCase().includes(search) || (n.assunto||'').toLowerCase().includes(search) || (n.usuario||'').toLowerCase().includes(search)) &&
-        (!periodo || n.periodo === periodo) &&
-        (!usuario || n.usuario === usuario) &&
-        (!assunto || n.assunto === assunto)
+        (!search    || (n.texto||'').toLowerCase().includes(search) || (n.assunto||'').toLowerCase().includes(search) || (n.usuario||'').toLowerCase().includes(search)) &&
+        (!periodo   || n.periodo === periodo) &&
+        (!usuario   || n.usuario === usuario) &&
+        (!assunto   || n.assunto === assunto) &&
+        (!categoria || catKey(n.assunto) === categoria)
       );
 
       const visiveis = filtradas.slice(0, pagina);
@@ -4440,12 +4451,33 @@ class GridFlowApp {
       if (maisDiv) maisDiv.style.display = filtradas.length > pagina ? '' : 'none';
     };
 
+    // Clique nas categorias da sidebar
+    container.querySelectorAll('.rld-cat-item').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const cat = btn.dataset.cat;
+        const isAtivo = this._rldCategoria === cat;
+        this._rldCategoria = isAtivo ? '' : cat;
+        container.querySelectorAll('.rld-cat-item').forEach(b => {
+          const c = b.dataset.cat;
+          const cor = (colorMap[c] || paleta[0]).border;
+          const bg  = (colorMap[c] || paleta[0]).bg;
+          const sel = this._rldCategoria === c;
+          b.style.borderColor = sel ? cor : '#f0f4f8';
+          b.style.background  = sel ? bg  : '#fff';
+        });
+        pagina = PER_PAGE;
+        renderLista();
+      });
+    });
+
     let st;
     document.getElementById('rld-search')?.addEventListener('input', () => { pagina = PER_PAGE; clearTimeout(st); st = setTimeout(renderLista, 200); });
     ['rld-periodo','rld-usuario','rld-assunto'].forEach(id =>
       document.getElementById(id)?.addEventListener('change', () => { pagina = PER_PAGE; renderLista(); }));
     document.getElementById('rld-limpar')?.addEventListener('click', () => {
-      ['rld-search','rld-periodo','rld-usuario','rld-assunto'].forEach(id => { const e = document.getElementById(id); if(e) e.value=''; });
+      ['rld-search','rld-periodo','rld-usuario','rld-assunto'].forEach(id => { const el = document.getElementById(id); if(el) el.value=''; });
+      this._rldCategoria = '';
+      container.querySelectorAll('.rld-cat-item').forEach(b => { b.style.borderColor='#f0f4f8'; b.style.background='#fff'; });
       pagina = PER_PAGE; renderLista();
     });
     document.getElementById('btn-rld-mais')?.addEventListener('click', () => { pagina += PER_PAGE; renderLista(); });
@@ -4454,10 +4486,11 @@ class GridFlowApp {
   }
 
   _relNotaCardNovo(n) {
-    const data   = n.atualizado_em || n.criado_em || '';
+    const data    = n.atualizado_em || n.criado_em || '';
     const dataFmt = data ? data.slice(0,16).replace('T',' ') : '—';
-    const cores  = (this._relAssuntoColors || {})[n.assunto] || { border: '#3498db', bg: '#eff6ff' };
-    const id     = n.id;
+    const cat     = n.assunto ? n.assunto.trim().split(/\s+/)[0] : '';
+    const cores   = (this._relAssuntoColors || {})[cat] || { border: '#3498db', bg: '#eff6ff' };
+    const id      = n.id;
     return `
       <div class="rel-nota-card" data-nota-id="${id}" style="display:flex;border-bottom:1px solid #f0f4f8">
         <div style="width:4px;background:${cores.border};flex-shrink:0"></div>
