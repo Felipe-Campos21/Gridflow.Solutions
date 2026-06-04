@@ -360,7 +360,8 @@ function serveFile(res, filePath) {
           if (err) { res.writeHead(404); res.end('Not found'); return; }
           const ext = path.extname(filePath).toLowerCase();
           const types = {
-                  '.html':'text/html', '.js':'application/javascript', '.css':'text/css',
+                  '.html':'text/html; charset=utf-8', '.js':'application/javascript; charset=utf-8',
+                  '.css':'text/css; charset=utf-8',
                   '.json':'application/json', '.png':'image/png', '.jpg':'image/jpeg',
                   '.ico':'image/x-icon', '.svg':'image/svg+xml'
           };
