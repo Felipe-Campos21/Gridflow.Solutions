@@ -192,14 +192,24 @@ class GridFlowApp {
   renderPeriodoDropdown() {
     const dropdown = document.getElementById('periodo-dropdown');
     const anos = [...this._anos].sort((a, b) => b - a);
+    const sel  = this._periodosSelecionados || new Set();
+    const nSel = sel.size;
 
     dropdown.innerHTML = `
       <div style="padding:7px 12px 6px;border-bottom:1px solid #edf2f7;display:flex;align-items:center;justify-content:space-between">
         <span style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#a0aec0">Exercício</span>
-        <button id="btn-add-ano" title="Adicionar ano"
-          style="background:#ebf8ff;border:1px solid #bee3f8;color:#2b6cb0;border-radius:6px;padding:1px 9px;font-size:0.76rem;font-weight:700;cursor:pointer;line-height:1.6">+ Ano</button>
+        <div style="display:flex;align-items:center;gap:6px">
+          ${nSel > 0 ? `<span style="font-size:0.7rem;font-weight:700;color:#3498db;background:#ebf8ff;padding:1px 7px;border-radius:8px">${nSel} sel.</span>` : ''}
+          <button id="btn-add-ano" title="Adicionar ano"
+            style="background:#ebf8ff;border:1px solid #bee3f8;color:#2b6cb0;border-radius:6px;padding:1px 9px;font-size:0.76rem;font-weight:700;cursor:pointer;line-height:1.6">+ Ano</button>
+        </div>
       </div>
-      <div style="max-height:340px;overflow-y:auto">
+      ${nSel > 0 ? `<div style="padding:4px 12px;font-size:0.7rem;color:#718096;background:#f7fafc;border-bottom:1px solid #edf2f7">
+        Shift+clique: intervalo · Ctrl+clique: individual · Botão direito: preencher
+      </div>` : `<div style="padding:4px 12px;font-size:0.7rem;color:#b0bac9;background:#f7fafc;border-bottom:1px solid #edf2f7">
+        Ctrl+clique: selecionar · Shift+clique: intervalo · Botão direito: preencher
+      </div>`}
+      <div style="max-height:320px;overflow-y:auto">
         ${anos.map(ano => {
           const ativo = this._anoAtivo === ano;
           return `
@@ -213,13 +223,19 @@ class GridFlowApp {
             </div>
             ${ativo ? `
             <div>
-              ${this._periodosPorAno(ano).map(p => `
-                <div class="dropdown-item ${p === this.periodo ? 'active' : ''}"
+              ${this._periodosPorAno(ano).map(p => {
+                const isSel   = sel.has(p);
+                const isAtivo = p === this.periodo;
+                return `
+                <div class="dropdown-item ${isAtivo ? 'active' : ''} ${isSel ? 'selecionado' : ''}"
                   style="display:flex;align-items:center;gap:8px;cursor:pointer;padding-left:22px"
                   data-value="${p}">
                   <span style="flex:1">${p}</span>
-                  ${p === this.periodo ? '<span style="width:7px;height:7px;border-radius:50%;background:#3498db;flex-shrink:0"></span>' : ''}
-                </div>`).join('')}
+                  ${isSel ? '<span class="periodo-check">✓</span>'
+                           : isAtivo ? '<span style="width:7px;height:7px;border-radius:50%;background:#3498db;flex-shrink:0"></span>'
+                           : ''}
+                </div>`;
+              }).join('')}
             </div>` : ''}
           </div>`;
         }).join('')}
@@ -228,8 +244,38 @@ class GridFlowApp {
     document.getElementById('periodo-display').textContent = this.periodo;
 
     dropdown.querySelectorAll('.dropdown-item[data-value]').forEach(item => {
-      item.addEventListener('click', () => {
-        this.periodo = item.dataset.value;
+      item.addEventListener('click', e => {
+        const p = item.dataset.value;
+
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!this._periodosSelecionados) this._periodosSelecionados = new Set();
+          if (this._periodosSelecionados.has(p)) this._periodosSelecionados.delete(p);
+          else { this._periodosSelecionados.add(p); this._ultimoPeriodoClicado = p; }
+          this.renderPeriodoDropdown();
+          return;
+        }
+
+        if (e.shiftKey && this._ultimoPeriodoClicado) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!this._periodosSelecionados) this._periodosSelecionados = new Set();
+          const all = [...this._anos].sort((a, b) => b - a).flatMap(a => this._periodosPorAno(a));
+          const i1  = all.indexOf(this._ultimoPeriodoClicado);
+          const i2  = all.indexOf(p);
+          if (i1 !== -1 && i2 !== -1) {
+            const [from, to] = i1 < i2 ? [i1, i2] : [i2, i1];
+            for (let i = from; i <= to; i++) this._periodosSelecionados.add(all[i]);
+          }
+          this.renderPeriodoDropdown();
+          return;
+        }
+
+        // clique normal: limpa seleção e muda período
+        if (this._periodosSelecionados) this._periodosSelecionados.clear();
+        this._ultimoPeriodoClicado = p;
+        this.periodo = p;
         localStorage.setItem('gridflow_periodo', this.periodo);
         document.getElementById('periodo-display').textContent = this.periodo;
         dropdown.classList.remove('show');
@@ -4909,11 +4955,11 @@ class GridFlowApp {
 
     document.getElementById('pcm-ok').addEventListener('click', () => {
       menu.style.display = 'none';
-      if (this._pcmPeriodo) this.preencherPeriodoRapido(this._pcmPeriodo, 'OK');
+      if (this._pcmPeriodos?.length) this.preencherPeriodoRapido(this._pcmPeriodos, 'OK');
     });
     document.getElementById('pcm-na').addEventListener('click', () => {
       menu.style.display = 'none';
-      if (this._pcmPeriodo) this.preencherPeriodoRapido(this._pcmPeriodo, 'Não Aplicável');
+      if (this._pcmPeriodos?.length) this.preencherPeriodoRapido(this._pcmPeriodos, 'Não Aplicável');
     });
 
     document.addEventListener('click', e => {
@@ -4929,54 +4975,102 @@ class GridFlowApp {
     const menu = document.getElementById('periodo-ctx-menu');
     if (!menu) return;
 
-    this._pcmPeriodo = periodo;
-    document.getElementById('pcm-label').textContent = periodo;
+    // Usa seleção múltipla se houver; caso contrário usa apenas o período clicado
+    const sel = this._periodosSelecionados;
+    this._pcmPeriodos = (sel?.size > 0) ? [...sel] : [periodo];
+
+    const label = this._pcmPeriodos.length > 1
+      ? `${this._pcmPeriodos.length} períodos selecionados`
+      : periodo;
+    document.getElementById('pcm-label').textContent = label;
+
+    // Monta botões de filtro de prazo a partir dos grupos carregados
+    const cfg    = this._carregarGruposConfig ? this._carregarGruposConfig() : {};
+    const grupos = this._checklistGrupos || {};
+    const prazos = [...new Set(Object.keys(grupos).map(g => cfg[g]?.prazo || '').filter(Boolean))].sort();
+
+    const btnsEl = document.getElementById('pcm-prazo-btns');
+    this._pcmPrazo = this._pcmPrazo ?? '';
+    const opcoes  = ['', ...prazos];
+
+    btnsEl.innerHTML = opcoes.map(p =>
+      `<button class="pcm-prazo-btn ${this._pcmPrazo === p ? 'ativo' : ''}" data-prazo="${p}">${p || 'Todos'}</button>`
+    ).join('');
+    btnsEl.querySelectorAll('.pcm-prazo-btn').forEach(btn => {
+      btn.addEventListener('click', ev => {
+        ev.stopPropagation();
+        this._pcmPrazo = btn.dataset.prazo;
+        btnsEl.querySelectorAll('.pcm-prazo-btn').forEach(b => b.classList.remove('ativo'));
+        btn.classList.add('ativo');
+      });
+    });
+
+    document.getElementById('pcm-prazo-section').style.display = prazos.length ? '' : 'none';
 
     menu.style.display = 'block';
-    const x = Math.min(e.clientX, window.innerWidth - 230);
-    const y = Math.min(e.clientY, window.innerHeight - 120);
+    const x = Math.min(e.clientX, window.innerWidth - 240);
+    const y = Math.min(e.clientY, window.innerHeight - 180);
     menu.style.left = Math.max(4, x) + 'px';
     menu.style.top  = Math.max(4, y) + 'px';
   }
 
-  async preencherPeriodoRapido(periodo, status) {
+  async preencherPeriodoRapido(periodos, status) {
     const empresa = this.empresaSelecionada;
     if (!empresa) { alert('Selecione uma empresa primeiro.'); return; }
 
-    const statusLabel = status === 'OK' ? 'OK' : 'N/A';
-    if (!confirm(`Preencher todas as atividades de\n"${empresa.nome}"\nno período ${periodo} como ${statusLabel}?\n\nRegistros existentes serão substituídos.`)) return;
+    const statusLabel  = status === 'OK' ? 'OK' : 'N/A';
+    const prazo        = this._pcmPrazo || '';
+    const prazoLabel   = prazo ? ` [${prazo}]` : '';
+    const periodoLabel = periodos.length === 1 ? periodos[0] : `${periodos.length} períodos`;
+
+    if (!confirm(`Preencher atividades${prazoLabel} de\n"${empresa.nome}"\nem ${periodoLabel} como ${statusLabel}?\n\nRegistros existentes serão substituídos.`)) return;
 
     try {
-      const [atividades, historico] = await Promise.all([
-        this.api(`/api/empresas/${empresa.id}/atividades`),
-        this.api(`/api/historico?empresa_id=${empresa.id}&periodo=${encodeURIComponent(periodo)}`)
-      ]);
+      const cfg       = this._carregarGruposConfig ? this._carregarGruposConfig() : {};
+      const atividades = await this.api(`/api/empresas/${empresa.id}/atividades`);
+      const habilitadas = atividades.filter(a => {
+        if (!a.habilitada) return false;
+        if (!prazo) return true;
+        return (cfg[a.grupo || 'Geral']?.prazo || '') === prazo;
+      });
 
-      const habilitadas = atividades.filter(a => a.habilitada);
-      if (!habilitadas.length) { alert('Nenhuma atividade habilitada para esta empresa.'); return; }
+      if (!habilitadas.length) {
+        alert(`Nenhuma atividade${prazo ? ` "${prazo}"` : ''} habilitada para esta empresa.`);
+        return;
+      }
 
-      const existente = {};
-      historico.forEach(h => { existente[h.atividade_id] = h; });
+      let total = 0;
+      for (const periodo of periodos) {
+        const historico  = await this.api(`/api/historico?empresa_id=${empresa.id}&periodo=${encodeURIComponent(periodo)}`);
+        const existente  = {};
+        historico.forEach(h => { existente[h.atividade_id] = h; });
 
-      await Promise.all(habilitadas.map(async a => {
-        if (existente[a.atividade_id])
-          await this.api(`/api/historico/${existente[a.atividade_id].id}`, { method: 'DELETE' });
-        await this.api('/api/historico', {
-          method: 'POST',
-          body: JSON.stringify({
-            empresa_id: empresa.id, atividade_id: a.atividade_id,
-            periodo, usuario: this.usuario, status, observacao: '', anexos: []
-          })
-        });
-      }));
+        await Promise.all(habilitadas.map(async a => {
+          if (existente[a.atividade_id])
+            await this.api(`/api/historico/${existente[a.atividade_id].id}`, { method: 'DELETE' });
+          await this.api('/api/historico', {
+            method: 'POST',
+            body: JSON.stringify({
+              empresa_id: empresa.id, atividade_id: a.atividade_id,
+              periodo, usuario: this.usuario, status, observacao: '', anexos: []
+            })
+          });
+        }));
+        total += habilitadas.length;
+      }
 
-      if (periodo === this.periodo)
+      // Limpa a seleção após preencher
+      if (this._periodosSelecionados) this._periodosSelecionados.clear();
+
+      if (periodos.includes(this.periodo))
         await Promise.all([this.carregarAtividades(), this.carregarHistorico()]);
+      else
+        this.renderPeriodoDropdown();
 
-      alert(`${habilitadas.length} atividade(s) marcada(s) como ${statusLabel} no período ${periodo}.`);
+      alert(`${total} marcação(ões) como ${statusLabel} em ${periodoLabel}.`);
     } catch (err) {
       console.error(err);
-      alert('Erro ao preencher período: ' + err.message);
+      alert('Erro ao preencher: ' + err.message);
     }
   }
 }

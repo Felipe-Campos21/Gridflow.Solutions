@@ -1242,6 +1242,31 @@ body {
 }
 .pcm-btn:hover { background: #f8fafc; }
 
+.pcm-prazo-btn {
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  font-size: 0.73rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: #4a5568;
+  transition: all .12s;
+  white-space: nowrap;
+}
+.pcm-prazo-btn:hover { background: #edf2f7; border-color: #cbd5e0; }
+.pcm-prazo-btn.ativo { background: #3498db; border-color: #3498db; color: #fff; }
+
+.dropdown-item.selecionado {
+  background: #ebf8ff !important;
+  color: #2b6cb0;
+}
+.dropdown-item.selecionado .periodo-check {
+  color: #3498db;
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
   .dashboard-grid { grid-template-columns: 1fr; }
