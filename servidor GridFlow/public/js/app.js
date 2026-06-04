@@ -34,13 +34,20 @@ class GridFlowApp {
       return;
     }
     const user = JSON.parse(savedUser);
-    this.usuario    = user.nome;
+    this.usuario      = user.nome;
+    this.usuarioEmail = (user.email || '').toLowerCase();
     this.contaId    = user.conta_id || null;
     try { this._empresasFixadas = JSON.parse(localStorage.getItem('gridflow_fixadas_' + (user.conta_id || 'default')) || '[]'); } catch { this._empresasFixadas = []; }
     this.colaborador = { id: user.id, nome: user.nome, admin: user.admin, setor: user.setor || '' };
     document.getElementById('current-user').textContent = user.nome;
     // Avatar provisório com inicial — será substituído com foto ao carregar colaboradores
     document.getElementById('user-avatar').textContent = user.nome.charAt(0).toUpperCase();
+
+    // Atalho ADM visível só para o dono do sistema
+    if (this.usuarioEmail === 'luizfelipedemc@gmail.com') {
+      document.getElementById('nav-adm').style.display = '';
+      document.getElementById('nav-adm-divider').style.display = '';
+    }
 
     this.configurarEventos();
     await this.carregarPeriodos();
@@ -358,6 +365,8 @@ class GridFlowApp {
     });
     document.querySelectorAll('.nav-item').forEach(item =>
       item.addEventListener('click', () => { if (item.dataset.tab) this.mudarTab(item.dataset.tab); }));
+
+    document.getElementById('nav-adm')?.addEventListener('click', () => this._abrirControleAdm());
 
     this._initPeriodoContextMenu();
   }
@@ -5467,6 +5476,21 @@ class GridFlowApp {
       await this.api(`/api/emails-agendados/${id}`, { method: 'DELETE' });
       await this._carregarHistoricoEmails();
     } catch (err) { alert('Erro ao cancelar: ' + err.message); }
+  }
+
+  // ── Controle ADM ──────────────────────────────────────────────────────────
+  async _abrirControleAdm() {
+    try {
+      const r = await this.api('/api/admin/auto-token', {
+        method: 'POST',
+        body: JSON.stringify({ email: this.usuarioEmail })
+      });
+      if (r.token) {
+        sessionStorage.setItem('adm_token', r.token);
+        sessionStorage.setItem('adm_email', this.usuarioEmail);
+      }
+    } catch {}
+    window.open('/controle.adm', '_blank');
   }
 
   // ── Preenchimento rápido de período ───────────────────────────────────────

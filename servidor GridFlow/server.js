@@ -1057,6 +1057,15 @@ const server = http.createServer(async (req, res) => {
                                    const ADMIN_EMAIL = 'luizfelipedemc@gmail.com';
                                    const ADMIN_SENHA = process.env.ADMIN_SENHA || '';
 
+                                   if (pathname === '/api/admin/auto-token' && method === 'POST') {
+                                         try {
+                                               const body = await readBody(req);
+                                               if (!ADMIN_SENHA || body.email !== ADMIN_EMAIL)
+                                                     return sendJson(res, 403, { erro: 'Acesso negado' });
+                                               return sendJson(res, 200, { token: ADMIN_SENHA });
+                                         } catch (e) { return sendJson(res, 500, { erro: e.message }); }
+                                   }
+
                                    if (pathname === '/api/admin/login' && method === 'POST') {
                                          try {
                                                const body = await readBody(req);
