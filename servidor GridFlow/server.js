@@ -1242,6 +1242,13 @@ const server = http.createServer(async (req, res) => {
                                    // ================================================================
                                    // Arquivo estático / 404
                                    // ================================================================
+                                   // URLs limpas
+                                   const urlMap = { '/login': 'login.html', '/logado': 'index.html' };
+                                   if (urlMap[pathname]) return serveFile(res, path.join(PUBLIC, urlMap[pathname]));
+                                   // Redireciona URLs antigas para limpas
+                                   if (pathname === '/login.html') { res.writeHead(301, { Location: '/login' }); res.end(); return; }
+                                   if (pathname === '/index.html') { res.writeHead(301, { Location: '/logado' }); res.end(); return; }
+
                                    let arquivo = path.join(PUBLIC, pathname === '/' ? 'login.html' : pathname);
     if (fs.existsSync(arquivo) && fs.statSync(arquivo).isDirectory()) arquivo = path.join(arquivo, 'index.html');
     if (fs.existsSync(arquivo)) return serveFile(res, arquivo);

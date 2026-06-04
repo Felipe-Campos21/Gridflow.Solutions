@@ -30,7 +30,7 @@ class GridFlowApp {
     // Verificar login salvo — redireciona para login.html se não houver
     const savedUser = localStorage.getItem('gridflow_user');
     if (!savedUser) {
-      window.location.replace('login.html');
+      window.location.replace('/login');
       return;
     }
     const user = JSON.parse(savedUser);
@@ -135,7 +135,7 @@ class GridFlowApp {
   closeUserModal() { document.getElementById('user-modal').classList.remove('show'); }
   logout() {
     localStorage.removeItem('gridflow_user');
-    window.location.replace('login.html');
+    window.location.replace('/login');
   }
 
   // ── Períodos ──────────────────────────────────────────────────────────────

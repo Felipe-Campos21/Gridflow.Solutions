@@ -1,7 +1,7 @@
 // Redireciona se já há usuário salvo
 const saved = localStorage.getItem('gridflow_user');
 if (saved) {
-  window.location.replace('index.html');
+  window.location.replace('/logado');
 }
 
 const API = CONFIG.API_URL;
@@ -144,7 +144,7 @@ document.getElementById('btn-entrar').addEventListener('click', async () => {
         if (data.historico) localStorage.setItem('gridflow_historico', JSON.stringify(data.historico));
       }
       
-      window.location.replace('index.html');
+      window.location.replace('/logado');
     }
   } catch {
     showError('Erro ao conectar ao servidor');
