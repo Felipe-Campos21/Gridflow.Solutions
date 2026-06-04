@@ -257,12 +257,16 @@ class GridFlowApp {
           return;
         }
 
-        if (e.shiftKey && this._ultimoPeriodoClicado) {
+        if (e.shiftKey) {
           e.preventDefault();
           e.stopPropagation();
           if (!this._periodosSelecionados) this._periodosSelecionados = new Set();
+          // Se nenhuma seleção iniciada, ancora no período que está sendo visualizado
+          const anchor = this._periodosSelecionados.size === 0
+            ? this.periodo
+            : (this._ultimoPeriodoClicado || this.periodo);
           const all = [...this._anos].sort((a, b) => b - a).flatMap(a => this._periodosPorAno(a));
-          const i1  = all.indexOf(this._ultimoPeriodoClicado);
+          const i1  = all.indexOf(anchor);
           const i2  = all.indexOf(p);
           if (i1 !== -1 && i2 !== -1) {
             const [from, to] = i1 < i2 ? [i1, i2] : [i2, i1];
