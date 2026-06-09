@@ -855,11 +855,19 @@ class GridFlowApp {
       }
 
       // Atividades Anuais: buscar histórico de qualquer mês do ano corrente
-      const idsAnuais = new Set(
-        Object.keys(grupos)
-          .filter(g => cfg[g]?.prazo === 'Anual')
-          .flatMap(g => grupos[g].map(a => a.atividade_id))
-      );
+      // Considera exceções de prazo por regime tributário da empresa
+      const regimesCfg  = this._carregarAtividadeRegimes();
+      const empRegime   = this.empresaSelecionada?.regime_tributario || '';
+      const idsAnuais   = new Set();
+      Object.entries(grupos).forEach(([g, atvs]) => {
+        const prazoGrupo = cfg[g]?.prazo || '';
+        atvs.forEach(a => {
+          const excecoes   = regimesCfg[String(a.atividade_id)] || [];
+          const excecao    = excecoes.find(ex => ex.regime === empRegime);
+          const prazoFinal = excecao ? excecao.prazo : prazoGrupo;
+          if (prazoFinal === 'Anual') idsAnuais.add(a.atividade_id);
+        });
+      });
       if (idsAnuais.size > 0) {
         const ano = this.periodo ? this.periodo.split('/')[1] : String(new Date().getFullYear());
         try {
@@ -1726,11 +1734,59 @@ class GridFlowApp {
   _salvarGruposConfig(cfg) {
     localStorage.setItem('gridflow_grupos_' + (this.contaId || 'default'), JSON.stringify(cfg));
   }
+  _carregarAtividadeRegimes() {
+    try { return JSON.parse(localStorage.getItem('gridflow_atv_regimes_' + (this.contaId || 'default')) || '{}'); } catch { return {}; }
+  }
+  _salvarAtividadeRegimes(cfg) {
+    localStorage.setItem('gridflow_atv_regimes_' + (this.contaId || 'default'), JSON.stringify(cfg));
+  }
   _getSetoresPersonalizados() {
     try { return JSON.parse(localStorage.getItem('gridflow_setores_' + (this.contaId || 'default')) || '[]'); } catch { return []; }
   }
   _saveSetoresPersonalizados(lista) {
     localStorage.setItem('gridflow_setores_' + (this.contaId || 'default'), JSON.stringify(lista));
+  }
+
+  _renderAtvExcecoes(excecoes) {
+    const lista = document.getElementById('atv-excecoes-lista');
+    if (!lista) return;
+    const _PRAZOS = ['Mensal','Trimestral','Semestral','Anual','Eventual'];
+    if (!excecoes || !excecoes.length) {
+      lista.innerHTML = '<div style="font-size:0.76rem;color:#a0aec0">Nenhuma exceção cadastrada</div>';
+      return;
+    }
+    lista.innerHTML = excecoes.map((ex, i) => `
+      <div class="atv-excecao-row" style="display:flex;align-items:center;gap:5px">
+        <select class="excecao-regime-sel" data-idx="${i}"
+          style="flex:1;padding:5px 7px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.78rem;color:#4a5568;background:#fff">
+          ${this._REGIMES.map(r => `<option value="${r}"${r === ex.regime ? ' selected' : ''}>${r}</option>`).join('')}
+        </select>
+        <span style="color:#a0aec0;font-size:0.75rem;flex-shrink:0">→</span>
+        <select class="excecao-prazo-sel" data-idx="${i}"
+          style="flex:1;padding:5px 7px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.78rem;color:#4a5568;background:#fff">
+          ${_PRAZOS.map(p => `<option value="${p}"${p === ex.prazo ? ' selected' : ''}>${p}</option>`).join('')}
+        </select>
+        <button class="btn-rm-excecao" data-idx="${i}" type="button"
+          style="background:none;border:none;color:#fc8181;cursor:pointer;font-size:1.1rem;padding:0 3px;line-height:1;flex-shrink:0">×</button>
+      </div>`).join('');
+
+    lista.querySelectorAll('.btn-rm-excecao').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        this._atvExcecoesTemp.splice(parseInt(btn.dataset.idx), 1);
+        this._renderAtvExcecoes(this._atvExcecoesTemp);
+      });
+    });
+    lista.querySelectorAll('.excecao-regime-sel,.excecao-prazo-sel').forEach(sel => {
+      sel.addEventListener('change', () => {
+        const idx = parseInt(sel.dataset.idx);
+        const row = lista.querySelectorAll('.atv-excecao-row')[idx];
+        this._atvExcecoesTemp[idx] = {
+          regime: row.querySelector('.excecao-regime-sel').value,
+          prazo:  row.querySelector('.excecao-prazo-sel').value,
+        };
+      });
+    });
   }
 
   async renderAtividades() {
@@ -1912,6 +1968,16 @@ class GridFlowApp {
               <textarea id="atv-descricao" rows="3" placeholder="Ex: Conciliar os extratos bancários com o razão contábil do mês..."
                 style="width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;resize:vertical;font-family:inherit;box-sizing:border-box"></textarea>
             </div>
+            <div style="margin-bottom:20px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f8fafc;border-bottom:1px solid #e2e8f0">
+                <span style="font-size:0.78rem;font-weight:700;color:#4a5568">Prazo por Regime <span style="color:#a0aec0;font-weight:400">(opcional)</span></span>
+                <button id="btn-add-excecao-regime" type="button"
+                  style="font-size:0.72rem;color:#3498db;background:none;border:none;cursor:pointer;font-weight:700;padding:0">+ Adicionar</button>
+              </div>
+              <div id="atv-excecoes-lista" style="padding:8px 12px;display:flex;flex-direction:column;gap:6px;min-height:32px">
+                <div style="font-size:0.76rem;color:#a0aec0">Nenhuma exceção cadastrada</div>
+              </div>
+            </div>
             <div style="display:flex;gap:8px">
               <button class="btn btn-primary" id="btn-salvar-atv" style="display:flex;align-items:center;justify-content:center;gap:6px;flex:1;padding:10px">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
@@ -2081,6 +2147,8 @@ class GridFlowApp {
       document.getElementById('atv-descricao').value = '';
       document.getElementById('atv-form-titulo').textContent = 'Nova Atividade';
       document.getElementById('atv-nome').focus();
+      this._atvExcecoesTemp = [];
+      this._renderAtvExcecoes([]);
     };
 
     document.getElementById('btn-nova-atv')?.addEventListener('click', limparForm);
@@ -2094,10 +2162,20 @@ class GridFlowApp {
       const descricao = document.getElementById('atv-descricao').value.trim() || null;
       if (!nome) { alert('Nome da atividade é obrigatório'); return; }
       try {
+        let savedId = id;
         if (id) {
           await this.api(`/api/atividades/${id}`, { method: 'PUT', body: JSON.stringify({ nome, grupo, descricao }) });
         } else {
-          await this.api('/api/atividades', { method: 'POST', body: JSON.stringify({ nome, grupo, descricao }) });
+          const nova = await this.api('/api/atividades', { method: 'POST', body: JSON.stringify({ nome, grupo, descricao }) });
+          savedId = nova?.id ? String(nova.id) : null;
+        }
+        // Persiste exceções de regime para esta atividade
+        if (savedId) {
+          const regimesCfg = this._carregarAtividadeRegimes();
+          const excecoes = (this._atvExcecoesTemp || []).filter(ex => ex.regime && ex.prazo);
+          if (excecoes.length) regimesCfg[savedId] = excecoes;
+          else delete regimesCfg[savedId];
+          this._salvarAtividadeRegimes(regimesCfg);
         }
         // Herda setor do contexto atual para o grupo (se novo grupo ou sem setor)
         if (this._atvSetor && this._atvSetor !== '__sem_setor__') {
@@ -2111,7 +2189,7 @@ class GridFlowApp {
       } catch (e) { alert('Erro ao salvar: ' + e.message); }
     });
 
-    // Editar — preenche o formulário
+    // Editar — preenche o formulário e carrega exceções de regime
     document.querySelectorAll('.btn-editar-atv').forEach(btn => {
       btn.addEventListener('click', () => {
         document.getElementById('atv-id').value = btn.dataset.id;
@@ -2120,7 +2198,18 @@ class GridFlowApp {
         document.getElementById('atv-descricao').value = btn.dataset.descricao || '';
         document.getElementById('atv-form-titulo').textContent = 'Editar Atividade';
         document.getElementById('atv-nome').focus();
+        const regimesCfg = this._carregarAtividadeRegimes();
+        this._atvExcecoesTemp = [...(regimesCfg[btn.dataset.id] || [])];
+        this._renderAtvExcecoes(this._atvExcecoesTemp);
       });
+    });
+
+    // Botão "+ Adicionar" exceção de regime
+    document.getElementById('btn-add-excecao-regime')?.addEventListener('click', e => {
+      e.stopPropagation();
+      if (!this._atvExcecoesTemp) this._atvExcecoesTemp = [];
+      this._atvExcecoesTemp.push({ regime: this._REGIMES[0], prazo: 'Mensal' });
+      this._renderAtvExcecoes(this._atvExcecoesTemp);
     });
 
     // Excluir atividade individual
@@ -5508,6 +5597,35 @@ class GridFlowApp {
       if (this._pcmPeriodos?.length) this.preencherPeriodoRapido(this._pcmPeriodos, 'Não Aplicável');
     });
 
+    // Alternância de abas: Tipo / Grupo / Atividade
+    menu.querySelectorAll('.pcm-tab').forEach(tab => {
+      tab.addEventListener('click', e => {
+        e.stopPropagation();
+        const nome = tab.dataset.pcmTab;
+        this._pcmTabAtiva = nome;
+        if (nome !== 'tipo')       this._pcmPrazo = '';
+        if (nome !== 'grupo')      this._pcmGrupo = '';
+        if (nome !== 'atividade')  this._pcmAtividadeNome = '';
+        menu.querySelectorAll('.pcm-tab').forEach(t => {
+          const ativo = t.dataset.pcmTab === nome;
+          t.style.background = ativo ? '#ebf8ff' : '#fff';
+          t.style.color      = ativo ? '#2b6cb0' : '#718096';
+        });
+        document.getElementById('pcm-prazo-section').style.display  = nome === 'tipo'      ? '' : 'none';
+        document.getElementById('pcm-grupo-section').style.display  = nome === 'grupo'     ? '' : 'none';
+        document.getElementById('pcm-atv-section').style.display    = nome === 'atividade' ? '' : 'none';
+      });
+    });
+
+    document.getElementById('pcm-grupo-select').addEventListener('change', e => {
+      e.stopPropagation();
+      this._pcmGrupo = e.target.value;
+    });
+    const atvInput = document.getElementById('pcm-atv-input');
+    atvInput.addEventListener('input',  e => { this._pcmAtividadeNome = e.target.value; });
+    atvInput.addEventListener('click',  e => e.stopPropagation());
+    atvInput.addEventListener('keydown', e => e.stopPropagation());
+
     document.addEventListener('click', e => {
       if (menu.style.display !== 'none' && !menu.contains(e.target))
         menu.style.display = 'none';
@@ -5551,11 +5669,30 @@ class GridFlowApp {
       });
     });
 
-    document.getElementById('pcm-prazo-section').style.display = prazos.length ? '' : 'none';
+    // Popula select de grupos com os grupos ativos da empresa
+    const grupoSelect = document.getElementById('pcm-grupo-select');
+    const gruposNomes = Object.keys(grupos).sort();
+    grupoSelect.innerHTML = `<option value="">Todos os grupos</option>` +
+      gruposNomes.map(g => `<option value="${g}"${g === (this._pcmGrupo || '') ? ' selected' : ''}>${g}</option>`).join('');
+
+    // Restaura valor do campo de atividade
+    const atvInput = document.getElementById('pcm-atv-input');
+    if (atvInput) atvInput.value = this._pcmAtividadeNome || '';
+
+    // Determina aba ativa e exibe a seção correta
+    const tabAtiva = this._pcmTabAtiva || 'tipo';
+    menu.querySelectorAll('.pcm-tab').forEach(t => {
+      const ativo = t.dataset.pcmTab === tabAtiva;
+      t.style.background = ativo ? '#ebf8ff' : '#fff';
+      t.style.color      = ativo ? '#2b6cb0' : '#718096';
+    });
+    document.getElementById('pcm-prazo-section').style.display  = tabAtiva === 'tipo'      ? (prazos.length ? '' : 'none') : 'none';
+    document.getElementById('pcm-grupo-section').style.display  = tabAtiva === 'grupo'     ? '' : 'none';
+    document.getElementById('pcm-atv-section').style.display    = tabAtiva === 'atividade' ? '' : 'none';
 
     menu.style.display = 'block';
-    const x = Math.min(e.clientX, window.innerWidth - 240);
-    const y = Math.min(e.clientY, window.innerHeight - 180);
+    const x = Math.min(e.clientX, window.innerWidth - 250);
+    const y = Math.min(e.clientY, window.innerHeight - 230);
     menu.style.left = Math.max(4, x) + 'px';
     menu.style.top  = Math.max(4, y) + 'px';
   }
@@ -5564,24 +5701,38 @@ class GridFlowApp {
     const empresa = this.empresaSelecionada;
     if (!empresa) { alert('Selecione uma empresa primeiro.'); return; }
 
-    const statusLabel  = status === 'OK' ? 'OK' : 'N/A';
-    const prazo        = this._pcmPrazo || '';
-    const prazoLabel   = prazo ? ` [${prazo}]` : '';
+    const statusLabel   = status === 'OK' ? 'OK' : 'N/A';
+    const prazo         = this._pcmPrazo || '';
+    const pcmGrupo      = this._pcmGrupo || '';
+    const pcmAtvNome    = (this._pcmAtividadeNome || '').toLowerCase().trim();
+    const filtroLabel   = pcmGrupo   ? ` [Grupo: ${pcmGrupo}]`
+                        : pcmAtvNome ? ` [Atividade: "${this._pcmAtividadeNome.trim()}"]`
+                        : prazo      ? ` [${prazo}]`
+                        : '';
     const periodoLabel = periodos.length === 1 ? periodos[0] : `${periodos.length} períodos`;
 
-    if (!confirm(`Preencher atividades${prazoLabel} de\n"${empresa.nome}"\nem ${periodoLabel} como ${statusLabel}?\n\nRegistros existentes serão substituídos.`)) return;
+    if (!confirm(`Preencher atividades${filtroLabel} de\n"${empresa.nome}"\nem ${periodoLabel} como ${statusLabel}?\n\nRegistros existentes serão substituídos.`)) return;
 
     try {
-      const cfg       = this._carregarGruposConfig ? this._carregarGruposConfig() : {};
+      const cfg        = this._carregarGruposConfig ? this._carregarGruposConfig() : {};
+      const regimesCfg = this._carregarAtividadeRegimes ? this._carregarAtividadeRegimes() : {};
+      const empRegime  = empresa.regime_tributario || '';
       const atividades = await this.api(`/api/empresas/${empresa.id}/atividades`);
       const habilitadas = atividades.filter(a => {
         if (!a.habilitada) return false;
-        if (!prazo) return true;
-        return (cfg[a.grupo || 'Geral']?.prazo || '') === prazo;
+        if (pcmGrupo  && (a.grupo || 'Geral') !== pcmGrupo) return false;
+        if (pcmAtvNome && !a.nome.toLowerCase().includes(pcmAtvNome)) return false;
+        if (prazo) {
+          const excecoes = regimesCfg[String(a.atividade_id)] || [];
+          const excecao  = excecoes.find(ex => ex.regime === empRegime);
+          const prazoFinal = excecao ? excecao.prazo : (cfg[a.grupo || 'Geral']?.prazo || '');
+          if (prazoFinal !== prazo) return false;
+        }
+        return true;
       });
 
       if (!habilitadas.length) {
-        alert(`Nenhuma atividade${prazo ? ` "${prazo}"` : ''} habilitada para esta empresa.`);
+        alert(`Nenhuma atividade${filtroLabel || ''} habilitada para esta empresa.`);
         return;
       }
 

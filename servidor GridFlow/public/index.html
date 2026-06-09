@@ -286,11 +286,30 @@
 <script src="js/app.js"></script>
 
 <!-- Context menu: preencher período rápido (clique direito no período) -->
-<div id="periodo-ctx-menu" style="display:none;position:fixed;z-index:9999;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);min-width:228px;overflow:hidden;user-select:none">
+<div id="periodo-ctx-menu" style="display:none;position:fixed;z-index:9999;background:#fff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);min-width:244px;overflow:hidden;user-select:none">
   <div id="pcm-label" style="padding:8px 14px 6px;font-size:0.7rem;font-weight:700;color:#a0aec0;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid #f0f4f8;pointer-events:none"></div>
+  <!-- Abas: Tipo / Grupo / Atividade -->
+  <div id="pcm-tabs" style="display:flex;border-bottom:1px solid #f0f4f8">
+    <button class="pcm-tab" data-pcm-tab="tipo"      style="flex:1;padding:5px 2px;font-size:0.7rem;font-weight:700;cursor:pointer;border:none;border-right:1px solid #f0f4f8;background:#ebf8ff;color:#2b6cb0">Tipo</button>
+    <button class="pcm-tab" data-pcm-tab="grupo"     style="flex:1;padding:5px 2px;font-size:0.7rem;font-weight:700;cursor:pointer;border:none;border-right:1px solid #f0f4f8;background:#fff;color:#718096">Grupo</button>
+    <button class="pcm-tab" data-pcm-tab="atividade" style="flex:1;padding:5px 2px;font-size:0.7rem;font-weight:700;cursor:pointer;border:none;background:#fff;color:#718096">Atividade</button>
+  </div>
+  <!-- Seção: Tipo de atividade (prazo) -->
   <div id="pcm-prazo-section" style="padding:8px 14px 8px;border-bottom:1px solid #f0f4f8">
     <div style="font-size:0.68rem;color:#a0aec0;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Tipo de atividade</div>
     <div id="pcm-prazo-btns" style="display:flex;flex-wrap:wrap;gap:4px"></div>
+  </div>
+  <!-- Seção: Grupo -->
+  <div id="pcm-grupo-section" style="display:none;padding:8px 14px 8px;border-bottom:1px solid #f0f4f8">
+    <div style="font-size:0.68rem;color:#a0aec0;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Selecionar grupo</div>
+    <select id="pcm-grupo-select" style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.82rem;color:#4a5568;background:#fff;box-sizing:border-box">
+      <option value="">Todos os grupos</option>
+    </select>
+  </div>
+  <!-- Seção: Atividade (busca por nome) -->
+  <div id="pcm-atv-section" style="display:none;padding:8px 14px 8px;border-bottom:1px solid #f0f4f8">
+    <div style="font-size:0.68rem;color:#a0aec0;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Filtrar por nome</div>
+    <input id="pcm-atv-input" type="text" placeholder="Ex: Imposto, Banco..." style="width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.82rem;box-sizing:border-box">
   </div>
   <button id="pcm-ok" class="pcm-btn" style="color:#166534">
     <svg width="16" height="16" viewBox="0 0 20 20" style="flex-shrink:0"><circle cx="10" cy="10" r="10" fill="#22c55e"/><polyline points="5,10 8.5,13.5 15,7" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
