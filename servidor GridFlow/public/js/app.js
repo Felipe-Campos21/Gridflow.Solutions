@@ -897,12 +897,22 @@ class GridFlowApp {
   _renderFiltrosPrazo() {
     const filterEl = document.getElementById('db-prazo-filter');
     if (!filterEl) return;
-    const cfg = this._carregarGruposConfig();
-    const grupos = this._checklistGrupos || {};
+    const cfg         = this._carregarGruposConfig();
+    const grupos      = this._checklistGrupos || {};
+    const regimesCfg  = this._carregarAtividadeRegimes();
+    const empRegime   = this.empresaSelecionada?.regime_tributario || '';
 
-    const prazosPresentes = [...new Set(
-      Object.keys(grupos).map(g => cfg[g]?.prazo || '').filter(Boolean)
-    )];
+    // Coleta prazos efetivos: prazo do grupo + exceções de regime por atividade
+    const prazosSet = new Set();
+    Object.entries(grupos).forEach(([g, atvs]) => {
+      const prazoGrupo = cfg[g]?.prazo || '';
+      atvs.forEach(a => {
+        const excecao = (regimesCfg[String(a.atividade_id)] || []).find(ex => ex.regime === empRegime);
+        const pFinal  = excecao ? excecao.prazo : prazoGrupo;
+        if (pFinal) prazosSet.add(pFinal);
+      });
+    });
+    const prazosPresentes = [...prazosSet].sort();
 
     if (!prazosPresentes.length) { filterEl.innerHTML = ''; return; }
 
@@ -932,10 +942,18 @@ class GridFlowApp {
   _renderChecklistAtividades() {
     const container = document.getElementById('db-atividades-container');
     if (!container) return;
-    const grupos = this._checklistGrupos || {};
-    const okIds  = this._checklistOkIds  || new Set();
-    const naIds  = this._checklistNaIds  || new Set();
-    const cfg    = this._carregarGruposConfig();
+    const grupos      = this._checklistGrupos || {};
+    const okIds       = this._checklistOkIds  || new Set();
+    const naIds       = this._checklistNaIds  || new Set();
+    const cfg         = this._carregarGruposConfig();
+    const regimesCfg  = this._carregarAtividadeRegimes();
+    const empRegime   = this.empresaSelecionada?.regime_tributario || '';
+
+    // Retorna prazo efetivo de uma atividade considerando exceções de regime
+    const prazoEfetivo = (grupo, atividadeId) => {
+      const excecao = (regimesCfg[String(atividadeId)] || []).find(ex => ex.regime === empRegime);
+      return excecao ? excecao.prazo : (cfg[grupo]?.prazo || '');
+    };
 
     const habilitadas = Object.values(grupos).flat();
     if (!habilitadas.length) {
@@ -943,13 +961,18 @@ class GridFlowApp {
       return;
     }
 
-    const gruposFiltrados = Object.entries(grupos).filter(([grupo]) => {
-      if (!this._filtroPrazo) return true;
-      return (cfg[grupo]?.prazo || '') === this._filtroPrazo;
-    });
+    // Filtra atividades individualmente pelo prazo efetivo (não o grupo inteiro)
+    const gruposFiltrados = Object.entries(grupos)
+      .map(([grupo, atvs]) => {
+        const atvsVisiveis = this._filtroPrazo
+          ? atvs.filter(a => prazoEfetivo(grupo, a.atividade_id) === this._filtroPrazo)
+          : atvs;
+        return [grupo, atvsVisiveis];
+      })
+      .filter(([, atvs]) => atvs.length > 0);
 
     if (!gruposFiltrados.length) {
-      container.innerHTML = `<div class="atividades-vazio">Nenhum grupo com prazo "${this._filtroPrazo}"</div>`;
+      container.innerHTML = `<div class="atividades-vazio">Nenhuma atividade com prazo "${this._filtroPrazo}"</div>`;
       return;
     }
 
