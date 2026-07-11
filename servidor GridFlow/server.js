@@ -57,6 +57,7 @@ const emailTransporter = nodemailer.createTransport({
     port: 587,
     secure: false,
     requireTLS: true,
+    family: 4, // força IPv4 — Render tenta IPv6 por padrão e o SMTP da Hostinger não responde nele, causando timeout
     connectionTimeout: 10000,
     greetingTimeout: 10000,
     socketTimeout: 15000,
