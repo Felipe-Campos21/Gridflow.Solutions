@@ -7,7 +7,6 @@ const fs = require('fs');
 const path = require('path');
 const url = require('url');
 const crypto = require('crypto');
-const nodemailer = require('nodemailer');
 
 const PORT = process.env.PORT || 5000;
 const PUBLIC = path.join(__dirname, 'public');
@@ -49,23 +48,10 @@ function sbFetch(endpoint, options = {}) {
 }
 
 // ------------------------------------------------------------------
-// Email: Nodemailer (Hostinger SMTP)
+// Email: Resend (API HTTPS — Render bloqueia conexões SMTP diretas)
 // ------------------------------------------------------------------
 const HOSTINGER_EMAIL = process.env.HOSTINGER_EMAIL || 'contato@gridflow.solutions';
-const emailTransporter = nodemailer.createTransport({
-    host: 'smtp.hostinger.com',
-    port: 587,
-    secure: false,
-    requireTLS: true,
-    family: 4, // força IPv4 — Render tenta IPv6 por padrão e o SMTP da Hostinger não responde nele, causando timeout
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000,
-    auth: {
-        user: HOSTINGER_EMAIL,
-        pass: process.env.HOSTINGER_SENHA
-    }
-});
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
 function processarTemplate(bodyHtml, variaveis) {
     let resultado = bodyHtml;
@@ -76,18 +62,43 @@ function processarTemplate(bodyHtml, variaveis) {
     return resultado;
 }
 
-async function enviarEmailSmtp(emailObj) {
-    try {
-        const info = await emailTransporter.sendMail({
-            from: `"GridFlow Solutions" <${HOSTINGER_EMAIL}>`,
-            to: emailObj.email_destino,
+function enviarEmailSmtp(emailObj) {
+    return new Promise(resolve => {
+        if (!RESEND_API_KEY) { resolve({ ok: false, erro: 'RESEND_API_KEY não configurada' }); return; }
+
+        const body = JSON.stringify({
+            from: `GridFlow Solutions <${HOSTINGER_EMAIL}>`,
+            to: [emailObj.email_destino],
             subject: emailObj.assunto,
             html: emailObj.corpo_processado
         });
-        return { ok: true, messageId: info.messageId };
-    } catch (error) {
-        return { ok: false, erro: error.message };
-    }
+
+        const req = https.request({
+            hostname: 'api.resend.com',
+            path: '/emails',
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + RESEND_API_KEY,
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(body)
+            }
+        }, res => {
+            let data = '';
+            res.on('data', c => data += c);
+            res.on('end', () => {
+                let parsed = null;
+                try { parsed = data ? JSON.parse(data) : null; } catch (e) { /* resposta não-JSON */ }
+                if (res.statusCode >= 200 && res.statusCode < 300) {
+                    resolve({ ok: true, messageId: parsed && parsed.id });
+                } else {
+                    resolve({ ok: false, erro: (parsed && parsed.message) || data || ('HTTP ' + res.statusCode) });
+                }
+            });
+        });
+        req.on('error', e => resolve({ ok: false, erro: e.message }));
+        req.write(body);
+        req.end();
+    });
 }
 
 // Cron: processa emails pendentes a cada CRON_INTERVAL ms (padrão: 5 min)
