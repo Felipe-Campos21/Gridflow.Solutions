@@ -15,12 +15,27 @@ const PUBLIC = path.join(__dirname, 'public');
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 
+// Avisa no boot se SUPABASE_KEY não for a service_role key — a Admin API de
+// autenticação (usada na recuperação de senha) exige service_role, e um erro
+// de chave errada não deve ser confundido com "usuário já existe".
+(function checarRoleSupabaseKey() {
+    if (!SUPABASE_KEY) return;
+    try {
+        const payload = JSON.parse(Buffer.from(SUPABASE_KEY.split('.')[1], 'base64').toString());
+        if (payload.role !== 'service_role') {
+            console.error('[AVISO CRÍTICO] SUPABASE_KEY não é a service_role key (role="' + payload.role + '"). A criação de contas no Supabase Auth (recuperação de senha) vai falhar com 401/403. Configure a service_role key no Render.');
+        }
+    } catch (e) {
+        console.error('[AVISO] Não foi possível validar o tipo de SUPABASE_KEY:', e.message);
+    }
+})();
+
 // ------------------------------------------------------------------
-// Helper: chamar Supabase REST API
+// Helper: chamar a API REST do Supabase (base configurável)
 // ------------------------------------------------------------------
-function sbFetch(endpoint, options = {}) {
+function supabaseRequest(basePath, endpoint, options = {}) {
     return new Promise((resolve, reject) => {
-          const fullUrl = new URL(SUPABASE_URL + '/rest/v1/' + endpoint);
+          const fullUrl = new URL(SUPABASE_URL + basePath + endpoint);
           const body = options.body ? JSON.stringify(options.body) : null;
           const req = https.request({
                   hostname: fullUrl.hostname,
@@ -45,6 +60,16 @@ function sbFetch(endpoint, options = {}) {
           if (body) req.write(body);
           req.end();
     });
+}
+
+function sbFetch(endpoint, options = {}) {
+    return supabaseRequest('/rest/v1/', endpoint, options);
+}
+
+// Chama a API de autenticação do Supabase (GoTrue) — usada só para a
+// recuperação de senha (criar conta-sombra + disparar email de reset).
+function sbAuthFetch(endpoint, options = {}) {
+    return supabaseRequest('/auth/v1', endpoint, options);
 }
 
 // ------------------------------------------------------------------
@@ -142,36 +167,9 @@ setInterval(async () => {
 }, parseInt(process.env.CRON_INTERVAL) || 300000);
 
 // ------------------------------------------------------------------
-// Tokens temporários de recuperação de senha (em memória, 15 min)
+// Recuperação de senha: URL de redirect após o link mágico do Supabase
 // ------------------------------------------------------------------
-const resetTokens = new Map(); // email → { codigo, expiry }
-
-function gerarCodigoReset() {
-    return String(Math.floor(100000 + Math.random() * 900000));
-}
-
-function emailResetHtml(codigo) {
-    return `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
-<body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,sans-serif">
-<div style="max-width:480px;margin:40px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
-  <div style="background:linear-gradient(135deg,#1e40af,#0ea5e9);padding:32px;text-align:center">
-    <div style="font-size:26px;font-weight:800;color:#fff">Grid<span style="font-weight:400">Flow</span></div>
-    <div style="font-size:11px;color:#bfdbfe;letter-spacing:2px;margin-top:2px">SOLUTIONS</div>
-  </div>
-  <div style="padding:40px 32px">
-    <h2 style="margin:0 0 8px;font-size:20px;color:#1e293b;font-weight:700">Recuperação de senha</h2>
-    <p style="margin:0 0 24px;color:#64748b;font-size:15px">Use o código abaixo para redefinir sua senha. Ele é válido por <strong>15 minutos</strong>.</p>
-    <div style="background:#f8fafc;border:2px solid #e2e8f0;border-radius:12px;padding:24px;text-align:center;margin-bottom:24px">
-      <div style="font-size:44px;font-weight:800;letter-spacing:14px;color:#1e40af">${codigo}</div>
-    </div>
-    <p style="margin:0;color:#94a3b8;font-size:12px">Se você não solicitou a recuperação de senha, ignore este email.</p>
-  </div>
-  <div style="background:#f8fafc;padding:20px 32px;text-align:center;border-top:1px solid #e2e8f0">
-    <p style="margin:0;color:#94a3b8;font-size:12px">© 2026 GridFlow Solutions. Todos os direitos reservados.</p>
-  </div>
-</div>
-</body></html>`;
-}
+const PASSWORD_RESET_REDIRECT_URL = process.env.PASSWORD_RESET_REDIRECT_URL || 'https://gridflow.solutions/redefinir-senha';
 
 // ------------------------------------------------------------------
 // Helper: hash de senha (SHA-256)
@@ -590,7 +588,8 @@ const server = http.createServer(async (req, res) => {
                                    }
 
                                    // ================================================================
-                                   // AUTH: Esqueci minha senha — envia código por email
+                                   // AUTH: Esqueci minha senha — dispara email de recuperação via Supabase Auth
+                                   // (o envio sai dos servidores do Supabase, não do Render, que bloqueia SMTP direto)
                                    // ================================================================
                                    if (pathname === '/api/auth/esqueci-senha' && method === 'POST') {
                                          const body = await readBody(req);
@@ -602,18 +601,23 @@ const server = http.createServer(async (req, res) => {
                                          if (!check.body || check.body.length === 0)
                                                return sendJson(res, 200, { ok: true }); // não revelar se email existe
 
-                                         const codigo = gerarCodigoReset();
-                                         const expiry = Date.now() + 15 * 60 * 1000; // 15 minutos
-                                         resetTokens.set(emailLower, { codigo, expiry });
-
-                                         const enviado = await enviarEmailSmtp({
-                                               email_destino: emailLower,
-                                               assunto: 'Código de recuperação de senha — GridFlow',
-                                               corpo_processado: emailResetHtml(codigo)
+                                         // Garante uma conta-sombra no Supabase Auth (idempotente: 422 = já existe, segue normal)
+                                         const criacao = await sbAuthFetch('/admin/users', {
+                                               method: 'POST',
+                                               body: { email: emailLower, password: crypto.randomBytes(24).toString('hex'), email_confirm: true }
                                          });
+                                         const criadoOuJaExiste = (criacao.status >= 200 && criacao.status < 300) || criacao.status === 422;
+                                         if (!criadoOuJaExiste) {
+                                               console.error('[Reset Senha] Falha ao criar conta-sombra no Supabase Auth para', emailLower, '- status', criacao.status, ':', JSON.stringify(criacao.body));
+                                               return sendJson(res, 500, { erro: 'Não foi possível enviar o email. Tente novamente.' });
+                                         }
 
-                                         if (!enviado.ok) {
-                                               console.error('[Reset Senha] Falha ao enviar email para', emailLower, ':', enviado.erro);
+                                         const recover = await sbAuthFetch('/recover?redirect_to=' + encodeURIComponent(PASSWORD_RESET_REDIRECT_URL), {
+                                               method: 'POST',
+                                               body: { email: emailLower }
+                                         });
+                                         if (recover.status >= 400) {
+                                               console.error('[Reset Senha] Falha ao disparar email de recuperação para', emailLower, '- status', recover.status, ':', JSON.stringify(recover.body));
                                                return sendJson(res, 500, { erro: 'Não foi possível enviar o email. Tente novamente.' });
                                          }
 
@@ -621,34 +625,31 @@ const server = http.createServer(async (req, res) => {
                                    }
 
                                    // ================================================================
-                                   // AUTH: Redefinir senha — valida código e salva nova senha
+                                   // AUTH: Sincronizar senha — chamado após o usuário definir a nova senha
+                                   // na página de callback do Supabase (valida o token, nunca confia no email do client)
                                    // ================================================================
-                                   if (pathname === '/api/auth/redefinir-senha' && method === 'POST') {
+                                   if (pathname === '/api/auth/sincronizar-senha' && method === 'POST') {
                                          const body = await readBody(req);
-                                         const { email, codigo, nova_senha } = body;
-                                         if (!email || !codigo || !nova_senha)
-                                               return sendJson(res, 400, { erro: 'email, codigo e nova_senha são obrigatórios' });
+                                         const { access_token, nova_senha } = body;
+                                         if (!access_token || !nova_senha)
+                                               return sendJson(res, 400, { erro: 'access_token e nova_senha são obrigatórios' });
                                          if (nova_senha.length < 6)
                                                return sendJson(res, 400, { erro: 'A senha deve ter pelo menos 6 caracteres' });
 
-                                         const emailLower = email.toLowerCase().trim();
-                                         const entrada = resetTokens.get(emailLower);
+                                         const userResp = await sbAuthFetch('/user', { headers: { 'Authorization': 'Bearer ' + access_token } });
+                                         if (userResp.status >= 400 || !userResp.body || !userResp.body.email)
+                                               return sendJson(res, 401, { erro: 'Link expirado ou inválido. Solicite um novo.' });
 
-                                         if (!entrada || Date.now() > entrada.expiry)
-                                               return sendJson(res, 400, { erro: 'Código expirado. Solicite um novo.' });
-                                         if (entrada.codigo !== String(codigo).trim())
-                                               return sendJson(res, 400, { erro: 'Código inválido.' });
-
-                                         const senhaHash = hashSenha(nova_senha);
+                                         const emailLower = userResp.body.email.toLowerCase().trim();
+                                         // Sem filtro de conta_id: replica o comportamento do login atual, que também casa só por email
                                          const upd = await sbFetch('colaboradores?email=eq.' + encodeURIComponent(emailLower), {
                                                method: 'PATCH',
-                                               body: { senha_hash: senhaHash }
+                                               body: { senha_hash: hashSenha(nova_senha) }
                                          });
 
                                          if (upd.status >= 400)
                                                return sendJson(res, 500, { erro: 'Erro ao atualizar a senha. Tente novamente.' });
 
-                                         resetTokens.delete(emailLower);
                                          return sendJson(res, 200, { ok: true });
                                    }
 
@@ -1314,7 +1315,7 @@ const server = http.createServer(async (req, res) => {
                                    // Arquivo estático / 404
                                    // ================================================================
                                    // URLs limpas
-                                   const urlMap = { '/login': 'login.html', '/logado': 'index.html', '/controle.adm': 'controle-adm/index.html' };
+                                   const urlMap = { '/login': 'login.html', '/logado': 'index.html', '/controle.adm': 'controle-adm/index.html', '/redefinir-senha': 'redefinir-senha.html' };
                                    if (urlMap[pathname]) return serveFile(res, path.join(PUBLIC, urlMap[pathname]));
                                    // Redireciona URLs antigas para limpas
                                    if (pathname === '/login.html') { res.writeHead(301, { Location: '/login' }); res.end(); return; }

@@ -122,13 +122,13 @@
         <button class="btn-criar" id="btn-criar-cancelar">Voltar para login</button>
       </div>
 
-      <!-- Formulário: Esqueci minha senha (passo 1 — digitar email) -->
+      <!-- Formulário: Esqueci minha senha -->
       <div class="login-form" id="form-recuperar" style="display:none">
         <div class="login-welcome">Sem problemas!</div>
         <h1 class="login-title">Recuperar senha</h1>
-        <p class="login-subtitle">Informe o email da sua conta e enviaremos um código de verificação.</p>
+        <p class="login-subtitle" id="recuperar-subtitulo">Informe o email da sua conta e enviaremos um link de recuperação por email.</p>
 
-        <div class="login-input-wrap">
+        <div class="login-input-wrap" id="recuperar-email-wrap">
           <span class="login-input-icon">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
           </span>
@@ -136,45 +136,15 @@
         </div>
 
         <div id="recuperar-error" class="login-error"></div>
+        <div id="recuperar-sucesso" class="login-error" style="display:none;color:#16a34a">Enviamos um link de recuperação para seu email. Verifique sua caixa de entrada.</div>
 
         <button class="btn-entrar" id="btn-enviar-codigo">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-          Enviar código
+          Enviar link de recuperação
         </button>
 
         <div class="login-divider"><span>ou</span></div>
         <button class="btn-criar" id="btn-recuperar-cancelar">Voltar para login</button>
-      </div>
-
-      <!-- Formulário: Esqueci minha senha (passo 2 — código + nova senha) -->
-      <div class="login-form" id="form-nova-senha" style="display:none">
-        <div class="login-welcome">Quase lá!</div>
-        <h1 class="login-title">Nova senha</h1>
-        <p class="login-subtitle">Digite o código de 6 dígitos que enviamos ao seu email e crie uma nova senha.</p>
-
-        <div class="login-input-wrap">
-          <span class="login-input-icon">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          </span>
-          <input type="text" id="nova-senha-codigo" class="login-input" placeholder="Código de 6 dígitos" maxlength="6" autocomplete="off" inputmode="numeric">
-        </div>
-
-        <div class="login-input-wrap">
-          <span class="login-input-icon">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
-          </span>
-          <input type="password" id="nova-senha-senha" class="login-input" placeholder="Nova senha (mín. 6 caracteres)" autocomplete="off">
-        </div>
-
-        <div id="nova-senha-error" class="login-error"></div>
-
-        <button class="btn-entrar" id="btn-confirmar-nova-senha">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-          Redefinir senha
-        </button>
-
-        <div class="login-divider"><span>ou</span></div>
-        <button class="btn-criar" id="btn-nova-senha-voltar">Voltar para login</button>
       </div>
 
       <!-- Segurança -->
