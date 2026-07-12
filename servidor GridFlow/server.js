@@ -1292,18 +1292,14 @@ const server = http.createServer(async (req, res) => {
                                    if (pathname === '/api/agendar-email' && method === 'POST') {
                                          if (!contaId) return sendJson(res, 401, { erro: 'Não autenticado' });
                                          const body = await readBody(req);
-                                         const { empresa_id, template_id, email_destino, variaveis, data_agendada, anexos, enviar_agora } = body;
-                                         if (!empresa_id || !template_id || !email_destino || !data_agendada)
-                                               return sendJson(res, 400, { erro: 'Campos obrigatórios: empresa_id, template_id, email_destino, data_agendada' });
-                                         const templateR = await sbFetch(`templates_email?id=eq.${template_id}&conta_id=eq.${contaId}`);
-                                         if (!templateR.body || !templateR.body[0])
-                                               return sendJson(res, 404, { erro: 'Template não encontrado' });
-                                         const template = templateR.body[0];
-                                         const assuntoProcessado = processarTemplate(template.assunto, variaveis || {});
-                                         const corpoProcessado = processarTemplate(template.corpo_html, variaveis || {});
+                                         const { empresa_id, template_id, email_destino, variaveis, data_agendada, anexos, enviar_agora, assunto, corpo_html } = body;
+                                         if (!empresa_id || !email_destino || !data_agendada || !assunto || !corpo_html)
+                                               return sendJson(res, 400, { erro: 'Campos obrigatórios: empresa_id, email_destino, data_agendada, assunto, corpo_html' });
+                                         const assuntoProcessado = processarTemplate(assunto, variaveis || {});
+                                         const corpoProcessado = processarTemplate(corpo_html, variaveis || {});
                                          const r = await sbFetch('emails_agendados', {
                                                method: 'POST',
-                                               body: { conta_id: contaId, empresa_id, template_id, email_destino, assunto: assuntoProcessado, corpo_processado: corpoProcessado, variaveis_utilizadas: variaveis || {}, data_agendada, anexos: anexos || [], status: 'pendente' }
+                                               body: { conta_id: contaId, empresa_id, template_id: template_id || null, email_destino, assunto: assuntoProcessado, corpo_processado: corpoProcessado, variaveis_utilizadas: variaveis || {}, data_agendada, anexos: anexos || [], status: 'pendente' }
                                          });
                                          const registro = r.body?.[0] || {};
 

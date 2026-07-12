@@ -5362,10 +5362,18 @@ class GridFlowApp {
           <h3 style="margin:0 0 16px;font-size:1rem;color:#2d3748">Agendar Envio de Email</h3>
           <form id="form-agendar-email" style="display:flex;flex-direction:column;gap:12px;max-width:520px">
             <div>
-              <label style="display:block;font-size:0.82rem;font-weight:600;color:#4a5568;margin-bottom:4px">Template</label>
-              <select id="msg-select-template" required style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem">
-                <option value="">Selecione um template...</option>
+              <label style="display:block;font-size:0.82rem;font-weight:600;color:#4a5568;margin-bottom:4px">Template <span style="color:#718096;font-weight:400">(opcional — ou escreva o email abaixo)</span></label>
+              <select id="msg-select-template" style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem">
+                <option value="">Sem template — escrever manualmente</option>
               </select>
+            </div>
+            <div>
+              <label style="display:block;font-size:0.82rem;font-weight:600;color:#4a5568;margin-bottom:4px">Assunto</label>
+              <input type="text" id="msg-assunto" required placeholder="Assunto do email" style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem;box-sizing:border-box">
+            </div>
+            <div>
+              <label style="display:block;font-size:0.82rem;font-weight:600;color:#4a5568;margin-bottom:4px">Mensagem</label>
+              <textarea id="msg-corpo" required rows="6" placeholder="Escreva a mensagem aqui..." style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem;box-sizing:border-box;resize:vertical;font-family:inherit"></textarea>
             </div>
             <div>
               <label style="display:block;font-size:0.82rem;font-weight:600;color:#4a5568;margin-bottom:4px">Empresa</label>
@@ -5539,9 +5547,11 @@ class GridFlowApp {
     // Ao trocar template, atualiza variáveis e preview
     document.getElementById('msg-select-template').addEventListener('change', () => this._atualizarCamposVariaveis());
 
-    // Preview dinâmico ao digitar variáveis
+    // Preview dinâmico ao digitar assunto, mensagem ou variáveis
     document.getElementById('msg-variaveis-fields').addEventListener('input', () => this._atualizarPreview());
     document.getElementById('msg-email-destino').addEventListener('input', () => this._atualizarPreview());
+    document.getElementById('msg-assunto').addEventListener('input', () => this._atualizarPreview());
+    document.getElementById('msg-corpo').addEventListener('input', () => this._atualizarPreview());
 
     // Agendar email
     document.getElementById('form-agendar-email').addEventListener('submit', async (e) => {
@@ -5549,10 +5559,12 @@ class GridFlowApp {
       const templateId = document.getElementById('msg-select-template').value;
       const empresaId = document.getElementById('msg-select-empresa').value;
       const emailDestino = document.getElementById('msg-email-destino').value;
+      const assunto = document.getElementById('msg-assunto').value.trim();
+      const corpoHtml = document.getElementById('msg-corpo').value.trim();
       const enviarAgora = document.getElementById('msg-enviar-agora').checked;
       const dataAgendada = document.getElementById('msg-data-agendada').value;
       const variaveis = this._coletarVariaveis();
-      if (!templateId || !empresaId || !emailDestino || (!enviarAgora && !dataAgendada))
+      if (!empresaId || !emailDestino || !assunto || !corpoHtml || (!enviarAgora && !dataAgendada))
         return alert('Preencha todos os campos obrigatórios.');
       const btn = document.getElementById('btn-agendar-email-submit');
       btn.disabled = true;
@@ -5562,7 +5574,7 @@ class GridFlowApp {
         const dataFinal = enviarAgora ? new Date().toISOString() : new Date(dataAgendada).toISOString();
         const resultado = await this.api('/api/agendar-email', {
           method: 'POST',
-          body: JSON.stringify({ template_id: parseInt(templateId), empresa_id: parseInt(empresaId), email_destino: emailDestino, data_agendada: dataFinal, variaveis, anexos, enviar_agora: enviarAgora })
+          body: JSON.stringify({ template_id: templateId ? parseInt(templateId) : null, empresa_id: parseInt(empresaId), email_destino: emailDestino, assunto, corpo_html: corpoHtml, data_agendada: dataFinal, variaveis, anexos, enviar_agora: enviarAgora })
         });
         if (enviarAgora) {
           alert(resultado.sucesso ? 'Email enviado com sucesso!' : `Falha ao enviar: ${resultado.erro_envio || 'erro desconhecido'}`);
@@ -5651,6 +5663,10 @@ class GridFlowApp {
     const template = (this._templates || []).find(t => t.id == templateId);
     const container = document.getElementById('msg-variaveis-container');
     const fields = document.getElementById('msg-variaveis-fields');
+    if (template) {
+      document.getElementById('msg-assunto').value = template.assunto;
+      document.getElementById('msg-corpo').value = template.corpo_html;
+    }
     if (!template || !template.variaveis_disponiveis || !template.variaveis_disponiveis.length) {
       container.style.display = 'none';
       this._atualizarPreview();
@@ -5675,18 +5691,18 @@ class GridFlowApp {
   }
 
   _atualizarPreview() {
-    const templateId = document.getElementById('msg-select-template').value;
-    const template = (this._templates || []).find(t => t.id == templateId);
+    const assunto = document.getElementById('msg-assunto')?.value || '';
+    const corpo   = document.getElementById('msg-corpo')?.value || '';
     const box = document.getElementById('msg-preview-box');
-    if (!template) { box.style.display = 'none'; return; }
+    if (!assunto && !corpo) { box.style.display = 'none'; return; }
     const vars = this._coletarVariaveis();
     const processarLocal = (txt) => {
       let r = txt;
       for (const [k, v] of Object.entries(vars)) r = r.replace(new RegExp(`\\{${k}\\}`, 'g'), v);
       return r;
     };
-    document.getElementById('msg-preview-assunto').textContent = processarLocal(template.assunto);
-    document.getElementById('msg-preview-corpo').innerHTML = processarLocal(template.corpo_html);
+    document.getElementById('msg-preview-assunto').textContent = processarLocal(assunto);
+    document.getElementById('msg-preview-corpo').innerHTML = processarLocal(corpo);
     box.style.display = 'block';
   }
 
