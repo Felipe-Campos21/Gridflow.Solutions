@@ -128,7 +128,7 @@ function enviarEmailSmtp(emailObj) {
 
 // Cron: processa emails pendentes a cada CRON_INTERVAL ms (padrão: 5 min)
 setInterval(async () => {
-    if (!process.env.HOSTINGER_SENHA) return;
+    if (!RESEND_API_KEY) return;
     try {
         const now = new Date().toISOString();
         const pendentes = await sbFetch(
