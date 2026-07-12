@@ -1763,6 +1763,19 @@ class GridFlowApp {
   _salvarAtividadeRegimes(cfg) {
     localStorage.setItem('gridflow_atv_regimes_' + (this.contaId || 'default'), JSON.stringify(cfg));
   }
+  // Retorna o conjunto de atividade_id cujo prazo efetivo (considerando exceção de regime) é "Anual"
+  _idsAtividadesAnuais(atividades, empresaRegime) {
+    const cfg        = this._carregarGruposConfig();
+    const regimesCfg = this._carregarAtividadeRegimes();
+    const ids = new Set();
+    atividades.forEach(a => {
+      const grupo   = a.grupo || 'Geral';
+      const excecao = (regimesCfg[String(a.atividade_id)] || []).find(ex => ex.regime === empresaRegime);
+      const prazo   = excecao ? excecao.prazo : (cfg[grupo]?.prazo || '');
+      if (prazo === 'Anual') ids.add(a.atividade_id);
+    });
+    return ids;
+  }
   _getSetoresPersonalizados() {
     try { return JSON.parse(localStorage.getItem('gridflow_setores_' + (this.contaId || 'default')) || '[]'); } catch { return []; }
   }
@@ -3920,29 +3933,76 @@ class GridFlowApp {
       this._renderStatusContent();
     });
 
-    // Área principal: pendências do período + barras anuais
+    // Área principal: pendências do período + obrigações anuais + barras anuais
     content.innerHTML = '<div class="loading"></div>';
 
-    // Carrega dados anuais
+    // Classifica atividades anuais (prazo efetivo "Anual") e seu status no ano corrente,
+    // para não misturá-las com as pendências mensais (ver empData.pendentes_lista)
+    let anuaisIds = new Set();
+    let obrigacoesAnuais = [];
+    let totalNaoAnual = empData.total;
+    try {
+      const [atividades, historicoAno] = await Promise.all([
+        this.api(`/api/empresas/${empData.empresa.id}/atividades`),
+        this.api(`/api/historico?empresa_id=${empData.empresa.id}&ano=${anoAtual}`)
+      ]);
+      const habilitadas = atividades.filter(a => a.habilitada);
+      anuaisIds = this._idsAtividadesAnuais(habilitadas, empData.empresa.regime_tributario || '');
+      totalNaoAnual = habilitadas.length - anuaisIds.size;
+
+      const concluidasAno = new Set(
+        historicoAno.filter(h => h.status === 'OK' || h.status === 'Não Aplicável').map(h => h.atividade_id)
+      );
+      obrigacoesAnuais = habilitadas
+        .filter(a => anuaisIds.has(a.atividade_id))
+        .map(a => ({ nome: a.nome, grupo: a.grupo || 'Geral', concluida: concluidasAno.has(a.atividade_id) }));
+    } catch (e) { console.error(e); }
+
+    // Carrega dados anuais (grade mês a mês)
     let anualData = null;
     try {
       const resp = await this.api(`/api/status/anual?ano=${anoAtual}`);
       anualData = resp.empresas?.find(e => e.empresa.id === empData.empresa.id);
     } catch {}
 
-    const pendentesHtml = empData.pendentes > 0 ? `
+    const pendentesMensal = (empData.pendentes_lista || []).filter(p => !anuaisIds.has(p.id));
+
+    const pendentesHtml = pendentesMensal.length > 0 ? `
       <div class="card" style="margin-bottom:14px">
         <div style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#e74c3c;margin-bottom:10px;display:flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Pendências em ${this.periodo}</div>
-        ${this._renderPendentesDropdown(empData.pendentes_lista).replace(/class="pdrop-/g, 'class="pdrop-inline pdrop-')}
+        ${this._renderPendentesDropdown(pendentesMensal).replace(/class="pdrop-/g, 'class="pdrop-inline pdrop-')}
       </div>` : `
       <div class="card" style="margin-bottom:14px;text-align:center;padding:20px">
         <div style="color:#27ae60;font-size:1.1rem;font-weight:700;display:flex;align-items:center;justify-content:center;gap:6px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#27ae60" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Tudo concluído em ${this.periodo}</div>
         <div style="color:#a0aec0;font-size:0.82rem;margin-top:4px">Todas as atividades estão OK ou N/A</div>
       </div>`;
 
+    let anuaisHtml = '';
+    if (obrigacoesAnuais.length > 0) {
+      const gruposAnuais = {};
+      obrigacoesAnuais.forEach(a => { (gruposAnuais[a.grupo] = gruposAnuais[a.grupo] || []).push(a); });
+      anuaisHtml = `
+        <div class="card" style="margin-bottom:14px">
+          <div style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#718096;margin-bottom:10px;display:flex;align-items:center;gap:5px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#718096" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Obrigações Anuais ${anoAtual}</div>
+          ${Object.entries(gruposAnuais).map(([g, itens]) => `
+            <div style="font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#a0aec0;padding:6px 0 2px">${g.toUpperCase()}</div>
+            ${itens.map(a => a.concluida ? `
+              <div style="padding:3px 0;font-size:0.82rem;color:#27ae60;display:flex;align-items:center;gap:6px"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#27ae60" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> ${a.nome} <span style="color:#a0aec0;font-weight:600;font-size:0.7rem">— concluída em ${anoAtual}</span></div>` : `
+              <div style="padding:3px 0;font-size:0.82rem;color:#4a5568;display:flex;align-items:center;gap:6px"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ${a.nome}</div>`
+            ).join('')}
+          `).join('')}
+        </div>`;
+    }
+
     let anualHtml = '';
     if (anualData) {
-      const meses = Object.entries(anualData.meses);
+      const meses = Object.entries(anualData.meses).map(([per, m]) => {
+        const pendentesFiltrado = (m.pendentes_lista || []).filter(p => !anuaisIds.has(p.id));
+        const total      = totalNaoAnual;
+        const concluidas = Math.max(total - pendentesFiltrado.length, 0);
+        const pct        = total > 0 ? Math.round((concluidas / total) * 100) : 0;
+        return [per, { ...m, pendentes_lista: pendentesFiltrado, pendentes: pendentesFiltrado.length, total, concluidas, pct }];
+      });
       const totalAtv  = meses.reduce((s, [, m]) => s + m.total, 0);
       const totalConc = meses.reduce((s, [, m]) => s + m.concluidas, 0);
       const pctAnual  = totalAtv > 0 ? Math.round((totalConc / totalAtv) * 100) : 0;
@@ -3960,8 +4020,8 @@ class GridFlowApp {
       anualHtml = `
         <div class="card">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-            <div style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#718096">Visão Anual ${anoAtual}</div>
-            <span style="font-size:1rem;font-weight:700;color:${corAnual}">${pctAnual}% anual</span>
+            <div style="font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#718096">Visão Mensal ${anoAtual}</div>
+            <span style="font-size:1rem;font-weight:700;color:${corAnual}">${pctAnual}% no ano</span>
           </div>
           <div class="status-progress-track" style="margin-bottom:16px">
             <div class="status-progress-fill" style="width:${pctAnual}%;background:${corAnual}"></div>
@@ -4002,7 +4062,7 @@ class GridFlowApp {
         </div>`;
     }
 
-    content.innerHTML = pendentesHtml + anualHtml;
+    content.innerHTML = pendentesHtml + anuaisHtml + anualHtml;
 
     content.querySelectorAll('.pdrop-grupo').forEach(el => {
       el.style.cssText = 'font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#a0aec0;padding:6px 0 2px';
