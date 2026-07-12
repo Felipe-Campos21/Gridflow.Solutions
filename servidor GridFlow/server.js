@@ -755,9 +755,11 @@ const server = http.createServer(async (req, res) => {
                                    }
 
                                    if (pathname === '/api/empresas/todas' && method === 'GET') {
+                                         // Não filtra por "ativo": esta lista alimenta o Gerenciador de Empresas,
+                                         // que precisa exibir também as empresas desativadas (registro mantido)
                                          const q = contaId
-                                           ? 'empresas?conta_id=eq.' + contaId + '&ativo=eq.1&order=nome.asc'
-                                                 : 'empresas?ativo=eq.1&order=nome.asc';
+                                           ? 'empresas?conta_id=eq.' + contaId + '&order=nome.asc'
+                                                 : 'empresas?order=nome.asc';
                                          const r = await sbFetch(q);
                                          return sendJson(res, 200, r.body || []);
                                    }

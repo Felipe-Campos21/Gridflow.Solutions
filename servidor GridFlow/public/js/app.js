@@ -2283,6 +2283,7 @@ class GridFlowApp {
       const empresas = await this.api('/api/empresas/todas');
       this._todasEmpresas = empresas;
       this._filtroMov = 'todos';
+      this._filtroAtivo = 'ativas';
       this._filtroRegime = '';
       this._filtroSegmento = '';
       this._filtroTexto = '';
@@ -2317,6 +2318,14 @@ class GridFlowApp {
                 Sem movimento
               </button>
             </div>
+            <div style="display:flex;gap:4px">
+              <button class="btn btn-sm emp-filtro-ativo" data-ativo="ativas"
+                style="padding:4px 12px;font-size:0.78rem;background:#3498db;color:white;border-color:#3498db">Ativas</button>
+              <button class="btn btn-sm emp-filtro-ativo" data-ativo="desativadas"
+                style="padding:4px 12px;font-size:0.78rem">Desativadas</button>
+              <button class="btn btn-sm emp-filtro-ativo" data-ativo="todas"
+                style="padding:4px 12px;font-size:0.78rem">Todas</button>
+            </div>
             <select id="emp-filtro-regime" style="padding:5px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.8rem">
               <option value="">Todos os Regimes</option>
               ${this._REGIMES.map(r => `<option value="${r}">${r}</option>`).join('')}
@@ -2339,8 +2348,8 @@ class GridFlowApp {
             <div style="display:flex;align-items:center;gap:10px">
               <button id="btn-excluir-selecionadas" class="btn btn-sm"
                 style="display:none;background:#fff5f5;border-color:#fed7d7;color:#c53030;font-size:0.78rem;display:none;align-items:center;gap:5px">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-                Excluir selecionadas (<span id="count-sel">0</span>)
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                Desativar selecionadas (<span id="count-sel">0</span>)
               </button>
               <span id="emp-count" style="font-size:0.8rem;color:#718096">-- de ${empresas.length}</span>
             </div>
@@ -2468,7 +2477,7 @@ class GridFlowApp {
 
   _renderEmpresaLinha(e) {
     return `
-      <div class="emp-row" style="display:grid;grid-template-columns:36px 80px 1fr 155px 130px 145px 110px 75px;align-items:center;padding:11px 20px;border-bottom:1px solid #f7f7f7">
+      <div class="emp-row" style="display:grid;grid-template-columns:36px 80px 1fr 155px 130px 145px 110px 75px;align-items:center;padding:11px 20px;border-bottom:1px solid #f7f7f7;${e.ativo ? '' : 'opacity:.55'}">
         <div><input type="checkbox" class="emp-check" data-id="${e.id}"></div>
         <div><span style="background:#edf2f7;color:#4a5568;padding:2px 8px;border-radius:4px;font-size:0.73rem;font-weight:700">${e.codigo_interno || '-'}</span></div>
         <div>
@@ -2484,9 +2493,11 @@ class GridFlowApp {
             style="padding:4px 8px;background:#fefcbf;border-color:#f6e05e;color:#744210;display:flex;align-items:center" title="Editar">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           </button>
-          <button class="btn btn-sm btn-excluir-emp" data-id="${e.id}" data-nome="${e.nome.replace(/"/g,'')}"
-            style="padding:4px 8px;background:#fff5f5;border-color:#fed7d7;color:#c53030;display:flex;align-items:center" title="Excluir">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          <button class="btn btn-sm btn-toggle-ativo-emp" data-id="${e.id}" data-nome="${e.nome.replace(/"/g,'')}" data-ativo="${e.ativo ? 1 : 0}"
+            style="padding:3px 9px;border-radius:12px;font-size:0.68rem;font-weight:700;display:flex;align-items:center;gap:4px;white-space:nowrap;
+            ${e.ativo ? 'background:#f0fdf4;border-color:#bbf7d0;color:#16a34a' : 'background:#f8fafc;border-color:#e2e8f0;color:#94a3b8'}"
+            title="${e.ativo ? 'Clique para desativar' : 'Clique para reativar'}">
+            <span style="width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0"></span>${e.ativo ? 'Ativa' : 'Desativada'}
           </button>
         </div>
       </div>`;
@@ -2495,7 +2506,8 @@ class GridFlowApp {
   _filtrarEmpresas() {
     const txt = this._filtroTexto.toLowerCase();
     return (this._todasEmpresas || []).filter(e => {
-      if (!e.ativo) return false;
+      if (this._filtroAtivo === 'ativas' && !e.ativo) return false;
+      if (this._filtroAtivo === 'desativadas' && e.ativo) return false;
       if (txt && !`${e.nome} ${e.codigo_interno} ${e.cnpj} ${e.municipio}`.toLowerCase().includes(txt)) return false;
       if (this._filtroMov === 'com' && !e.com_movimento) return false;
       if (this._filtroMov === 'sem' && e.com_movimento) return false;
@@ -2537,12 +2549,18 @@ class GridFlowApp {
       });
     });
 
-    document.querySelectorAll('.btn-excluir-emp').forEach(btn => {
+    document.querySelectorAll('.btn-toggle-ativo-emp').forEach(btn => {
       btn.addEventListener('click', async () => {
-        if (!confirm(`Excluir "${btn.dataset.nome}"?`)) return;
+        const ativoAtual = btn.dataset.ativo === '1';
+        const novoAtivo = ativoAtual ? 0 : 1;
+        const msg = ativoAtual
+          ? `Desativar "${btn.dataset.nome}"? Ela deixa de contar nas pendências e no % de progresso, mas o cadastro é mantido.`
+          : `Reativar "${btn.dataset.nome}"? Ela volta a contar nas pendências e no % de progresso.`;
+        if (!confirm(msg)) return;
         try {
-          await this.api(`/api/empresas/${btn.dataset.id}`, { method: 'DELETE' });
-          this._todasEmpresas = this._todasEmpresas.filter(e => e.id != btn.dataset.id);
+          await this.api(`/api/empresas/${btn.dataset.id}`, { method: 'PUT', body: JSON.stringify({ ativo: novoAtivo }) });
+          const emp = this._todasEmpresas.find(e => e.id == btn.dataset.id);
+          if (emp) emp.ativo = novoAtivo;
           this._renderizarLista();
         } catch (e) { alert('Erro: ' + e.message); }
       });
@@ -2685,6 +2703,18 @@ class GridFlowApp {
       });
     });
 
+    // Filtro de status (ativa/desativada)
+    document.querySelectorAll('.emp-filtro-ativo').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.emp-filtro-ativo').forEach(b => {
+          b.style.background = ''; b.style.color = ''; b.style.borderColor = '';
+        });
+        btn.style.background = '#3498db'; btn.style.color = 'white'; btn.style.borderColor = '#3498db';
+        this._filtroAtivo = btn.dataset.ativo;
+        this._renderizarLista();
+      });
+    });
+
     document.getElementById('emp-filtro-regime')?.addEventListener('change', e => {
       this._filtroRegime = e.target.value; this._renderizarLista();
     });
@@ -2696,6 +2726,7 @@ class GridFlowApp {
     document.getElementById('btn-limpar-filtros')?.addEventListener('click', () => {
       this._filtroTexto = '';
       this._filtroMov = 'todos';
+      this._filtroAtivo = 'ativas';
       this._filtroRegime = '';
       this._filtroSegmento = '';
       document.getElementById('emp-search').value = '';
@@ -2706,6 +2737,11 @@ class GridFlowApp {
       });
       const btnTodos = document.querySelector('.emp-filtro-mov[data-mov="todos"]');
       if (btnTodos) { btnTodos.style.background = '#3498db'; btnTodos.style.color = 'white'; btnTodos.style.borderColor = '#3498db'; }
+      document.querySelectorAll('.emp-filtro-ativo').forEach(b => {
+        b.style.background = ''; b.style.color = ''; b.style.borderColor = '';
+      });
+      const btnAtivas = document.querySelector('.emp-filtro-ativo[data-ativo="ativas"]');
+      if (btnAtivas) { btnAtivas.style.background = '#3498db'; btnAtivas.style.color = 'white'; btnAtivas.style.borderColor = '#3498db'; }
       this._renderizarLista();
     });
 
@@ -2714,13 +2750,13 @@ class GridFlowApp {
       document.querySelectorAll('.emp-check').forEach(cb => { cb.checked = e.target.checked; cb.dispatchEvent(new Event('change')); });
     });
 
-    // Excluir selecionadas
+    // Desativar selecionadas
     document.getElementById('btn-excluir-selecionadas')?.addEventListener('click', async () => {
       const ids = [...document.querySelectorAll('.emp-check:checked')].map(cb => cb.dataset.id);
-      if (!confirm(`Excluir ${ids.length} empresa(s)?`)) return;
+      if (!confirm(`Desativar ${ids.length} empresa(s)? Elas deixam de contar nas pendências e no % de progresso, mas o cadastro é mantido.`)) return;
       try {
-        await Promise.all(ids.map(id => this.api(`/api/empresas/${id}`, { method: 'DELETE' })));
-        this._todasEmpresas = this._todasEmpresas.filter(e => !ids.includes(String(e.id)));
+        await Promise.all(ids.map(id => this.api(`/api/empresas/${id}`, { method: 'PUT', body: JSON.stringify({ ativo: 0 }) })));
+        this._todasEmpresas.forEach(e => { if (ids.includes(String(e.id))) e.ativo = 0; });
         document.getElementById('btn-excluir-selecionadas').style.display = 'none';
         this._renderizarLista();
       } catch (e) { alert('Erro: ' + e.message); }
