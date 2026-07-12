@@ -1293,13 +1293,13 @@ const server = http.createServer(async (req, res) => {
                                          if (!contaId) return sendJson(res, 401, { erro: 'Não autenticado' });
                                          const body = await readBody(req);
                                          const { empresa_id, template_id, email_destino, variaveis, data_agendada, anexos, enviar_agora, assunto, corpo_html } = body;
-                                         if (!empresa_id || !email_destino || !data_agendada || !assunto || !corpo_html)
-                                               return sendJson(res, 400, { erro: 'Campos obrigatórios: empresa_id, email_destino, data_agendada, assunto, corpo_html' });
+                                         if (!email_destino || !data_agendada || !assunto || !corpo_html)
+                                               return sendJson(res, 400, { erro: 'Campos obrigatórios: email_destino, data_agendada, assunto, corpo_html' });
                                          const assuntoProcessado = processarTemplate(assunto, variaveis || {});
                                          const corpoProcessado = processarTemplate(corpo_html, variaveis || {});
                                          const r = await sbFetch('emails_agendados', {
                                                method: 'POST',
-                                               body: { conta_id: contaId, empresa_id, template_id: template_id || null, email_destino, assunto: assuntoProcessado, corpo_processado: corpoProcessado, variaveis_utilizadas: variaveis || {}, data_agendada, anexos: anexos || [], status: 'pendente' }
+                                               body: { conta_id: contaId, empresa_id: empresa_id || null, template_id: template_id || null, email_destino, assunto: assuntoProcessado, corpo_processado: corpoProcessado, variaveis_utilizadas: variaveis || {}, data_agendada, anexos: anexos || [], status: 'pendente' }
                                          });
                                          const registro = r.body?.[0] || {};
 

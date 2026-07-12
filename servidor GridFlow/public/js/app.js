@@ -5376,9 +5376,9 @@ class GridFlowApp {
               <textarea id="msg-corpo" required rows="6" placeholder="Escreva a mensagem aqui..." style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem;box-sizing:border-box;resize:vertical;font-family:inherit"></textarea>
             </div>
             <div>
-              <label style="display:block;font-size:0.82rem;font-weight:600;color:#4a5568;margin-bottom:4px">Empresa</label>
-              <select id="msg-select-empresa" required style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem">
-                <option value="">Selecione uma empresa...</option>
+              <label style="display:block;font-size:0.82rem;font-weight:600;color:#4a5568;margin-bottom:4px">Empresa <span style="color:#718096;font-weight:400">(opcional — só pra organizar o histórico, não envia nada pra ela)</span></label>
+              <select id="msg-select-empresa" style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem">
+                <option value="">Nenhuma (envio avulso / teste)</option>
               </select>
             </div>
             <div>
@@ -5564,7 +5564,7 @@ class GridFlowApp {
       const enviarAgora = document.getElementById('msg-enviar-agora').checked;
       const dataAgendada = document.getElementById('msg-data-agendada').value;
       const variaveis = this._coletarVariaveis();
-      if (!empresaId || !emailDestino || !assunto || !corpoHtml || (!enviarAgora && !dataAgendada))
+      if (!emailDestino || !assunto || !corpoHtml || (!enviarAgora && !dataAgendada))
         return alert('Preencha todos os campos obrigatórios.');
       const btn = document.getElementById('btn-agendar-email-submit');
       btn.disabled = true;
@@ -5574,7 +5574,7 @@ class GridFlowApp {
         const dataFinal = enviarAgora ? new Date().toISOString() : new Date(dataAgendada).toISOString();
         const resultado = await this.api('/api/agendar-email', {
           method: 'POST',
-          body: JSON.stringify({ template_id: templateId ? parseInt(templateId) : null, empresa_id: parseInt(empresaId), email_destino: emailDestino, assunto, corpo_html: corpoHtml, data_agendada: dataFinal, variaveis, anexos, enviar_agora: enviarAgora })
+          body: JSON.stringify({ template_id: templateId ? parseInt(templateId) : null, empresa_id: empresaId ? parseInt(empresaId) : null, email_destino: emailDestino, assunto, corpo_html: corpoHtml, data_agendada: dataFinal, variaveis, anexos, enviar_agora: enviarAgora })
         });
         if (enviarAgora) {
           alert(resultado.sucesso ? 'Email enviado com sucesso!' : `Falha ao enviar: ${resultado.erro_envio || 'erro desconhecido'}`);
@@ -5734,7 +5734,7 @@ class GridFlowApp {
           <tbody>
             ${emails.map(e => `
               <tr style="border-bottom:1px solid #f0f0f0">
-                <td style="padding:8px 10px;color:#2d3748">${e.empresas?.nome || e.empresa_id}</td>
+                <td style="padding:8px 10px;color:#2d3748">${e.empresas?.nome || (e.empresa_id ? e.empresa_id : '<span style="color:#a0aec0">— (avulso)</span>')}</td>
                 <td style="padding:8px 10px;color:#4a5568">${e.email_destino}</td>
                 <td style="padding:8px 10px;color:#4a5568;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${e.assunto}">${e.assunto}${e.anexos && e.anexos.length ? ` <span title="${e.anexos.length} anexo(s)">📎${e.anexos.length}</span>` : ''}</td>
                 <td style="padding:8px 10px"><span style="font-weight:700;color:${statusCor[e.status] || '#718096'}">${statusIcon[e.status] || ''} ${e.status}</span>${e.mensagem_erro ? `<br><span style="font-size:0.72rem;color:#a0aec0" title="${e.mensagem_erro}">Erro</span>` : ''}</td>
