@@ -74,7 +74,11 @@ class GridFlowApp {
     const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
     if (this.contaId) headers['X-Conta-ID'] = this.contaId;
     const res = await fetch(url, { ...options, headers });
-    if (!res.ok) throw new Error(`Erro ${res.status}`);
+    if (!res.ok) {
+      let msg = `Erro ${res.status}`;
+      try { const j = await res.json(); if (j && j.erro) msg = j.erro; } catch {}
+      throw new Error(msg);
+    }
     return res.json();
   }
 

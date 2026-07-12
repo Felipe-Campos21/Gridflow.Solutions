@@ -1301,6 +1301,10 @@ const server = http.createServer(async (req, res) => {
                                                method: 'POST',
                                                body: { conta_id: contaId, empresa_id: empresa_id || null, template_id: template_id || null, email_destino, assunto: assuntoProcessado, corpo_processado: corpoProcessado, variaveis_utilizadas: variaveis || {}, data_agendada, anexos: anexos || [], status: 'pendente' }
                                          });
+                                         if (r.status >= 400) {
+                                               console.error('[Agendar Email] Falha ao inserir em emails_agendados:', JSON.stringify(r.body));
+                                               return sendJson(res, 400, { erro: (r.body && (r.body.message || r.body.details)) || 'Erro ao agendar email' });
+                                         }
                                          const registro = r.body?.[0] || {};
 
                                          if (enviar_agora && registro.id) {
