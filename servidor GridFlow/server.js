@@ -87,17 +87,45 @@ function processarTemplate(bodyHtml, variaveis) {
     return resultado;
 }
 
-function enviarEmailSmtp(emailObj) {
+// Baixa um arquivo de uma URL pública (ex.: Supabase Storage) para anexar ao email
+function baixarArquivo(fileUrl) {
+    return new Promise((resolve, reject) => {
+        https.get(fileUrl, res => {
+            if (res.statusCode >= 400) { reject(new Error('HTTP ' + res.statusCode)); return; }
+            const chunks = [];
+            res.on('data', c => chunks.push(c));
+            res.on('end', () => resolve(Buffer.concat(chunks)));
+        }).on('error', reject);
+    });
+}
+
+async function montarAnexosResend(anexos) {
+    if (!Array.isArray(anexos) || !anexos.length) return undefined;
+    const resultado = [];
+    for (const a of anexos) {
+        try {
+            const buf = await baixarArquivo(a.url);
+            resultado.push({ filename: a.nome || 'anexo', content: buf.toString('base64') });
+        } catch (e) {
+            console.error('[Email] Falha ao baixar anexo', a.nome, '-', e.message);
+        }
+    }
+    return resultado.length ? resultado : undefined;
+}
+
+async function enviarEmailSmtp(emailObj) {
+    if (!RESEND_API_KEY) return { ok: false, erro: 'RESEND_API_KEY não configurada' };
+
+    const attachments = await montarAnexosResend(emailObj.anexos);
+    const body = JSON.stringify({
+        from: `GridFlow Solutions <${HOSTINGER_EMAIL}>`,
+        to: [emailObj.email_destino],
+        subject: emailObj.assunto,
+        html: emailObj.corpo_processado,
+        ...(attachments ? { attachments } : {})
+    });
+
     return new Promise(resolve => {
-        if (!RESEND_API_KEY) { resolve({ ok: false, erro: 'RESEND_API_KEY não configurada' }); return; }
-
-        const body = JSON.stringify({
-            from: `GridFlow Solutions <${HOSTINGER_EMAIL}>`,
-            to: [emailObj.email_destino],
-            subject: emailObj.assunto,
-            html: emailObj.corpo_processado
-        });
-
         const req = https.request({
             hostname: 'api.resend.com',
             path: '/emails',
@@ -1264,7 +1292,7 @@ const server = http.createServer(async (req, res) => {
                                    if (pathname === '/api/agendar-email' && method === 'POST') {
                                          if (!contaId) return sendJson(res, 401, { erro: 'Não autenticado' });
                                          const body = await readBody(req);
-                                         const { empresa_id, template_id, email_destino, variaveis, data_agendada } = body;
+                                         const { empresa_id, template_id, email_destino, variaveis, data_agendada, anexos, enviar_agora } = body;
                                          if (!empresa_id || !template_id || !email_destino || !data_agendada)
                                                return sendJson(res, 400, { erro: 'Campos obrigatórios: empresa_id, template_id, email_destino, data_agendada' });
                                          const templateR = await sbFetch(`templates_email?id=eq.${template_id}&conta_id=eq.${contaId}`);
@@ -1275,9 +1303,20 @@ const server = http.createServer(async (req, res) => {
                                          const corpoProcessado = processarTemplate(template.corpo_html, variaveis || {});
                                          const r = await sbFetch('emails_agendados', {
                                                method: 'POST',
-                                               body: { conta_id: contaId, empresa_id, template_id, email_destino, assunto: assuntoProcessado, corpo_processado: corpoProcessado, variaveis_utilizadas: variaveis || {}, data_agendada, status: 'pendente' }
+                                               body: { conta_id: contaId, empresa_id, template_id, email_destino, assunto: assuntoProcessado, corpo_processado: corpoProcessado, variaveis_utilizadas: variaveis || {}, data_agendada, anexos: anexos || [], status: 'pendente' }
                                          });
-                                         return sendJson(res, 201, r.body?.[0] || {});
+                                         const registro = r.body?.[0] || {};
+
+                                         if (enviar_agora && registro.id) {
+                                               const resultado = await enviarEmailSmtp({ email_destino, assunto: assuntoProcessado, corpo_processado: corpoProcessado, anexos: anexos || [] });
+                                               const patch = resultado.ok
+                                                     ? { status: 'enviado', data_envio_real: new Date().toISOString(), tentativas: 1 }
+                                                     : { tentativas: 1, mensagem_erro: resultado.erro };
+                                               await sbFetch(`emails_agendados?id=eq.${registro.id}`, { method: 'PATCH', body: { ...patch, atualizado_em: new Date().toISOString() } });
+                                               return sendJson(res, 201, { ...registro, ...patch, enviado_agora: true, sucesso: resultado.ok, erro_envio: resultado.ok ? null : resultado.erro });
+                                         }
+
+                                         return sendJson(res, 201, registro);
                                    }
 
                                    if (pathname === '/api/historico-emails' && method === 'GET') {

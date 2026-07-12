@@ -5377,9 +5377,22 @@ class GridFlowApp {
               <label style="display:block;font-size:0.82rem;font-weight:600;color:#4a5568;margin-bottom:4px">Email Destino</label>
               <input type="email" id="msg-email-destino" required placeholder="cliente@empresa.com.br" style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem;box-sizing:border-box">
             </div>
-            <div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <label class="toggle-ativo">
+                <input id="msg-enviar-agora" type="checkbox">
+                <span class="toggle-slider"></span>
+              </label>
+              <span style="font-size:0.88rem;color:#4a5568">Enviar agora
+                <span style="color:#718096;font-size:0.78rem">(sem esperar a data agendada)</span></span>
+            </div>
+            <div id="msg-data-wrap">
               <label style="display:block;font-size:0.82rem;font-weight:600;color:#4a5568;margin-bottom:4px">Data e Hora de Envio</label>
               <input type="datetime-local" id="msg-data-agendada" required style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.88rem;box-sizing:border-box">
+            </div>
+            <div>
+              <label style="display:block;font-size:0.82rem;font-weight:600;color:#4a5568;margin-bottom:4px">Anexos <span style="color:#718096;font-weight:400">(PDF, planilhas, imagens...)</span></label>
+              <input type="file" id="msg-anexos-input" multiple style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.85rem;box-sizing:border-box">
+              <div id="msg-anexos-preview" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;min-height:0"></div>
             </div>
             <div id="msg-variaveis-container" style="display:none">
               <label style="display:block;font-size:0.82rem;font-weight:600;color:#4a5568;margin-bottom:6px">Variáveis do Template</label>
@@ -5390,9 +5403,9 @@ class GridFlowApp {
               <div style="font-size:0.85rem;color:#4a5568;margin-bottom:6px"><strong>Assunto:</strong> <span id="msg-preview-assunto"></span></div>
               <div id="msg-preview-corpo" style="font-size:0.85rem;color:#4a5568;border-top:1px solid #e2e8f0;padding-top:8px;margin-top:6px"></div>
             </div>
-            <button type="submit" style="display:flex;align-items:center;gap:7px;padding:10px 20px;background:#27ae60;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.92rem;align-self:flex-start">
+            <button type="submit" id="btn-agendar-email-submit" style="display:flex;align-items:center;gap:7px;padding:10px 20px;background:#27ae60;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.92rem;align-self:flex-start">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-              Agendar Email
+              <span id="btn-agendar-email-txt">Agendar Email</span>
             </button>
           </form>
         </div>
@@ -5442,6 +5455,30 @@ class GridFlowApp {
   }
 
   _configurarEventosMensagens() {
+    this._msgAnexosPendentes = [];
+    this._msgAnexosSalvos = [];
+
+    // Enviar agora: dispensa a data agendada
+    const dataInput = document.getElementById('msg-data-agendada');
+    const dataWrap  = document.getElementById('msg-data-wrap');
+    const btnTxt    = document.getElementById('btn-agendar-email-txt');
+    document.getElementById('msg-enviar-agora')?.addEventListener('change', e => {
+      const agora = e.target.checked;
+      dataWrap.style.display = agora ? 'none' : '';
+      dataInput.required = !agora;
+      btnTxt.textContent = agora ? 'Enviar Agora' : 'Agendar Email';
+    });
+
+    // Anexos
+    const renderMsgAnexos = () => this._renderAnexosPreview('msg-anexos-preview', this._msgAnexosSalvos, this._msgAnexosPendentes,
+      (i) => { this._msgAnexosPendentes.splice(i, 1); renderMsgAnexos(); },
+      (i) => { this._msgAnexosSalvos.splice(i, 1); renderMsgAnexos(); });
+    document.getElementById('msg-anexos-input')?.addEventListener('change', e => {
+      this._msgAnexosPendentes.push(...e.target.files);
+      e.target.value = '';
+      renderMsgAnexos();
+    });
+
     // SubAbas
     document.querySelectorAll('.msg-subtab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -5512,21 +5549,37 @@ class GridFlowApp {
       const templateId = document.getElementById('msg-select-template').value;
       const empresaId = document.getElementById('msg-select-empresa').value;
       const emailDestino = document.getElementById('msg-email-destino').value;
+      const enviarAgora = document.getElementById('msg-enviar-agora').checked;
       const dataAgendada = document.getElementById('msg-data-agendada').value;
       const variaveis = this._coletarVariaveis();
-      if (!templateId || !empresaId || !emailDestino || !dataAgendada)
+      if (!templateId || !empresaId || !emailDestino || (!enviarAgora && !dataAgendada))
         return alert('Preencha todos os campos obrigatórios.');
+      const btn = document.getElementById('btn-agendar-email-submit');
+      btn.disabled = true;
       try {
-        await this.api('/api/agendar-email', {
+        const novosAnexos = await this._uploadPendentes(this._msgAnexosPendentes, 'emails');
+        const anexos = [...this._msgAnexosSalvos, ...novosAnexos];
+        const dataFinal = enviarAgora ? new Date().toISOString() : new Date(dataAgendada).toISOString();
+        const resultado = await this.api('/api/agendar-email', {
           method: 'POST',
-          body: JSON.stringify({ template_id: parseInt(templateId), empresa_id: parseInt(empresaId), email_destino: emailDestino, data_agendada: new Date(dataAgendada).toISOString(), variaveis })
+          body: JSON.stringify({ template_id: parseInt(templateId), empresa_id: parseInt(empresaId), email_destino: emailDestino, data_agendada: dataFinal, variaveis, anexos, enviar_agora: enviarAgora })
         });
-        alert('Email agendado com sucesso!');
+        if (enviarAgora) {
+          alert(resultado.sucesso ? 'Email enviado com sucesso!' : `Falha ao enviar: ${resultado.erro_envio || 'erro desconhecido'}`);
+        } else {
+          alert('Email agendado com sucesso!');
+        }
         document.getElementById('form-agendar-email').reset();
+        document.getElementById('msg-data-wrap').style.display = '';
+        document.getElementById('btn-agendar-email-txt').textContent = 'Agendar Email';
         document.getElementById('msg-variaveis-container').style.display = 'none';
         document.getElementById('msg-preview-box').style.display = 'none';
+        this._msgAnexosPendentes = [];
+        this._msgAnexosSalvos = [];
+        renderMsgAnexos();
         await this._carregarHistoricoEmails();
       } catch (err) { alert('Erro ao agendar: ' + err.message); }
+      finally { btn.disabled = false; }
     });
   }
 
@@ -5667,7 +5720,7 @@ class GridFlowApp {
               <tr style="border-bottom:1px solid #f0f0f0">
                 <td style="padding:8px 10px;color:#2d3748">${e.empresas?.nome || e.empresa_id}</td>
                 <td style="padding:8px 10px;color:#4a5568">${e.email_destino}</td>
-                <td style="padding:8px 10px;color:#4a5568;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${e.assunto}">${e.assunto}</td>
+                <td style="padding:8px 10px;color:#4a5568;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${e.assunto}">${e.assunto}${e.anexos && e.anexos.length ? ` <span title="${e.anexos.length} anexo(s)">📎${e.anexos.length}</span>` : ''}</td>
                 <td style="padding:8px 10px"><span style="font-weight:700;color:${statusCor[e.status] || '#718096'}">${statusIcon[e.status] || ''} ${e.status}</span>${e.mensagem_erro ? `<br><span style="font-size:0.72rem;color:#a0aec0" title="${e.mensagem_erro}">Erro</span>` : ''}</td>
                 <td style="padding:8px 10px;color:#718096">${new Date(e.data_agendada).toLocaleString('pt-BR')}</td>
                 <td style="padding:8px 10px;color:#718096">${e.data_envio_real ? new Date(e.data_envio_real).toLocaleString('pt-BR') : '—'}</td>
